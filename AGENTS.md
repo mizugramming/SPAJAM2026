@@ -29,10 +29,10 @@
 3. lib/ 以下の現在状態を確認
 4. Firebase等の導入状況を確認
 5. 本AGENTS.mdの確定仕様を確認
-6. 最終アーキテクチャを決定
-7. 4人の担当境界を決定
-8. 共通部分を確定
-9. その後に各担当へ分割
+6. セクション26の採用済みアーキテクチャとの差分を確認
+7. TASKS.mdの担当境界と対象ファイルを確認
+8. 共通部分の変更が必要なら、Feature作業より先に共通担当へ集約
+9. その後に各担当の作業を開始
 ```
 
 **4人が同じファイルを同時編集する構成を避けること。**
@@ -481,7 +481,9 @@ MVPではホストが
 - 区分
 - 趣味
 - 本人が持ち込んだTopic
-- セッション中に使用されたTopic
+- その参加者がSelectorとして選び、完了したTopic
+
+Topic履歴は `RoundRecord.selectorId` と `RoundRecord.topicId` を使ってParticipantへ関連付ける。全員共通のTopic一覧ではなく、各参加者が選んだTopicをラウンド順に表示する。
 
 例:
 
@@ -583,23 +585,41 @@ AI寿司大将
 - Conversation画面では操作を最低限にする
 - 文字を読む時間よりリアル会話の時間を長くする
 
+## 画面サイズの扱い
+
+- 横幅600px以下のスマホ画面では、端末の画面全体を使用する
+- 横幅600pxを超えるWeb / Desktop / Tablet表示は、動作確認用として中央に最大390×844のスマホ枠を表示する
+- 各Featureはブラウザ全体の幅ではなく、Featureへ渡された制約内でレイアウトする
+- 320px程度の狭い端末でも、操作不能なはみ出しを発生させない
+- ノッチやホームインジケータは `SafeArea` で考慮する
+
 ---
 
 # 21. 技術前提
 
 ## Flutter
 
-現在Flutterプロジェクトとして作成されている。
+現在は、以下の共通基盤まで実装されている。
 
-初期状態では `lib/main.dart` を中心とした最小構成。
+- `features/` 単位の画面・Widget分割
+- `models/`、`providers/`、`services/`、`core/` の責務分離
+- Provider / ChangeNotifierによる状態管理
+- Service interfaceとMock実装の分離
+- named routeによる4画面＋待機画面の遷移
+- Material 3を基盤とした共通Theme
+- スマホ縦向き固定と、Web / Desktop向けスマホ枠プレビュー
 
-AIエージェントは、実際のリポジトリを確認してから適切なディレクトリ構成へ再編すること。
+構成を変更する場合は、実際のリポジトリと `pubspec.yaml` を確認し、4人の担当境界を崩さないこと。
 
 ---
 
-# 22. バックエンド候補
+# 22. バックエンド方針と現在地
 
-MVPではFirebaseを有力候補とする。
+現在はService interfaceとMock実装のみであり、Firebaseのpackage・設定ファイル・初期化処理は未導入。
+
+`MockRoomService` と端末内のProvider状態は同一プロセス内でしか共有されないため、これだけでは4端末同期のMVP完了とはしない。
+
+複数端末同期にはFirebaseを採用候補とする。
 
 想定:
 
@@ -609,9 +629,7 @@ Cloud Firestore
 Cloud Functions
 ```
 
-ただし、
-
-**導入前に現在のpubspec.yaml・Firebase設定状態・開発時間を確認し、最終判断すること。**
+導入担当者は、作業前に `pubspec.yaml`・Firebase設定状態・残り開発時間を確認すること。Firebase以外を採用する場合も、Room・参加者・Conversation状態を複数端末へリアルタイム同期できることを必須条件とする。
 
 採用する場合、Anonymous Authenticationを推奨する。
 
@@ -702,78 +720,118 @@ SPAJAM本番ではネットワーク障害が起きても主要体験をデモ�
 
 ---
 
-# 26. 次のAIが決定すべき事項
+# 26. 採用済み構成と残る共通基盤
 
 ここからが重要。
 
-この `AGENTS.md` を読んだAIは、下記を**実際のリポジトリを確認してから確定**すること。
+以下を現在の基準とする。変更時は**実際のリポジトリを確認し、共通基盤担当と合意してから**更新すること。
 
 ## A. Flutterアーキテクチャ
 
-以下を決める。
+採用済み:
 
-- Feature単位のディレクトリ構成
-- Model配置
-- Repository / Service配置
-- Controller / ViewModel / Provider配置
-- 共通Widget配置
-- Theme配置
-- Route管理
-- State Management
-- Firebaseアクセス層
-- AI APIアクセス層
+- Feature UI: `lib/features/<feature>/`
+- 共通Model: `lib/models/`
+- 状態管理: `lib/providers/`
+- データアクセス契約と実装: `lib/services/`
+- Theme / utility: `lib/core/`
+- DI: `lib/main.dart`
+- named route定義: `lib/app.dart`
+- Feature固有Widget: 各Featureの `widgets/`
 
-**このAGENTS.mdに記載されていない構成を採用してよい。**
+未実装:
 
-ただし4人の並列開発に適していること。
+- Firebaseアクセス実装と初期化
+- Cloud Functions等を利用するAI API実装
+- ModelのFirestore serialize / deserialize
 
 ---
 
 ## B. 状態管理方式
 
-候補例:
+`provider` packageの `Provider` / `ChangeNotifierProvider` を採用済み。
 
-```text
-Riverpod
-Provider
-Bloc
-その他
-```
-
-現在のdependencyとチーム習熟度、MVP規模から最適なものを決める。
-
-不必要に複雑な方式は避ける。
+MVP中にRiverpodやBlocへ全面移行しない。状態の責務が増えた場合も、まず既存ProviderまたはServiceの拡張で対応する。
 
 ---
 
 ## C. Firestore Schema
 
-必要な概念:
+以下を採用予定Schemaとする。現時点では未実装。
 
 ```text
-Room
-Participant
-Topic
-Conversation Session / Event
+rooms/{roomCode}
+  expectedCount: number
+  status: "waiting" | "inProgress" | "ended"
+  hostUid: string
+  currentRound: number
+  currentSelectorUid: string | null
+  activeTopicId: string | null
+  createdAt: timestamp
+  updatedAt: timestamp
+
+rooms/{roomCode}/participants/{uid}
+  name: string
+  category: "student" | "worker" | "other"
+  hobbies: string[]
+  submittedTopic: string
+  ready: boolean
+  selectionCount: number
+  joinedAt: timestamp
+
+rooms/{roomCode}/topics/{topicId}
+  text: string
+  source: "user" | "ai"
+  contributedByUid: string | null
+  used: boolean
+  usedInRound: number | null
+  createdAt: timestamp
+
+rooms/{roomCode}/rounds/{roundId}
+  round: number
+  selectorUid: string
+  topicId: string
+  selectedAt: timestamp
+  completedAt: timestamp | null
 ```
 
-は維持する。
+- Room codeをRoom document IDにする
+- Participant document IDにはAnonymous AuthenticationのUIDを使用する
+- Result画面の表示履歴は `rounds` を正とし、`selectorUid` と `topicId` の対応を保存する
+- Topic確定、使用済み化、Round更新、次Selector決定はtransactionで一貫して更新する
+- 参加・開始・Topic選択・終了の権限をSecurity Rulesで検証する
 
-ただしCollection構造やField名はAI側で最終設計してよい。
+現在のDart `Room` は `hostUid` を持たず、参加者をListとして保持している。Firestore実装時は画面側へ同じ読み取り形を提供しつつ、保存時は上記subcollectionへ分離する。Model変更とserialize / deserialize追加は共通基盤担当が行う。
 
 ---
 
 ## D. 画面間インターフェース
 
-各Feature間で、
+現在の契約:
 
-- 何を引数として渡すか
-- 何をFirestoreから取得するか
-- どの状態を共有するか
+```text
+Room → Profile
+  Route引数: RoomArgs(isHost, expectedCount?, roomCode?)
 
-を確定する。
+Profile → Waiting
+  Route引数: なし
+  ProfileProvider: この端末のParticipant
+  RoomProvider: 作成または参加したRoom
 
-画面間で巨大Objectを渡し続ける設計は避ける。
+Waiting → Conversation
+  Route引数: なし
+  RoomProvider: Room / Participant一覧 / status
+  ProfileProvider: この端末のuid
+
+Conversation → Result
+  Route引数: なし
+  RoomProvider: Participant一覧
+  ConversationProvider: Topic一覧 / RoundRecord履歴
+```
+
+Firestore導入後もRouteへRoom全体を渡さず、`roomCode` と認証UIDを基準にService / Providerから購読する。アプリ再起動・deep link対応が必要になった場合は、現在Room codeを保持するSession用Providerを共通基盤として追加する。
+
+現在のMockでは `participants.first` をホスト扱いしている暫定実装である。本番接続時は `rooms/{roomCode}.hostUid` を正として判定する。
 
 ---
 
@@ -803,9 +861,9 @@ Conversation Session / Event
 
 ---
 
-# 28. 次のAIが必ず出力するもの
+# 28. 共通基盤を変更する際の必須成果物
 
-このリポジトリを設計するAIは、実装開始前に以下を出力すること。
+初回設計時、またはFirebase導入などで共通基盤・Feature間契約を変更する担当者は、実装開始前に以下を確認・更新すること。個別Feature内だけの変更で、確定済み設計を毎回作り直す必要はない。
 
 ---
 
@@ -1031,23 +1089,25 @@ routes
 
 ### Phase 0
 
-1人、またはペアで共通基盤を作る。
+1人、またはペアで共通基盤を作る。現在の進捗は以下。
 
 ```text
-Folder Structure
-Models
-Routes
-Theme最低限
-Firebase Initialize
-Dependencies
-空Page
+[完了] Folder Structure
+[完了] Models（端末内Mock用）
+[完了] Routes
+[完了] Theme
+[完了] Service interface / Mock
+[完了] 4画面＋待機サブ画面
+[未完] Firebase Initialize / Firebase実装
+[未完] Firestore用Model変換
+[未完] Authentication / Security Rules
 ```
 
-ここを先にmainへmerge。
+未完の共通基盤はFeature branch上で個別に作らず、担当者と契約を決めた共通branchで実装して先に統合先へmergeする。
 
 ### Phase 1
 
-そのcommitを全員pull。
+共通基盤のcommitを全員pull。
 
 ### Phase 2
 
@@ -1111,20 +1171,59 @@ AI API失敗
 
 AI失敗時は固定Topicで継続すること。
 
+## 最低限の検証
+
+```text
+flutter analyze --no-pub
+flutter test --no-pub
+```
+
+- Widget testでは少なくとも320×568と390×844を確認する
+- Web / Desktopの確認では、横長画面内に390×844以下のスマホ枠で表示されることを確認する
+- Android / iOSの統合完了判定は、実機またはemulatorの複数台で同じRoomへ接続して行う
+- Web buildや単一プロセスのMock通過だけを、複数端末同期の証明にしない
+
 ---
 
 # 34. 現在のリポジトリ状態
 
-元のプロジェクトはFlutterの標準構成に近く、
+2026-09-07監査時点の `lib/` は以下。
 
 ```text
 lib/
-└── main.dart
+├── app.dart
+├── main.dart
+├── core/
+│   ├── theme/app_theme.dart
+│   └── utils/room_code.dart
+├── features/
+│   ├── room/room_screen.dart
+│   ├── profile/
+│   │   ├── profile_input_screen.dart
+│   │   └── waiting_room_screen.dart
+│   ├── conversation/
+│   │   ├── conversation_screen.dart
+│   │   └── widgets/
+│   └── result/
+│       ├── result_screen.dart
+│       └── widgets/
+├── models/
+│   ├── participant.dart
+│   ├── room.dart
+│   ├── round_record.dart
+│   └── topic.dart
+├── providers/
+│   ├── conversation_provider.dart
+│   ├── profile_provider.dart
+│   └── room_provider.dart
+└── services/
+    ├── ai_topic_service.dart
+    ├── mock_ai_topic_service.dart
+    ├── mock_room_service.dart
+    └── room_service.dart
 ```
 
-が中心。
-
-そのため、4人開発開始前に `lib/` 以下を整理する必要がある。
+Feature分割・Provider・Service interface・Theme・route・Mockによる単体フローは実装済み。Firebase、複数端末同期、Authentication、Security Rulesは未実装。
 
 現在の全ツリーは実際のリポジトリから再確認すること。
 
@@ -1147,19 +1246,19 @@ lib/
 
 # 36. 次のAIへの最終指示
 
-この `AGENTS.md` を読んだら、ただちにコードを書き始めず、まず現在のリポジトリを調査してください。
+この `AGENTS.md` を読んだら、ただちにコードを書き始めず、まず現在のリポジトリと `TASKS.md` を調査してください。セクション21・26・34の採用済み構成を基準に、実装との差分がある場合は文書も更新します。
 
-その後、次の順番で回答・作業してください。
+共通基盤またはFeature間契約を変更する場合は、次の順番で回答・作業してください。個別Feature内で完結する作業は、担当境界と既存契約を確認したうえで該当実装・テストへ進んで構いません。
 
 ```text
 STEP 1
 現在のリポジトリ状態を要約
 
 STEP 2
-採用する技術構成を提案
+採用済み技術構成との差分を提案
 
 STEP 3
-最終lib/ディレクトリ構成を確定
+必要な場合のみlib/ディレクトリ構成を更新
 
 STEP 4
 共通Model / Service / Routeを確定
@@ -1177,7 +1276,7 @@ STEP 8
 Git Branch / Merge順序を決定
 
 STEP 9
-全員が開発開始できる状態になったことを確認
+全員が安全に開発を継続できる状態になったことを確認
 
 STEP 10
 必要であれば共通基盤だけ先に実装

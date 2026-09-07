@@ -11,12 +11,9 @@ import 'services/mock_ai_topic_service.dart';
 import 'services/mock_room_service.dart';
 import 'services/room_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   // TODO(Firebase): flutterfire configure 実行後、ここで await Firebase.initializeApp()
   // を呼び、下のRoomService/AiTopicServiceをFirestore/Cloud Functions実装に差し替える。
   runApp(const AppRoot());
@@ -35,11 +32,14 @@ class AppRoot extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProxyProvider<RoomService, RoomProvider>(
           create: (context) => RoomProvider(context.read<RoomService>()),
-          update: (context, roomService, previous) => previous ?? RoomProvider(roomService),
+          update: (context, roomService, previous) =>
+              previous ?? RoomProvider(roomService),
         ),
         ChangeNotifierProxyProvider<AiTopicService, ConversationProvider>(
-          create: (context) => ConversationProvider(context.read<AiTopicService>()),
-          update: (context, aiTopicService, previous) => previous ?? ConversationProvider(aiTopicService),
+          create: (context) =>
+              ConversationProvider(context.read<AiTopicService>()),
+          update: (context, aiTopicService, previous) =>
+              previous ?? ConversationProvider(aiTopicService),
         ),
       ],
       child: const KaiwaApp(),

@@ -19,6 +19,8 @@ class ConversationProvider extends ChangeNotifier {
 
   List<Topic> _topics = [];
   List<Topic> get topics => List.unmodifiable(_topics);
+  List<Topic> get availableTopics =>
+      List.unmodifiable(_topics.where((topic) => !topic.used));
 
   Topic? _openedTopic;
   Topic? get openedTopic => _openedTopic;
@@ -29,18 +31,45 @@ class ConversationProvider extends ChangeNotifier {
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
+
+  Object? _initializationError;
+  Object? get initializationError => _initializationError;
+
   Future<void> initialize(List<Participant> participants) async {
-    if (_isInitialized) return;
-    _isInitialized = true;
-    _topics = await _aiTopicService.generateTopics(participants: participants);
+    if (_isInitialized || _isLoading) return;
+
+    _isLoading = true;
+    _initializationError = null;
     notifyListeners();
+
+    try {
+      _topics = await _aiTopicService.generateTopics(
+        participants: participants,
+      );
+      _isInitialized = true;
+    } catch (error) {
+      _isInitialized = false;
+      _initializationError = error;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   /// 選択回数が最小の参加者群から、可能であれば直前セレクターを除外してランダムに選ぶ。
   /// (AGENTS.md セクション12: 選択回数が少ない人を優先 → 同数ならランダム → 直前の人は可能な限り避ける)
-  Participant pickNextSelector(List<Participant> participants, {String? excludeId}) {
-    final minCount = participants.map((p) => p.selectionCount).reduce((a, b) => a < b ? a : b);
-    var candidates = participants.where((p) => p.selectionCount == minCount).toList();
+  Participant pickNextSelector(
+    List<Participant> participants, {
+    String? excludeId,
+  }) {
+    final minCount = participants
+        .map((p) => p.selectionCount)
+        .reduce((a, b) => a < b ? a : b);
+    var candidates = participants
+        .where((p) => p.selectionCount == minCount)
+        .toList();
     if (candidates.length > 1 && excludeId != null) {
       final withoutLast = candidates.where((p) => p.id != excludeId).toList();
       if (withoutLast.isNotEmpty) candidates = withoutLast;
@@ -49,7 +78,12 @@ class ConversationProvider extends ChangeNotifier {
   }
 
   void openTopic(Topic topic) {
-    _openedTopic = topic;
+    if (_openedTopic != null) return;
+    final matches = _topics.where(
+      (candidate) => candidate.id == topic.id && !candidate.used,
+    );
+    if (matches.isEmpty) return;
+    _openedTopic = matches.first;
     notifyListeners();
   }
 
@@ -59,10 +93,29 @@ class ConversationProvider extends ChangeNotifier {
 
     final index = _topics.indexWhere((t) => t.id == opened.id);
     if (index != -1) {
-      _topics[index] = opened.copyWith(used: true, usedInRound: room.currentRound);
+      _topics[index] = opened.copyWith(
+        used: true,
+        usedInRound: room.currentRound,
+      );
     }
-    _history.add(RoundRecord(round: room.currentRound, selectorId: selectorId, topicId: opened.id));
+    _history.add(
+      RoundRecord(
+        round: room.currentRound,
+        selectorId: selectorId,
+        topicId: opened.id,
+      ),
+    );
     _openedTopic = null;
+    notifyListeners();
+  }
+
+  void reset() {
+    _topics = [];
+    _openedTopic = null;
+    _history.clear();
+    _isInitialized = false;
+    _isLoading = false;
+    _initializationError = null;
     notifyListeners();
   }
 }

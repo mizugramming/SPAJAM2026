@@ -4,11 +4,33 @@ import 'package:provider/provider.dart';
 import '../../models/participant.dart';
 import '../../providers/conversation_provider.dart';
 import '../../providers/room_provider.dart';
+import 'widgets/participant_profile_card.dart';
+import 'widgets/result_page_indicator.dart';
 
-class ResultScreen extends StatelessWidget {
+class ResultScreen extends StatefulWidget {
   static const routeName = '/result';
 
   const ResultScreen({super.key});
+
+  @override
+  State<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends State<ResultScreen> {
+  late final PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.88);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,77 +41,92 @@ class ResultScreen extends StatelessWidget {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final results = _buildParticipantResults(
+      participants: room.participants,
+      conversation: conversation,
+    );
+
+    if (results.isEmpty) {
+      return const Scaffold(
+        body: SafeArea(child: Center(child: Text('参加者情報がありません'))),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('会輪おつかれさまでした')),
       body: SafeArea(
-        child: PageView(
-          controller: PageController(viewportFraction: 0.86),
+        child: Column(
           children: [
-            for (final participant in room.participants)
-              _ProfileCard(
-                participant: participant,
-                usedTopics: conversation.history
-                    .where((record) => record.selectorId == participant.id)
-                    .map((record) => conversation.topics.firstWhere((t) => t.id == record.topicId).text)
-                    .toList(),
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: results.length,
+                onPageChanged: (index) => setState(() => _currentPage = index),
+                itemBuilder: (context, index) {
+                  final result = results[index];
+                  return AnimatedBuilder(
+                    animation: _pageController,
+                    builder: (context, child) {
+                      var page = _currentPage.toDouble();
+                      if (_pageController.hasClients &&
+                          _pageController.position.hasContentDimensions) {
+                        page = _pageController.page ?? page;
+                      }
+                      final distance = (page - index).abs().clamp(0.0, 1.0);
+                      final scale = 1 - (distance * 0.05);
+                      final verticalOffset = distance * 12;
+
+                      return Transform.translate(
+                        offset: Offset(0, verticalOffset),
+                        child: Transform.scale(scale: scale, child: child),
+                      );
+                    },
+                    child: ParticipantProfileCard(
+                      participant: result.participant,
+                      selectedTopics: result.selectedTopics,
+                    ),
+                  );
+                },
               ),
+            ),
+            ResultPageIndicator(
+              currentIndex: _currentPage,
+              pageCount: results.length,
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
+  }
+
+  List<_ParticipantResult> _buildParticipantResults({
+    required List<Participant> participants,
+    required ConversationProvider conversation,
+  }) {
+    final topicTextById = {
+      for (final topic in conversation.topics) topic.id: topic.text,
+    };
+
+    return [
+      for (final participant in participants)
+        _ParticipantResult(
+          participant: participant,
+          selectedTopics: conversation.history
+              .where((record) => record.selectorId == participant.id)
+              .map((record) => topicTextById[record.topicId])
+              .whereType<String>()
+              .toList(),
+        ),
+    ];
   }
 }
 
-class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.participant, required this.usedTopics});
+class _ParticipantResult {
+  const _ParticipantResult({
+    required this.participant,
+    required this.selectedTopics,
+  });
 
   final Participant participant;
-  final List<String> usedTopics;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [BoxShadow(color: Colors.black.withAlpha(38), blurRadius: 12, offset: const Offset(0, 4))],
-        ),
-        child: ListView(
-          children: [
-            Text(
-              participant.name,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(participant.category.label, textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            if (participant.hobbies.isNotEmpty) ...[
-              const Text('趣味', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [for (final hobby in participant.hobbies) Chip(label: Text(hobby))],
-              ),
-              const SizedBox(height: 20),
-            ],
-            const Text('持ち込んだネタ', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(participant.submittedTopic.isEmpty ? 'なし' : participant.submittedTopic),
-            const SizedBox(height: 20),
-            const Text('今日出てきたネタ', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            if (usedTopics.isEmpty)
-              const Text('なし')
-            else
-              for (final topic in usedTopics) Text('・$topic'),
-          ],
-        ),
-      ),
-    );
-  }
+  final List<String> selectedTopics;
 }

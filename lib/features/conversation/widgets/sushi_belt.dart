@@ -7,10 +7,7 @@ import 'sushi_capsule.dart';
 
 /// 回転寿司レーンの設定
 class _LaneConfig {
-  const _LaneConfig({
-    required this.radiusXFactor,
-    required this.radiusYFactor,
-  });
+  const _LaneConfig({required this.radiusXFactor, required this.radiusYFactor});
 
   final double radiusXFactor;
   final double radiusYFactor;
@@ -61,16 +58,12 @@ class SushiBelt extends StatefulWidget {
 class _SushiBeltState extends State<SushiBelt>
     with SingleTickerProviderStateMixin {
   /// レーン全体の大きさ
-  static const _lane = _LaneConfig(
-    radiusXFactor: 0.43,
-    radiusYFactor: 0.28,
-  );
+  static const _lane = _LaneConfig(radiusXFactor: 0.43, radiusYFactor: 0.28);
 
-  late final AnimationController _controller =
-      AnimationController(
-        vsync: this,
-        duration: const Duration(seconds: 14),
-      )..repeat();
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 14),
+  )..repeat();
 
   @override
   void dispose() {
@@ -89,9 +82,7 @@ class _SushiBeltState extends State<SushiBelt>
     final topics = widget.topics;
 
     if (topics.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     return LayoutBuilder(
@@ -116,35 +107,17 @@ class _SushiBeltState extends State<SushiBelt>
             // =====================================================
 
             for (var i = 0; i < topics.length; i++) {
-              final t =
-                  (_controller.value + i / topics.length) % 1.0;
+              final t = (_controller.value + i / topics.length) % 1.0;
 
-              placements.add(
-                _placeSushi(
-                  topics[i],
-                  center,
-                  radius,
-                  t,
-                ),
-              );
+              placements.add(_placeSushi(topics[i], center, radius, t));
             }
 
             // 奥 → 手前の順番に並べる
-            final behindChef =
-                placements
-                    .where((p) => p.depth < 0.5)
-                    .toList()
-                  ..sort(
-                    (a, b) => a.depth.compareTo(b.depth),
-                  );
+            final behindChef = placements.where((p) => p.depth < 0.5).toList()
+              ..sort((a, b) => a.depth.compareTo(b.depth));
 
-            final frontOfChef =
-                placements
-                    .where((p) => p.depth >= 0.5)
-                    .toList()
-                  ..sort(
-                    (a, b) => a.depth.compareTo(b.depth),
-                  );
+            final frontOfChef = placements.where((p) => p.depth >= 0.5).toList()
+              ..sort((a, b) => a.depth.compareTo(b.depth));
 
             return Stack(
               clipBehavior: Clip.hardEdge,
@@ -152,13 +125,11 @@ class _SushiBeltState extends State<SushiBelt>
                 // =================================================
                 // 店内背景
                 // =================================================
-
                 _buildStoreBackdrop(),
 
                 // =================================================
                 // 回転寿司レーン
                 // =================================================
-
                 Positioned.fill(
                   child: CustomPaint(
                     painter: ConveyorBeltPainter(
@@ -172,33 +143,26 @@ class _SushiBeltState extends State<SushiBelt>
                 // =================================================
                 // 奥側の寿司
                 // =================================================
-
-                for (final placement in behindChef)
-                  _buildSushi(placement),
+                for (final placement in behindChef) _buildSushi(placement),
 
                 // =================================================
                 // 大将
                 // =================================================
-
                 _buildChef(center),
 
                 // =================================================
                 // 手前側の寿司
                 // =================================================
-
-                for (final placement in frontOfChef)
-                  _buildSushi(placement),
+                for (final placement in frontOfChef) _buildSushi(placement),
 
                 // =================================================
                 // 手前のカウンター
                 // =================================================
-
                 _buildCounter(constraints),
 
                 // =================================================
                 // 操作説明
                 // =================================================
-
                 _buildTapHint(),
               ],
             );
@@ -219,16 +183,8 @@ class _SushiBeltState extends State<SushiBelt>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFBDA694),
-              Color(0xFFD6C1A9),
-              Color(0xFFE7C38F),
-            ],
-            stops: [
-              0.0,
-              0.58,
-              0.58,
-            ],
+            colors: [Color(0xFFBDA694), Color(0xFFD6C1A9), Color(0xFFE7C38F)],
+            stops: [0.0, 0.58, 0.58],
           ),
         ),
       ),
@@ -273,17 +229,14 @@ class _SushiBeltState extends State<SushiBelt>
     final depth = (math.sin(angle) + 1) / 2;
 
     // 奥は小さく、手前は大きく
-    final scale =
-        0.55 + (1.15 - 0.55) * depth;
+    final scale = 0.55 + (1.15 - 0.55) * depth;
 
     return _SushiPlacement(
       topic: topic,
 
-      dx: center.dx +
-          radius.dx * math.cos(angle),
+      dx: center.dx + radius.dx * math.cos(angle),
 
-      dy: center.dy +
-          radius.dy * math.sin(angle),
+      dy: center.dy + radius.dy * math.sin(angle),
 
       scale: scale,
 
@@ -297,11 +250,9 @@ class _SushiBeltState extends State<SushiBelt>
 
   Widget _buildSushi(_SushiPlacement placement) {
     return Positioned(
-      left: placement.dx -
-          48 * placement.scale,
+      left: placement.dx - 48 * placement.scale,
 
-      top: placement.dy -
-          34 * placement.scale,
+      top: placement.dy - 34 * placement.scale,
 
       child: Transform.scale(
         scale: placement.scale,
@@ -317,9 +268,7 @@ class _SushiBeltState extends State<SushiBelt>
   // 手前のカウンター
   // ============================================================
 
-  Widget _buildCounter(
-    BoxConstraints constraints,
-  ) {
+  Widget _buildCounter(BoxConstraints constraints) {
     return Positioned(
       bottom: -25,
       left: -20,
@@ -328,9 +277,7 @@ class _SushiBeltState extends State<SushiBelt>
         height: constraints.maxHeight * 0.15,
         decoration: BoxDecoration(
           color: const Color(0xFFB9824B),
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(28),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withAlpha(55),
@@ -359,10 +306,7 @@ class _SushiBeltState extends State<SushiBelt>
       left: 20,
       right: 20,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 14,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
           color: Colors.white.withAlpha(235),
           borderRadius: BorderRadius.circular(30),
@@ -370,11 +314,7 @@ class _SushiBeltState extends State<SushiBelt>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              widget.canSelect
-                  ? Icons.touch_app
-                  : Icons.hourglass_top,
-            ),
+            Icon(widget.canSelect ? Icons.touch_app : Icons.hourglass_top),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
@@ -419,10 +359,7 @@ class ConveyorBeltPainter extends CustomPainter {
   final double animationValue;
 
   @override
-  void paint(
-    Canvas canvas,
-    Size size,
-  ) {
+  void paint(Canvas canvas, Size size) {
     final outerRect = Rect.fromCenter(
       center: center,
       width: radius.dx * 2,
@@ -433,15 +370,9 @@ class ConveyorBeltPainter extends CustomPainter {
     // レーンの厚み
     // ------------------------------------------------------------
 
-    final beltWidth = math.min(
-      radius.dx,
-      radius.dy,
-    ) * 0.22;
+    final beltWidth = math.min(radius.dx, radius.dy) * 0.22;
 
-    final innerRadius = Offset(
-      radius.dx - beltWidth,
-      radius.dy - beltWidth,
-    );
+    final innerRadius = Offset(radius.dx - beltWidth, radius.dy - beltWidth);
 
     final innerRect = Rect.fromCenter(
       center: center,
@@ -453,40 +384,32 @@ class ConveyorBeltPainter extends CustomPainter {
     // ベルト本体
     // ------------------------------------------------------------
 
-    final beltPath = Path()
-      ..fillType = PathFillType.evenOdd;
+    final beltPath = Path()..fillType = PathFillType.evenOdd;
 
     beltPath.addOval(outerRect);
     beltPath.addOval(innerRect);
 
     final beltPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Color(0xFFE5E1DA),
-          Color(0xFFB8B4AD),
-          Color(0xFF8E8A83),
-          Color(0xFFC9C5BE),
-        ],
-        stops: [
-          0.0,
-          0.35,
-          0.65,
-          1.0,
-        ],
-      ).createShader(
-        Rect.fromCenter(
-          center: center,
-          width: radius.dx * 2,
-          height: radius.dy * 2,
-        ),
-      );
+      ..shader =
+          const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFE5E1DA),
+              Color(0xFFB8B4AD),
+              Color(0xFF8E8A83),
+              Color(0xFFC9C5BE),
+            ],
+            stops: [0.0, 0.35, 0.65, 1.0],
+          ).createShader(
+            Rect.fromCenter(
+              center: center,
+              width: radius.dx * 2,
+              height: radius.dy * 2,
+            ),
+          );
 
-    canvas.drawPath(
-      beltPath,
-      beltPaint,
-    );
+    canvas.drawPath(beltPath, beltPaint);
 
     // ------------------------------------------------------------
     // レーンの影
@@ -497,12 +420,7 @@ class ConveyorBeltPainter extends CustomPainter {
       ..strokeWidth = beltWidth
       ..color = Colors.black.withAlpha(45);
 
-    canvas.drawOval(
-      outerRect.shift(
-        const Offset(0, 7),
-      ),
-      shadowPaint,
-    );
+    canvas.drawOval(outerRect.shift(const Offset(0, 7)), shadowPaint);
 
     // ------------------------------------------------------------
     // 外側のレール
@@ -513,10 +431,7 @@ class ConveyorBeltPainter extends CustomPainter {
       ..strokeWidth = 7
       ..color = const Color(0xFF4D4A46);
 
-    canvas.drawOval(
-      outerRect,
-      outerRailPaint,
-    );
+    canvas.drawOval(outerRect, outerRailPaint);
 
     // ------------------------------------------------------------
     // 外側レールのハイライト
@@ -544,22 +459,13 @@ class ConveyorBeltPainter extends CustomPainter {
       ..strokeWidth = 6
       ..color = const Color(0xFF55514C);
 
-    canvas.drawOval(
-      innerRect,
-      innerRailPaint,
-    );
+    canvas.drawOval(innerRect, innerRailPaint);
 
     // ------------------------------------------------------------
     // ベルトの継ぎ目
     // ------------------------------------------------------------
 
-    _drawBeltSegments(
-      canvas,
-      center,
-      radius,
-      innerRadius,
-      animationValue,
-    );
+    _drawBeltSegments(canvas, center, radius, innerRadius, animationValue);
 
     // ------------------------------------------------------------
     // ベルト上の光
@@ -576,13 +482,7 @@ class ConveyorBeltPainter extends CustomPainter {
       height: radius.dy * 2 - beltWidth * 0.5,
     );
 
-    canvas.drawArc(
-      shineRect,
-      math.pi * 1.05,
-      math.pi * 0.9,
-      false,
-      shinePaint,
-    );
+    canvas.drawArc(shineRect, math.pi * 1.05, math.pi * 0.9, false, shinePaint);
   }
 
   // ============================================================
@@ -605,46 +505,28 @@ class ConveyorBeltPainter extends CustomPainter {
 
     for (var i = 0; i < segmentCount; i++) {
       // ベルトの回転に合わせて継ぎ目も動かす
-      final t =
-          (i / segmentCount +
-                  animationValue * 0.55) %
-              1.0;
+      final t = (i / segmentCount + animationValue * 0.55) % 1.0;
 
       final angle = t * math.pi * 2;
 
       final outerPoint = Offset(
-        center.dx +
-            outerRadius.dx *
-                math.cos(angle),
+        center.dx + outerRadius.dx * math.cos(angle),
 
-        center.dy +
-            outerRadius.dy *
-                math.sin(angle),
+        center.dy + outerRadius.dy * math.sin(angle),
       );
 
       final innerPoint = Offset(
-        center.dx +
-            innerRadius.dx *
-                math.cos(angle),
+        center.dx + innerRadius.dx * math.cos(angle),
 
-        center.dy +
-            innerRadius.dy *
-                math.sin(angle),
+        center.dy + innerRadius.dy * math.sin(angle),
       );
 
-      canvas.drawLine(
-        innerPoint,
-        outerPoint,
-        paint,
-      );
+      canvas.drawLine(innerPoint, outerPoint, paint);
     }
   }
 
   @override
-  bool shouldRepaint(
-    covariant ConveyorBeltPainter oldDelegate,
-  ) {
-    return oldDelegate.animationValue !=
-        animationValue;
+  bool shouldRepaint(covariant ConveyorBeltPainter oldDelegate) {
+    return oldDelegate.animationValue != animationValue;
   }
 }
