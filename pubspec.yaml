@@ -1,5 +1,5 @@
 name: spajam2026
-description: "A new Flutter project."
+description: "ネタが回れば、会話が回る。リアル会話支援アプリ『会輪』"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

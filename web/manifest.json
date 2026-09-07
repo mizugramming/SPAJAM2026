@@ -1,11 +1,11 @@
 {
-    "name": "spajam2026",
-    "short_name": "spajam2026",
+    "name": "会輪",
+    "short_name": "会輪",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFF8F0",
+    "theme_color": "#E85D4E",
+    "description": "ネタが回れば、会話が回る。リアル会話支援アプリ「会輪」",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
