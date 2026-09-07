@@ -23,7 +23,8 @@ class SushiBelt extends StatefulWidget {
   State<SushiBelt> createState() => _SushiBeltState();
 }
 
-class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMixin {
+class _SushiBeltState extends State<SushiBelt>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 12),
@@ -43,6 +44,15 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     final topics = widget.topics;
+    final backLaneTopics = [
+      for (var index = 0; index < topics.length; index++)
+        if (index.isEven) topics[index],
+    ];
+    final frontLaneTopics = [
+      for (var index = 0; index < topics.length; index++)
+        if (index.isOdd) topics[index],
+    ];
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -66,7 +76,7 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
                       color: const Color(0xFF8D6A47),
                       filled: false,
                     ),
-                    _buildSushiLayer(constraints, topics, isBack: true),
+                    _buildSushiLayer(constraints, backLaneTopics, isBack: true),
                     _buildTargetCard(constraints),
                     _buildLane(
                       bottom: constraints.maxHeight * 0.10,
@@ -75,7 +85,13 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
                       color: const Color(0xFFB57C43),
                       filled: true,
                     ),
-                    _buildSushiLayer(constraints, topics, isBack: false),
+                    _buildSushiLayer(
+                      constraints,
+                      frontLaneTopics.isEmpty
+                          ? backLaneTopics
+                          : frontLaneTopics,
+                      isBack: false,
+                    ),
                     _buildCounter(constraints),
                     _buildTapHint(),
                   ],
@@ -129,7 +145,13 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
           border: Border.all(color: color, width: borderWidth),
           borderRadius: BorderRadius.circular(180),
           boxShadow: filled
-              ? [BoxShadow(color: Colors.black.withAlpha(77), blurRadius: 15, offset: const Offset(0, 7))]
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(77),
+                    blurRadius: 15,
+                    offset: const Offset(0, 7),
+                  ),
+                ]
               : null,
         ),
       ),
@@ -147,7 +169,13 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
         decoration: BoxDecoration(
           color: const Color(0xFFFFF8EF),
           borderRadius: BorderRadius.circular(25),
-          boxShadow: [BoxShadow(color: Colors.black.withAlpha(64), blurRadius: 15, offset: const Offset(0, 8))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(64),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -159,7 +187,9 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
             ),
             const SizedBox(height: 8),
             Text(
-              widget.speakerName?.isNotEmpty == true ? widget.speakerName! : 'AI大将',
+              widget.speakerName?.isNotEmpty == true
+                  ? widget.speakerName!
+                  : 'AI大将',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
@@ -169,7 +199,11 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
   }
 
   // 寿司の1レイヤー分(奥/手前)をまとめてアニメーションさせる。
-  Widget _buildSushiLayer(BoxConstraints constraints, List<Topic> items, {required bool isBack}) {
+  Widget _buildSushiLayer(
+    BoxConstraints constraints,
+    List<Topic> items, {
+    required bool isBack,
+  }) {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
@@ -189,7 +223,12 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
   }
 
   // レーン上を一周する位置計算。0-0.25:奥 0.25-0.50:右 0.50-0.75:手前 0.75-1.00:左。
-  Widget _buildSushi(BoxConstraints constraints, Topic topic, double progress, bool isBack) {
+  Widget _buildSushi(
+    BoxConstraints constraints,
+    Topic topic,
+    double progress,
+    bool isBack,
+  ) {
     final width = constraints.maxWidth;
     final height = constraints.maxHeight;
 
@@ -246,7 +285,13 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
         decoration: BoxDecoration(
           color: const Color(0xFFB9783D),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
-          boxShadow: [BoxShadow(color: Colors.black.withAlpha(64), blurRadius: 10, offset: const Offset(0, -3))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(64),
+              blurRadius: 10,
+              offset: const Offset(0, -3),
+            ),
+          ],
         ),
       ),
     );
@@ -256,8 +301,8 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
     final message = widget.canSelect
         ? '寿司をタップして話題を開く'
         : (widget.speakerName?.isNotEmpty == true
-            ? '${widget.speakerName}さんがネタを選んでいます'
-            : 'ネタが選ばれるのを待っています');
+              ? '${widget.speakerName}さんがネタを選んでいます'
+              : 'ネタが選ばれるのを待っています');
     return Positioned(
       bottom: 20,
       left: 20,
@@ -277,7 +322,10 @@ class _SushiBeltState extends State<SushiBelt> with SingleTickerProviderStateMix
               child: Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
