@@ -510,6 +510,8 @@ Topic履歴は `RoundRecord.selectorId` と `RoundRecord.topicId` を使ってPa
 
 カードが人から人へ「回る」感覚をUIに入れてもよい。
 
+画面下部に「タイトルへ戻る」を表示する。戻る際はNavigatorの履歴だけでなく、端末内のRoom・Profile・Conversation履歴を破棄し、次のセッションへ前回データを残さない。
+
 ---
 
 # 18. 現時点ではMVP必須にしないもの
