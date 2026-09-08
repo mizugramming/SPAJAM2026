@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../models/participant.dart';
 import '../../providers/conversation_provider.dart';
+import '../../providers/profile_provider.dart';
 import '../../providers/room_provider.dart';
+import '../room/room_screen.dart';
 import 'widgets/participant_profile_card.dart';
 import 'widgets/result_page_indicator.dart';
 
@@ -32,6 +34,15 @@ class _ResultScreenState extends State<ResultScreen> {
     super.dispose();
   }
 
+  void _returnToTitle() {
+    context.read<ConversationProvider>().reset();
+    context.read<ProfileProvider>().reset();
+    context.read<RoomProvider>().reset();
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(RoomScreen.routeName, (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final room = context.watch<RoomProvider>().room;
@@ -47,8 +58,19 @@ class _ResultScreenState extends State<ResultScreen> {
     );
 
     if (results.isEmpty) {
-      return const Scaffold(
-        body: SafeArea(child: Center(child: Text('参加者情報がありません'))),
+      return Scaffold(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Expanded(child: Center(child: Text('参加者情報がありません'))),
+                _ReturnToTitleButton(onPressed: _returnToTitle),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
@@ -92,7 +114,11 @@ class _ResultScreenState extends State<ResultScreen> {
               currentIndex: _currentPage,
               pageCount: results.length,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: _ReturnToTitleButton(onPressed: _returnToTitle),
+            ),
           ],
         ),
       ),
@@ -129,4 +155,22 @@ class _ParticipantResult {
 
   final Participant participant;
   final List<String> selectedTopics;
+}
+
+class _ReturnToTitleButton extends StatelessWidget {
+  const _ReturnToTitleButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.home_outlined),
+        label: const Text('タイトルへ戻る'),
+      ),
+    );
+  }
 }

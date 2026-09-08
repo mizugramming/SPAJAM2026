@@ -26,49 +26,56 @@ class ParticipantProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(7, 12, 7, 8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _paper,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: _vermilion, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: _darkBrown.withAlpha(35),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+      padding: const EdgeInsets.fromLTRB(7, 8, 7, 6),
+      child: Align(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 610),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: _paper,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: _vermilion, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: _darkBrown.withAlpha(35),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: Stack(
-            children: [
-              const Positioned(top: -36, right: -36, child: _PlateRing()),
-              const Positioned(bottom: -46, left: -42, child: _PlateRing()),
-              ListView(
-                padding: const EdgeInsets.fromLTRB(24, 26, 24, 28),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Stack(
                 children: [
-                  _ProfileHeader(
-                    initial: _initial,
-                    name: participant.name,
-                    category: participant.category.label,
+                  const Positioned(top: -42, right: -42, child: _PlateRing()),
+                  const Positioned(bottom: -52, left: -48, child: _PlateRing()),
+                  ListView(
+                    shrinkWrap: true,
+                    primary: false,
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+                    children: [
+                      _ProfileHeader(
+                        initial: _initial,
+                        name: participant.name,
+                        category: participant.category.label,
+                      ),
+                      const SizedBox(height: 17),
+                      const _SectionTitle(label: '趣味'),
+                      const SizedBox(height: 8),
+                      _HobbyList(hobbies: participant.hobbies),
+                      const SizedBox(height: 17),
+                      const _SectionTitle(label: '持ち込んだネタ'),
+                      const SizedBox(height: 8),
+                      _SubmittedTopic(text: participant.submittedTopic),
+                      const SizedBox(height: 17),
+                      _SectionTitle(label: '${participant.name}さんが選んだネタ'),
+                      const SizedBox(height: 8),
+                      _SelectedTopicList(topics: selectedTopics),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  const _SectionTitle(label: '趣味'),
-                  const SizedBox(height: 10),
-                  _HobbyList(hobbies: participant.hobbies),
-                  const SizedBox(height: 24),
-                  const _SectionTitle(label: '持ち込んだネタ'),
-                  const SizedBox(height: 10),
-                  _SubmittedTopic(text: participant.submittedTopic),
-                  const SizedBox(height: 24),
-                  _SectionTitle(label: '${participant.name}さんが選んだネタ'),
-                  const SizedBox(height: 10),
-                  _SelectedTopicList(topics: selectedTopics),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -89,54 +96,67 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 88,
-          height: 88,
+          width: 64,
+          height: 64,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: ParticipantProfileCard._vermilion,
             shape: BoxShape.circle,
             border: Border.all(
               color: ParticipantProfileCard._mutedGold,
-              width: 4,
+              width: 3,
             ),
           ),
           child: Text(
             initial,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 42,
+              fontSize: 30,
               height: 1,
               fontWeight: FontWeight.w600,
             ),
           ),
         ),
-        const SizedBox(height: 14),
-        Text(
-          name,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: ParticipantProfileCard._darkBrown,
-            fontSize: 27,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 9),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-          decoration: BoxDecoration(
-            color: ParticipantProfileCard._vermilion,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            category,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
+        const SizedBox(width: 15),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: ParticipantProfileCard._darkBrown,
+                  fontSize: 23,
+                  height: 1.15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: ParticipantProfileCard._vermilion,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  category,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -153,21 +173,18 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(
-          child: Divider(color: ParticipantProfileCard._mutedGold),
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            color: ParticipantProfileCard._vermilion,
+            borderRadius: BorderRadius.circular(999),
+          ),
         ),
         const SizedBox(width: 9),
-        const Icon(
-          Icons.local_florist,
-          color: ParticipantProfileCard._vermilion,
-          size: 17,
-        ),
-        const SizedBox(width: 7),
         Flexible(
-          flex: 4,
           child: Text(
             label,
-            textAlign: TextAlign.center,
             style: const TextStyle(
               color: ParticipantProfileCard._darkBrown,
               fontSize: 16,
@@ -175,13 +192,7 @@ class _SectionTitle extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 7),
-        const Icon(
-          Icons.local_florist,
-          color: ParticipantProfileCard._vermilion,
-          size: 17,
-        ),
-        const SizedBox(width: 9),
+        const SizedBox(width: 10),
         const Expanded(
           child: Divider(color: ParticipantProfileCard._mutedGold),
         ),
@@ -208,7 +219,7 @@ class _HobbyList extends StatelessWidget {
       children: [
         for (final hobby in hobbies)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(999),
@@ -238,7 +249,7 @@ class _SubmittedTopic extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 17),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(999),
