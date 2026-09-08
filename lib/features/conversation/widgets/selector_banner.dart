@@ -19,7 +19,7 @@ class SelectorBanner extends StatelessWidget {
         boxShadow: [BoxShadow(color: Colors.black.withAlpha(38), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: Text(
-        isMyTurn ? 'あなたの番です。好きなネタを一皿取ってください' : '$selectorName さんがネタを選んでいます\nスマホを置いて少々お待ちください',
+        isMyTurn ? 'あなたの番です。\n好きなネタを一皿取ってください' : '$selectorName さんがネタを選んでいます\nスマホを置いて少々お待ちください',
         textAlign: TextAlign.center,
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),

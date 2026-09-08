@@ -32,7 +32,7 @@ class _SushiBeltState extends State<SushiBelt>
   /// 動かせる(座標は画面右上に表示される)。位置が決まったらfalseに
   /// 戻し、表示された値を各定数(okuTop/temaeTop/chefOffsetなど)に
   /// 反映する。
-  static const _manualPlacementMode = true;
+  static const _manualPlacementMode = false;
 
   Offset _bgDrag = const Offset(1, -180);
   double _bgScale = 1.19;
@@ -62,8 +62,31 @@ class _SushiBeltState extends State<SushiBelt>
     duration: const Duration(seconds: 14),
   )..repeat();
 
+  // _controller.valueは14秒ごとにラップしてしまい「今までに何周した
+  // か」が分からなくなるので、周回数を自分で数えておく。寿司の位置と
+  // ネタの切り替えタイミングを一致させるために使う。
+  int _controllerLaps = 0;
+  double _lastControllerValue = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_trackControllerLaps);
+  }
+
+  void _trackControllerLaps() {
+    if (_controller.value < _lastControllerValue) {
+      _controllerLaps++;
+    }
+    _lastControllerValue = _controller.value;
+  }
+
+  /// 14秒でラップしない、増え続けるだけの進み具合(単位: 周)。
+  double get _unwrappedControllerValue => _controllerLaps + _controller.value;
+
   @override
   void dispose() {
+    _controller.removeListener(_trackControllerLaps);
     _controller.dispose();
     super.dispose();
   }
@@ -90,6 +113,17 @@ class _SushiBeltState extends State<SushiBelt>
         );
 
         final laneSpan = constraints.maxWidth + _laneOverhang * 2;
+
+        // 奥・手前で合計4つまでネタを乗せるが、トピック数が4未満の
+        // ときは同じネタが重複しないよう、乗せる数自体を減らす。
+        final totalSushiSlots = topics.length.clamp(0, 4);
+        final okuSushiCount = (totalSushiSlots / 2).ceil();
+        final temaeSushiCount = totalSushiSlots - okuSushiCount;
+        final okuBaseFractions = const [0.0, 0.5].sublist(0, okuSushiCount);
+        final temaeBaseFractions = const [
+          0.2,
+          0.7,
+        ].sublist(0, temaeSushiCount);
 
         const okuTop = -40.0;
         const okuSurfaceHeight = 14.0;
@@ -165,7 +199,7 @@ class _SushiBeltState extends State<SushiBelt>
                   surfaceHeight: okuSurfaceHeightEff,
                   direction: -1,
                   ushiro: true,
-                  baseFractions: const [0.0, 0.5],
+                  baseFractions: okuBaseFractions,
                   scale: 0.65 * _okuSushiScale,
                   extraOffset: _okuSushiDrag,
                   laneSpan: laneSpan,
@@ -192,7 +226,8 @@ class _SushiBeltState extends State<SushiBelt>
                   baseHeight: temaeBaseHeightEff,
                 ),
 
-                // 手前レーンに乗る寿司(2つ)。奥レーンとは位相をずらして被りを防ぐ
+                // 手前レーンに乗る寿司(2つ)。奥レーンとは位相・トピックを
+                // ずらして、被りや同じネタの重複を防ぐ
                 ..._buildLaneSushi(
                   topics: topics,
                   laneTop: center.dy + temaeTop + _temaeDrag.dy,
@@ -200,10 +235,11 @@ class _SushiBeltState extends State<SushiBelt>
                   surfaceHeight: temaeSurfaceHeightEff,
                   direction: 1,
                   ushiro: false,
-                  baseFractions: const [0.2, 0.7],
+                  baseFractions: temaeBaseFractions,
                   scale: 1 * _temaeSushiScale,
                   extraOffset: _temaeSushiDrag,
                   laneSpan: laneSpan,
+                  indexOffset: okuSushiCount,
                 ),
 
                 // =================================================
@@ -415,7 +451,34 @@ class _SushiBeltState extends State<SushiBelt>
       top: center.dy - height * scale / 2,
       width: width * scale,
       height: height * scale,
-      child: Image.asset('assets/images/fukidashi.png', fit: BoxFit.contain),
+      child: Stack(
+        children: [
+          Image.asset(
+            'assets/images/fukidashi_mojinashi.png',
+            fit: BoxFit.contain,
+          ),
+          // しっぽ(下に伸びる三角)にかからないよう、少し上寄りに文字を置く。
+          Positioned.fill(
+            bottom: height * scale * 0.3,
+            child: Center(
+             child: Transform.translate(
+              offset: Offset(0, 15 * scale * 0.5),
+              child: Text(
+                'へい、お待ち！\n話のネタをどうぞ！',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'TamanegiKaisho',
+                  fontSize: 15 * scale,
+                  height: 1.2,
+                  letterSpacing: 15 * scale * 0.25,
+                  color: Colors.black,
+                ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -718,21 +781,34 @@ class _SushiBeltState extends State<SushiBelt>
     required double scale,
     required double laneSpan,
     Offset extraOffset = Offset.zero,
+    int indexOffset = 0,
   }) {
     // レーンの模様と同じピクセル速度になるよう、
     // (レーンのタイル幅 / レーン全幅)の比率をスピードに掛ける。
     final middleTileWidth = _laneMiddleTileWidth(surfaceHeight);
     final speedFactor = _laneSpeedFactor * middleTileWidth / laneSpan;
 
-    final progress = (_controller.value * speedFactor) % 1.0;
+    // ラップしない(増え続けるだけの)進み具合を使うことで、
+    // 「あと何周目か」を正しく求められるようにする。
+    final rawProgress = _unwrappedControllerValue * speedFactor;
+
     final size = const Size(100, 70) * scale;
     final laneCenterY = laneTop + laneHeight / 2;
 
     final widgets = <Widget>[];
 
-    for (var i = 0; i < baseFractions.length && i < topics.length; i++) {
-      final topic = topics[i];
-      final frac = (baseFractions[i] + progress * direction) % 1.0;
+    if (topics.isEmpty) return widgets;
+
+    for (var i = 0; i < baseFractions.length; i++) {
+      // 画面外(はみ出し部分)を通過するタイミングでだけネタを切り替える。
+      // こうすることで、画面に見えている寿司の中身が急に入れ替わったり
+      // しない(ネタは必ず画面外で交換される)。
+      final unwrapped = baseFractions[i] + rawProgress * direction;
+      final lap = unwrapped.floor();
+      final frac = unwrapped - lap;
+
+      final slot = lap + i + indexOffset;
+      final topic = topics[slot % topics.length];
       final dx = -_laneOverhang + frac * laneSpan + extraOffset.dx;
 
       widgets.add(
@@ -742,6 +818,7 @@ class _SushiBeltState extends State<SushiBelt>
           child: SushiCapsule(
             topic: topic,
             onTap: () => _handleTap(topic),
+            netaIndex: slot,
             ushiro: ushiro,
             size: size,
           ),

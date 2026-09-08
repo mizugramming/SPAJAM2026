@@ -86,8 +86,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final shouldEnd = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('会輪を終了しますか？'),
-        content: const Text('終了すると、参加者のプロフィールカードを表示します。'),
+        title: const Text('お勘定しますか？'),
+        content: const Text('お勘定すると、参加者のプロフィールカードを表示します。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -95,7 +95,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('終了する'),
+            child: const Text(
+              'お勘定する',
+              style: TextStyle(fontFamily: 'TamanegiKaisho'),
+            ),
           ),
         ],
       ),
@@ -162,34 +165,48 @@ class _ConversationScreenState extends State<ConversationScreen> {
         ? selectorMatches.first.name
         : '';
 
+    // ネタ表示中(TopicBanner)はAppBarごと非表示にする。ラウンド表示・
+    // お勘定の操作はバナー内に移す。
+    final showsTopic = conversation.openedTopic != null;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('会輪 — ラウンド ${room.currentRound}'),
-        actions: [
-          if (isHost)
-            TextButton(
-              onPressed: _isUpdatingRoom
-                  ? null
-                  : () => _confirmEndConversation(room, conversation),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
+      appBar: showsTopic
+          ? null
+          : AppBar(
+              title: Text(
+                ' ${room.currentRound}皿目',
+                style: const TextStyle(fontFamily: 'TamanegiKaisho'),
               ),
-              child: const Text('会輪を終了'),
+              actions: [
+                if (isHost)
+                  TextButton(
+                    onPressed: _isUpdatingRoom
+                        ? null
+                        : () => _confirmEndConversation(room, conversation),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                    child: const Text('お勘定'),
+                  ),
+              ],
             ),
-        ],
-      ),
       body: SafeArea(
         child: Column(
           children: [
-            SelectorBanner(isMyTurn: isMyTurn, selectorName: selectorName),
+            if (!showsTopic)
+              SelectorBanner(isMyTurn: isMyTurn, selectorName: selectorName),
             Expanded(
               child: _ConversationContent(
                 conversation: conversation,
                 canSelect: isMyTurn,
                 canAdvance: canAdvance,
                 selectorName: selectorName,
+                currentRound: room.currentRound,
                 onRetry: () => conversation.initialize(room.participants),
                 onNext: () => _advanceRound(room, conversation),
+                onEndConversation: isHost
+                    ? () => _confirmEndConversation(room, conversation)
+                    : null,
               ),
             ),
           ],
@@ -207,6 +224,8 @@ class _ConversationContent extends StatelessWidget {
     required this.selectorName,
     required this.onRetry,
     required this.onNext,
+    required this.onEndConversation,
+    required this.currentRound,
   });
 
   final ConversationProvider conversation;
@@ -215,6 +234,8 @@ class _ConversationContent extends StatelessWidget {
   final String selectorName;
   final VoidCallback onRetry;
   final VoidCallback onNext;
+  final VoidCallback? onEndConversation;
+  final int currentRound;
 
   @override
   Widget build(BuildContext context) {
@@ -239,6 +260,8 @@ class _ConversationContent extends StatelessWidget {
         topic: openedTopic,
         canAdvance: canAdvance,
         onNext: onNext,
+        onEndConversation: onEndConversation,
+        currentRound: currentRound,
       );
     }
 
