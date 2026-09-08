@@ -16,19 +16,35 @@ class RoomProvider extends ChangeNotifier {
 
   StreamSubscription<Room>? _subscription;
 
-  Future<Room> createRoom({required int expectedCount, required Participant host}) async {
-    final room = await _roomService.createRoom(expectedCount: expectedCount, host: host);
+  Future<Room> createRoom({
+    required int expectedCount,
+    required Participant host,
+  }) async {
+    final room = await _roomService.createRoom(
+      expectedCount: expectedCount,
+      host: host,
+    );
     _bindTo(room.code);
     return room;
   }
 
   Future<Room> joinRoom(String code, Participant participant) async {
-    final room = await _roomService.joinRoom(code: code, participant: participant);
+    final room = await _roomService.joinRoom(
+      code: code,
+      participant: participant,
+    );
     _bindTo(room.code);
     return room;
   }
 
   Future<void> updateRoom(Room room) => _roomService.updateRoom(room);
+
+  void reset() {
+    _subscription?.cancel();
+    _subscription = null;
+    _room = null;
+    notifyListeners();
+  }
 
   void _bindTo(String code) {
     _subscription?.cancel();
