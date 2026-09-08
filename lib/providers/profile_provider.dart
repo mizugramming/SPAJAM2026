@@ -18,4 +18,9 @@ class ProfileProvider extends ChangeNotifier {
     _profile = profile;
     notifyListeners();
   }
+
+  void reset() {
+    _profile = null;
+    notifyListeners();
+  }
 }
