@@ -38,13 +38,14 @@ void main() {
 
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), '山田 太郎');
+    await tester.tap(find.text('学生'));
     await tester.tap(find.text('ゲーム'));
     await tester.enterText(fields.at(1), '最近買ってよかったもの');
     await tester.tap(find.text('準備完了'));
     await tester.pump(const Duration(milliseconds: 250));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('部屋番号:'), findsOneWidget);
+    expect(find.text('部屋番号'), findsOneWidget);
     expect(tester.getSize(find.byType(AppBar)).width, 390);
     await tester.tap(find.byIcon(Icons.bolt));
     await tester.pump();
