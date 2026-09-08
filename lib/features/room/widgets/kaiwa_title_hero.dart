@@ -88,12 +88,14 @@ class KaiwaTitleHero extends StatelessWidget {
           ),
         ),
         SizedBox(height: compact ? 4 : 6),
-        Text(
-          'ネタが回れば、会話が回る。',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.darkBrown.withAlpha(190),
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
+        SizedBox(
+          width: compact ? 210 : 240,
+          height: compact ? 54 : 62,
+          child: Image.asset(
+            'assets/images/tiitle.png',
+            fit: BoxFit.contain,
+            cacheWidth: 768,
+            semanticLabel: 'ネタが回れば、会話が回る。',
           ),
         ),
       ],

@@ -14,6 +14,13 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image && widget.semanticLabel == 'ネタが回れば、会話が回る。',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('部屋を作る'), findsOneWidget);
     expect(find.text('参加する'), findsOneWidget);
     expect(find.text('AI寿司大将'), findsNothing);
