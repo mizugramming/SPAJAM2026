@@ -34,27 +34,27 @@ class _SushiBeltState extends State<SushiBelt>
   /// 反映する。
   static const _manualPlacementMode = true;
 
-  Offset _bgDrag = const Offset(-8, -155);
-  double _bgScale = 1.08;
+  Offset _bgDrag = const Offset(1, -180);
+  double _bgScale = 1.19;
 
-  Offset _fukidashiDrag = const Offset(0, -225);
+  Offset _fukidashiDrag = const Offset(4, -191);
   double _fukidashiScale = 1.40;
 
-  Offset _chefDrag = Offset.zero;
+  Offset _chefDrag = const Offset(3, 31);
   double _chefScale = 1;
 
-  Offset _okuDrag = Offset.zero;
-  double _okuScale = 1;
-  Offset _okuBaseDrag = Offset.zero;
+  Offset _okuDrag = const Offset(0, 40);
+  double _okuScale = 2.16;
+  Offset _okuBaseDrag = const Offset(0, -15);
 
-  Offset _temaeDrag = Offset.zero;
-  double _temaeScale = 1;
-  Offset _temaeBaseDrag = Offset.zero;
+  Offset _temaeDrag = const Offset(0, 49);
+  double _temaeScale = 1.58;
+  Offset _temaeBaseDrag = const Offset(0, -44);
 
-  Offset _okuSushiDrag = const Offset(28, -40);
+  Offset _okuSushiDrag = const Offset(46, -76);
   double _okuSushiScale = 1.13;
 
-  Offset _temaeSushiDrag = const Offset(22, -24);
+  Offset _temaeSushiDrag = const Offset(29, -128);
   double _temaeSushiScale = 1.25;
 
   late final AnimationController _controller = AnimationController(
