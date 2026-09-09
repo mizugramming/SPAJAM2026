@@ -99,9 +99,11 @@ void main() {
     capsule.onTap();
     await tester.pump();
 
-    await tester.tap(find.text('会輪を終了'));
+    await tester.tap(
+      find.image(const AssetImage('assets/images/okanjou.png')),
+    );
     await tester.pump();
-    await tester.tap(find.text('終了する'));
+    await tester.tap(find.text('お勘定する'));
     await tester.pump();
     await tester.pumpAndSettle();
 
