@@ -2,24 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../../../models/topic.dart';
 
-// インデックスは_netaAssetsUshiroと対応させ、同じトピックが
-// 前レーン・奥レーンで同じネタになるようにする。
+// ベルト上での固定の並び順: たまご→サーモン→いか→えび→まぐろ→繰り返し。
+// インデックスは_netaAssetsUshiroと対応させ、同じ位置なら前レーン・奥
+// レーンで同じネタになるようにする。
 const _netaAssets = [
-  'assets/images/sa-monn.png', // サーモン
-  'assets/images/maguro.png', // まぐろ
   'assets/images/tamago.png', // たまご
-  'assets/images/ebi.png', // えび
+  'assets/images/sa-monn.png', // サーモン
   'assets/images/ika.png', // いか
-  'assets/images/ikura.png', // いくら
+  'assets/images/ebi.png', // えび
+  'assets/images/maguro.png', // まぐろ
 ];
 
 const _netaAssetsUshiro = [
-  'assets/images/sa-mo_ushiro.png', // サーモン
-  'assets/images/maguro_ushiro.png', // まぐろ
   'assets/images/tamago_ushiro.png', // たまご
-  'assets/images/ebi_ushiro.png', // えび
+  'assets/images/sa-mo_ushiro.png', // サーモン
   'assets/images/ika_ushiro.png', // いか
-  'assets/images/ikura_ushiro.png', // いくら
+  'assets/images/ebi_ushiro.png', // えび
+  'assets/images/maguro_ushiro.png', // まぐろ
 ];
 
 /// くら寿司のような半透明カプセルに入った寿司ネタ(話題)。タップで話題が開く。
@@ -28,12 +27,18 @@ class SushiCapsule extends StatelessWidget {
     super.key,
     required this.topic,
     required this.onTap,
+    required this.netaIndex,
     this.ushiro = false,
     this.size = const Size(100, 70),
   });
 
   final Topic topic;
   final VoidCallback onTap;
+
+  /// ベルト上の位置。たまご→サーモン→いか→えび→まぐろの固定順で
+  /// ネタを決めるために使う(トピックのハッシュ値だと同じネタが
+  /// 連続することがあったため)。
+  final int netaIndex;
 
   /// 奥レーン(大将の背後)を通るときは、後ろ向きの画像を使う。
   final bool ushiro;
@@ -42,7 +47,7 @@ class SushiCapsule extends StatelessWidget {
 
   String get _netaAsset {
     final assets = ushiro ? _netaAssetsUshiro : _netaAssets;
-    return assets[topic.id.hashCode.abs() % assets.length];
+    return assets[netaIndex % assets.length];
   }
 
   @override
