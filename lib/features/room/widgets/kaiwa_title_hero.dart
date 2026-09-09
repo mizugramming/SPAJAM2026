@@ -77,23 +77,25 @@ class KaiwaTitleHero extends StatelessWidget {
             ),
           ),
         if (!hideCharacter) SizedBox(height: compact ? 8 : 12),
-        const Text(
-          '会輪',
-          style: TextStyle(
-            color: AppTheme.darkBrown,
-            fontSize: 34,
-            height: 1,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 6,
+        SizedBox(
+          width: compact ? 132 : 156,
+          height: compact ? 58 : 68,
+          child: Image.asset(
+            'assets/images/image.png',
+            fit: BoxFit.contain,
+            cacheWidth: 512,
+            semanticLabel: '会輪',
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          'ネタが回れば、会話が回る。',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.darkBrown.withAlpha(190),
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
+        SizedBox(height: compact ? 4 : 6),
+        SizedBox(
+          width: compact ? 210 : 240,
+          height: compact ? 54 : 62,
+          child: Image.asset(
+            'assets/images/tiitle.png',
+            fit: BoxFit.contain,
+            cacheWidth: 768,
+            semanticLabel: 'ネタが回れば、会話が回る。',
           ),
         ),
       ],
