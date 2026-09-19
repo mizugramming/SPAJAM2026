@@ -7,6 +7,7 @@ import '../../providers/conversation_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/room_provider.dart';
 import '../result/result_screen.dart';
+import 'widgets/member_list_sheet.dart';
 import 'widgets/selector_banner.dart';
 import 'widgets/sushi_belt.dart';
 import 'widgets/topic_banner.dart';
@@ -208,6 +209,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     ? () => _confirmEndConversation(room, conversation)
                     : null,
               ),
+            ),
+            MemberListButton(
+              participants: room.participants,
+              currentSelectorId: room.currentSelectorId,
             ),
           ],
         ),
