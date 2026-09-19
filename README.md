@@ -6,6 +6,7 @@
 - **環境構築・更新・PR・トラブル対応：[開発ガイド](docs/development.md)**
 - [画面間の接続ガイド](docs/feature_integration.md)
 - [実際のフォルダ構造と責務](docs/project_structure.md) / [AIへ渡す開始・分担プロンプト](docs/ai_prompts.md)
+- [別のアプリでも使う共通ルール一式](docs/reuse_rules.md)
 - [画像の追加手順](docs/adding_assets.md) / [別のアプリを新しく始める手順](docs/new_app.md)
 - [実装内容とプレビュー](docs/implementation.md) / [設計書](yohaku_app_design.md)
 
