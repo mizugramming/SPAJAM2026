@@ -1,5 +1,11 @@
 # 「余白」アプリ 共同開発手順
 
+画面間の状態共有・保存・削除を接続したMVPを実装済みです。画面・ボタンは分担開発向けの仮UIなので、各担当で差し替えてください。
+
+- [画面担当向けの接続ガイド](docs/feature_integration.md)
+- [実装内容・起動方法・検証結果](docs/implementation.md)
+- [開発設計書](yohaku_app_design.md)
+
 ## 1. 初回準備
 
 ```bash
