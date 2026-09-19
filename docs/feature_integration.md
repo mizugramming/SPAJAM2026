@@ -20,7 +20,7 @@
 | `category` | `CategoryType` | `challenge`, `relationships`, `future`, `workStudy`, `self`, `dailyLife` |
 | `note` | `String` | 任意メモ。前後の空白除去、200文字以内 |
 
-感情・テーマには `.id`, `.label`, `.color`, `.icon`、テーマには `.hint` があります。保存に使うIDは変更しないでください。表示色やラベルの共通変更はAに集約します。
+感情・テーマには `.id`, `.label`, `.color`, `.icon`、テーマには `.hint` があります。保存に使うIDは変更しないでください。表示色やラベルの共通変更は統合担当に集約します。
 
 ## 全画面で同じ記録を読む
 
@@ -114,10 +114,9 @@ context.go(AppRoutes.home);
 
 ## 変更する場所
 
-- A：`app/`, `core/`, `main.dart`, `pubspec.yaml`, `features/home/`
-- B：`features/space/` と対応する素材・テスト
-- C：`features/constellation/` と対応する素材・テスト
-- D：`features/universe/`, `features/history/` と対応する素材・テスト
+最新の担当と変更範囲は[READMEの担当表](../README.md#このアプリの変更範囲)を参照します。`app/`・`core/`・`main.dart`・`pubspec.yaml` は統合担当の共通管理です。ホーム担当であることだけでは共通部分の変更は許可されません。
+
+同じ画面を部品単位で分担するときは、[フォルダ構造と分担例](project_structure.md)と[開始プロンプト](ai_prompts.md)を使い、部品・親画面・関連テストの編集担当を明確にしてください。
 
 画面のUIを変更するときも、他Featureのファイルをimportする必要はありません。モデル・Provider・ルートの変更は共通基盤担当に集約してください。プレビュー画像や仮UIに合わせる必要はありません。
 

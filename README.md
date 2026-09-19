@@ -5,6 +5,7 @@
 - **AIへ最初に渡すルール：[AGENTS.md](AGENTS.md)**
 - **環境構築・更新・PR・トラブル対応：[開発ガイド](docs/development.md)**
 - [画面間の接続ガイド](docs/feature_integration.md)
+- [実際のフォルダ構造と責務](docs/project_structure.md) / [AIへ渡す開始・分担プロンプト](docs/ai_prompts.md)
 - [画像の追加手順](docs/adding_assets.md) / [別のアプリを新しく始める手順](docs/new_app.md)
 - [実装内容とプレビュー](docs/implementation.md) / [設計書](yohaku_app_design.md)
 
@@ -14,6 +15,7 @@
 2. このREADME：今回の担当範囲・統合先・環境・参照先。
 3. [アプリの設計書](yohaku_app_design.md)と[接続ガイド](docs/feature_integration.md)：何を作り、どのデータ・画面へつなぐか。
 4. [開発ガイド](docs/development.md)：このプロジェクトで実行する準備・検証コマンド。
+5. [フォルダ構造](docs/project_structure.md)を実際のファイル一覧と照合し、担当の実装・接続先・関連テストを読む。[開始プロンプト](docs/ai_prompts.md)を使い、変更するファイルを明確にしてから進める。
 
 設計書は初期設計です。現在はMVP全体を実装し、その後の画面変更も取り込んでいます。最新のユーザー依頼・決定事項と[実装内容](docs/implementation.md)も確認し、古い設計だけを根拠に既存機能を戻さないでください。
 
