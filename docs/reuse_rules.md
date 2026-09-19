@@ -23,6 +23,8 @@
 - `templates/project/docs/` → アプリの `docs/`
 - `templates/project/.github/PULL_REQUEST_TEMPLATE.md` → アプリの `.github/PULL_REQUEST_TEMPLATE.md`
 
+Flutterアプリでは `templates/project/README.flutter.md` をアプリの `README.md` として使えます。汎用READMEと両方を上書きコピーせず、どちらかを選びます。Flutter用はPCへのツール導入、clone、指定SDKの準備、実行、日々の更新、PR・マージまでのコマンド入りです。作成者が配布前にリポジトリURL・統合先・検証済みの環境を設定し、`docs/` の資料と揃えます。`README.flutter.md` という別名のファイルをアプリ側に残す必要はありません。
+
 作成者が設計書・構成・担当範囲・環境手順を実際の基盤に合わせます。各担当者が書き込むためのプロンプトではありません。`templates` フォルダ全体をアプリのソースとして配置する必要はありません。
 
 キットのルートREADME、`.github/workflows/check.yml`、`tool/check_kit.py`、リポジトリ固有の運用資料はコピー対象に含めません。`.git/` や別アプリの実装・素材・依存ロックも流用しません。
