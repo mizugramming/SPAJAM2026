@@ -8,26 +8,26 @@
 
 ## 起動
 
-Flutter **3.41.5 / Dart 3.11.3**で検証しています。
+Flutter **3.41.5 / Dart 3.11.3**で検証しています。初回は[開発ガイド](development.md)に従ってFVMを設定し、`fvm dart tool/check_environment.dart` で確認してください。
 
 ```sh
-flutter pub get
-flutter devices
-flutter run -d <AndroidのデバイスID>
+fvm flutter pub get --enforce-lockfile
+fvm flutter devices
+fvm flutter run -d <AndroidのデバイスID>
 ```
 
-Android SDK・ライセンス承認済みの開発環境と、USBデバッグを有効にした実機またはエミュレーターが必要です。環境の確認は `flutter doctor -v` で行えます。
+Android SDK・ライセンス承認済みの開発環境と、USBデバッグを有効にした実機またはエミュレーターが必要です。環境の確認は `fvm flutter doctor -v` で行えます。
 
 ブラウザで試す場合：
 
 ```sh
-flutter run -d chrome
+fvm flutter run -d chrome
 ```
 
 フォント・描画エンジンを同梱したWebビルド：
 
 ```sh
-flutter build web --release --no-web-resources-cdn
+fvm flutter build web --release --no-web-resources-cdn
 python3 -m http.server 8765 --bind 127.0.0.1 --directory build/web
 ```
 
@@ -64,10 +64,10 @@ Feature間の直接importはありません。共通の詳細表示・一覧・�
 ## 確認コマンド
 
 ```sh
-dart format --output=none --set-exit-if-changed lib test tool
-flutter analyze
-flutter test
-flutter build web --release --no-web-resources-cdn
+fvm dart format --output=none --set-exit-if-changed lib test tool
+fvm flutter analyze
+fvm flutter test
+fvm flutter build web --release --no-web-resources-cdn
 ```
 
 GitHub Actionsにも同じチェックを用意しています。単体テストと画面操作テストは、JSON変換、保存・再読込・削除、日付抽出、惑星の成長、入力条件、保存失敗・再試行、削除の反映、過去日付、小画面・文字拡大を検証します。
@@ -84,6 +84,6 @@ GitHub Actionsにも同じチェックを用意しています。単体テスト
 
 [ホーム](screenshots/home.png) / [SPACE](screenshots/space.png) / [星座](screenshots/constellation.png) / [宇宙](screenshots/universe.png) / [振り返り](screenshots/history.png)
 
-Flutterの描画で撮影した画像です。記録入り画面にはテスト用のデータを使用しています。再生成は `flutter test tool/capture_screenshots.dart` で行えます。実際の保存データは変更しません。
+Flutterの描画で撮影した画像です。記録入り画面にはテスト用のデータを使用しています。再生成は `fvm flutter test tool/capture_screenshots.dart` で行えます。実際の保存データは変更しません。
 
 この環境のヘッドレスブラウザではGPUが利用できず、CPU描画で背景画像が省略されました。背景素材はFlutterのネイティブ描画で読み込み・表示を確認しています。

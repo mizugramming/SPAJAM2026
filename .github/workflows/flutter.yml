@@ -2,20 +2,56 @@ name: Flutter checks
 on:
   push:
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: flutter-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Read pinned toolchain
+        id: toolchain
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          versions = json.loads(Path('tool/toolchain.json').read_text())
+          versions['flutter'] = json.loads(Path('.fvmrc').read_text())['flutter']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for key, value in versions.items():
+                  print(f'{key}={value}', file=output)
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ steps.toolchain.outputs.java }}
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.5'
+          flutter-version: ${{ steps.toolchain.outputs.flutter }}
           channel: stable
           cache: true
-      - run: flutter pub get
+      - run: dart tool/check_environment.dart --android
+      - run: flutter pub get --enforce-lockfile
+      - run: git diff --exit-code -- pubspec.lock
       - run: dart format --output=none --set-exit-if-changed lib test tool
-      - run: flutter analyze
-      - run: flutter test
-      - run: flutter build web --release --no-web-resources-cdn
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub
+      - run: flutter build web --release --no-web-resources-cdn --no-pub
+      - uses: android-actions/setup-android@v3
+      - name: Install pinned Android components
+        env:
+          COMPILE_SDK: ${{ steps.toolchain.outputs.androidCompileSdk }}
+          BUILD_TOOLS: ${{ steps.toolchain.outputs.androidBuildTools }}
+          NDK: ${{ steps.toolchain.outputs.androidNdk }}
+        run: sdkmanager "platforms;android-$COMPILE_SDK" "build-tools;$BUILD_TOOLS" "ndk;$NDK"
+      - name: Build Android debug APK
+        run: |
+          flutter config --jdk-dir "$JAVA_HOME"
+          flutter build apk --debug --no-pub
+      - name: Verify dependency lock remained unchanged
+        run: git diff --exit-code -- pubspec.lock
