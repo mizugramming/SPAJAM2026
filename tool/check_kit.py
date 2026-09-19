@@ -17,6 +17,7 @@ REQUIRED = (
     "docs/reuse_rules.md",
     "docs/repository_maintenance.md",
     "templates/project/README.md",
+    "templates/project/README.flutter.md",
     "templates/project/.github/PULL_REQUEST_TEMPLATE.md",
     "templates/project/docs/app_design.md",
     "templates/project/docs/project_structure.md",

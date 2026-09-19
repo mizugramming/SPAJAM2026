@@ -14,6 +14,7 @@ AIに指示を出す前に、[担当作業の開始・再開プロンプト](doc
 | [docs/ai_prompts.md](docs/ai_prompts.md) | 開発者がそのままAIへ渡すプロンプト |
 | [CLAUDE.md](CLAUDE.md) / [.github/copilot-instructions.md](.github/copilot-instructions.md) | 利用するAI向けの入口 |
 | [templates/project/](templates/project/README.md) | 今回のREADME・設計・構成・環境・素材管理・PRの雛形 |
+| [Flutter用README](templates/project/README.flutter.md) | 各PCの準備、clone、起動、開発、PR作成・マージまでのコマンド |
 
 [コピーと引き渡しの手順](docs/reuse_rules.md)を参照してください。雛形の内容は、作成者が実装した基盤に合わせて完成させます。担当開発者がプロンプトへ項目を記入する必要はありません。
 
