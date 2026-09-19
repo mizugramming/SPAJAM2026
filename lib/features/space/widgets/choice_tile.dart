@@ -18,96 +18,57 @@ class ChoiceTile extends StatelessWidget {
   final VoidCallback onTap;
   final String? hint;
   @override
-  Widget build(BuildContext context) {
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 220);
-    return Semantics(
-      selected: selected,
-      button: true,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: AnimatedScale(
-          scale: selected ? 1.02 : 1,
-          duration: duration,
-          curve: Curves.easeOutCubic,
-          child: AnimatedContainer(
-            duration: duration,
-            decoration: BoxDecoration(
-              color: selected
-                  ? color.withValues(alpha: .12)
-                  : DesignTokens.surface.withValues(alpha: .72),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: selected
-                    ? color.withValues(alpha: .8)
-                    : DesignTokens.border,
-                width: selected ? 1.2 : .7,
-              ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: color.withValues(alpha: .18),
-                        blurRadius: 22,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : const [],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(22),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
-                  child: Row(
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    button: true,
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: selected
+            ? color.withValues(alpha: .16)
+            : DesignTokens.surface.withValues(alpha: .65),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: selected ? color : DesignTokens.border,
+            width: selected ? 1.3 : .6,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 26),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              color.withValues(alpha: selected ? .42 : .27),
-                              color.withValues(alpha: .07),
-                            ],
+                      Text(label, style: const TextStyle(fontSize: 16)),
+                      if (hint != null)
+                        Text(
+                          hint!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: DesignTokens.muted,
                           ),
                         ),
-                        child: Icon(Icons.star_rounded, color: color, size: 25),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Icon(icon, color: color, size: 18),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                label,
-                                style: const TextStyle(fontSize: 15),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        selected ? Icons.check_circle : Icons.circle_outlined,
-                        color: selected ? color : DesignTokens.muted,
-                        size: 20,
-                      ),
                     ],
                   ),
                 ),
-              ),
+                Icon(
+                  selected ? Icons.check_circle : Icons.circle_outlined,
+                  color: selected ? color : DesignTokens.border,
+                  size: 22,
+                ),
+              ],
             ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
