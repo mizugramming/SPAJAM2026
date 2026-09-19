@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spajam2026/app/app.dart';
+import 'package:spajam2026/app/app_shell.dart';
 import 'package:spajam2026/app/router.dart';
 import 'package:spajam2026/core/constants/app_routes.dart';
 import 'package:spajam2026/core/models/category_type.dart';
@@ -50,7 +51,7 @@ Future<void> tapText(WidgetTester tester, String text) async {
 
 Future<void> goToNote(WidgetTester tester) async {
   await tapText(tester, 'SPACE');
-  await tapText(tester, 'スキップして気持ちを選ぶ');
+  await tapText(tester, 'はじめる');
   final next = tester.widget<FilledButton>(
     find.widgetWithText(FilledButton, '次へ'),
   );
@@ -73,7 +74,7 @@ void main() {
       repository: MemoryRepository([record(1, at: DateTime.now())]),
     );
     final phone = Rect.fromLTWH(505, 74, 430, 932);
-    expect(tester.getRect(find.byType(Scaffold).last), phone);
+    expect(tester.getRect(find.byType(AppShell)), phone);
     expect(tester.getSize(find.byType(NavigationBar)).width, 430);
     await tapText(tester, 'SPACE');
     expect(tester.getRect(find.byType(Scaffold).last), phone);
@@ -120,7 +121,7 @@ void main() {
       await tapText(tester, '今日');
       expect(find.text('この日は、静かな宇宙。'), findsOneWidget);
       await tapText(tester, '宇宙');
-      expect(find.text('まだ眠っている惑星'), findsNWidgets(6));
+      expect(find.textContaining('まだ眠っている惑星'), findsOneWidget);
       await tapText(tester, '振り返り');
       expect(find.text('この日は、静かな余白。'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -133,9 +134,11 @@ void main() {
       final container = await boot(tester);
       await goToNote(tester);
       await tester.enterText(find.byType(TextField), '少し休んで、また明日。');
-      await tapText(tester, '宇宙へ放つ');
-      expect(find.text('あなたの言葉が、\n星になりました。'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+      await tapText(tester, '確認へ進む');
+      await tapText(tester, '星にする');
+      expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
+      await tapText(tester, '今日の星座を見る');
       await tester.pumpAndSettle();
       expect(find.byType(ConstellationMap), findsOneWidget);
       expect(
@@ -153,8 +156,14 @@ void main() {
         '少し休んで、また明日。',
       );
       await tapText(tester, '宇宙');
-      expect(find.text('小さな惑星'), findsOneWidget);
-      await tapText(tester, '学業・仕事');
+      await tester.tap(find.byTooltip('学業・仕事を表示'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('小さな惑星'), findsOneWidget);
+      expect(
+        tester.widget<RecordList>(find.byType(RecordList)).records.single.note,
+        '少し休んで、また明日。',
+      );
+      await tapText(tester, 'この惑星のすべての記録');
       expect(find.text('学業・仕事の惑星'), findsOneWidget);
       Navigator.of(tester.element(find.text('学業・仕事の惑星'))).pop();
       await tester.pumpAndSettle();
@@ -170,7 +179,7 @@ void main() {
       expect(restarted.read(spaceRecordsProvider).requireValue, isEmpty);
       expect(find.text('この日は、静かな余白。'), findsOneWidget);
       await tapText(tester, '宇宙');
-      expect(find.text('まだ眠っている惑星'), findsNWidgets(6));
+      expect(find.textContaining('まだ眠っている惑星'), findsOneWidget);
       await tapText(tester, '今日');
       expect(find.text('この日は、静かな宇宙。'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -195,19 +204,22 @@ void main() {
         200,
       );
       await tester.enterText(find.byType(TextField), '残しておきたい言葉');
-      await tapText(tester, '宇宙へ放つ');
-      expect(find.text('保存できませんでした。入力は残っています。もう一度お試しください。'), findsOneWidget);
+      await tapText(tester, '確認へ進む');
+      await tapText(tester, '星にする');
+      expect(find.text('記録を保存できませんでした。入力内容はそのまま残っています。'), findsOneWidget);
+      await tester.tap(find.byTooltip('前のステップへ'));
+      await tester.pumpAndSettle();
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         '残しておきたい言葉',
       );
+      await tapText(tester, '確認へ進む');
       await tester.tap(find.byTooltip('閉じる'));
       await tester.pumpAndSettle();
       expect(find.text('入力を閉じますか？'), findsOneWidget);
       await tapText(tester, '続ける');
       repository.failSave = false;
-      await tapText(tester, '宇宙へ放つ');
-      await tester.pump(const Duration(seconds: 3));
+      await tapText(tester, '星にする');
       await tester.pumpAndSettle();
       expect(repository.records, hasLength(1));
       await tester.pumpWidget(const SizedBox.shrink());
@@ -252,6 +264,47 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  testWidgets(
+    'SPACE can be left without a record and empty note can become a star',
+    (tester) async {
+      final repository = MemoryRepository();
+      await boot(tester, repository: repository);
+      await tapText(tester, 'SPACE');
+      expect(find.text('30秒だけ、ここに。'), findsOneWidget);
+      await tapText(tester, '今はやめておく');
+      expect(repository.records, isEmpty);
+      expect(find.text('余 白'), findsOneWidget);
+      await goToNote(tester);
+      await tapText(tester, '何も書かずに進む');
+      expect(find.text('この気持ちを、星に。'), findsOneWidget);
+      await tapText(tester, '星にする');
+      expect(repository.records.single.note, isEmpty);
+      expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
+      await tapText(tester, '今日の星座を見る');
+      expect(find.byType(ConstellationMap), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets('swiping the saved star opens constellation creation', (
+    tester,
+  ) async {
+    await boot(tester);
+    await goToNote(tester);
+    await tapText(tester, '何も書かずに進む');
+    await tapText(tester, '星にする');
+    expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
+    await tester.fling(
+      find.byIcon(Icons.star_rounded),
+      const Offset(0, -300),
+      800,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('その星を、夜空へ。'), findsOneWidget);
+    await tapText(tester, '今日の星座を作成する');
+    await tapText(tester, '作成する');
+    expect(find.byType(ConstellationMap), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets(
     'narrow screen and large text preserve scrollable selection controls',
     (tester) async {
