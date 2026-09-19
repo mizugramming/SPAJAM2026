@@ -129,8 +129,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                                       minimumSize: const Size(40, 26),
                                       foregroundColor: Colors.white54,
                                     ),
-                                    onPressed: () =>
-                                        setState(() => _reminderDismissed = true),
+                                    onPressed: () => setState(
+                                      () => _reminderDismissed = true,
+                                    ),
                                     child: const Text(
                                       '後で',
                                       style: TextStyle(fontSize: 11),
@@ -361,10 +362,10 @@ class GlassCard extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.08),
+            color: Colors.white.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: Colors.white.withOpacity(0.18),
+              color: Colors.white.withValues(alpha: 0.18),
               width: 1.2,
             ),
           ),
@@ -408,10 +409,10 @@ class _SpaceKeyButtonState extends State<SpaceKeyButton> {
             Container(
               height: 46,
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   width: 1,
                 ),
               ),
@@ -428,18 +429,18 @@ class _SpaceKeyButtonState extends State<SpaceKeyButton> {
                   child: Container(
                     height: 46,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.25),
+                        color: Colors.white.withValues(alpha: 0.25),
                         width: 1.2,
                       ),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Colors.white.withOpacity(0.2),
-                          Colors.white.withOpacity(0.05),
+                          Colors.white.withValues(alpha: 0.2),
+                          Colors.white.withValues(alpha: 0.05),
                         ],
                       ),
                     ),
@@ -449,7 +450,7 @@ class _SpaceKeyButtonState extends State<SpaceKeyButton> {
                       child: Text(
                         'SPACE',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 12,
                           fontWeight: FontWeight.w400,
                           letterSpacing: 4.0,

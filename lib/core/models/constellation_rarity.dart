@@ -16,7 +16,9 @@ enum ConstellationRarity {
 ConstellationRarity computeRarity(List<SpaceRecord> records) {
   if (records.length < 3) return ConstellationRarity.normal;
   final hours = records
-      .map((r) => r.createdAt.toLocal().hour + r.createdAt.toLocal().minute / 60)
+      .map(
+        (r) => r.createdAt.toLocal().hour + r.createdAt.toLocal().minute / 60,
+      )
       .toList();
   final spread = hours.reduce(math.max) - hours.reduce(math.min);
   if (records.length >= 5 && spread >= 8) return ConstellationRarity.superRare;
