@@ -2,22 +2,52 @@
 
 同じリポジトリを取得済み・開発環境を準備済みのPC向けです。**cloneは不要です。** 既存のプロジェクトフォルダで実行します。
 
-`develop` は作成者がひな形を共有する統合ブランチの例です。作成者が実際の名前に置き換えて共有してください。`feature/my-task` は自分の作業ブランチ名に置き換えます。
+開発者ごとに **`1`・`2`・`3`・`4`** のどれかを割り当て、担当画面が変わっても同じ番号を使います。同じ番号を複数人で使いません。
 
-## 1. 最新のひな形を取り込んで作業する
+作成者は配布前に、このREADMEの `develop` をひな形の統合ブランチ名に置き換えてください。各開発者は自分の番号のコマンドをコピーして使えます。
 
-未コミットの変更があれば、先に自分の作業ブランチへ保存します。
+## 1. 自分のブランチで作業する
+
+未コミットの変更があれば、先に元の作業ブランチへ保存します。**初回だけ、自分の番号のブロックを1つ実行します。**
+
+### 開発者1
 
 ```bash
 git fetch origin
-git switch feature/my-task
-git pull --ff-only
+git switch --no-track -c 1 origin/develop
+```
+
+### 開発者2
+
+```bash
+git fetch origin
+git switch --no-track -c 2 origin/develop
+```
+
+### 開発者3
+
+```bash
+git fetch origin
+git switch --no-track -c 3 origin/develop
+```
+
+### 開発者4
+
+```bash
+git fetch origin
+git switch --no-track -c 4 origin/develop
+```
+
+**2回目以降は新規作成せず**、自分の番号に応じて `git switch 1` / `git switch 2` / `git switch 3` / `git switch 4` で切り替えます。別PCで同じ番号へpushした変更がある場合は、切り替え後に `git pull --ff-only` で取り込みます。
+
+以下は全員共通です。自分の番号のブランチで、毎回実行します。
+
+```bash
+git fetch origin
 git merge origin/develop
 fvm flutter pub get --enforce-lockfile
 fvm flutter run --no-pub
 ```
-
-まだ作業ブランチがない場合は、`git switch` と `git pull` の代わりに `git switch -c feature/my-task origin/develop` を実行します。初回push前で追跡先がない場合は `git pull --ff-only` を省略します。
 
 指定SDKが未導入の場合だけ `fvm install --skip-pub-get` を実行します。Flutterは `.fvmrc` の指定版を使います。
 
@@ -35,11 +65,11 @@ git diff
 git add -- "変更したファイルのパス"
 git diff --cached
 git commit -m "担当部分の変更内容"
-git push -u origin feature/my-task
+git push -u origin HEAD
 gh pr create --base develop
 ```
 
-変更ファイルが複数あれば `git add` に並べます。PR作成時は変更内容と検証結果を入力します。同じ作業のPRが既にある場合は、pushまでで更新されるので `gh pr create` は不要です。
+`HEAD` は現在の番号ブランチを指すため、pushコマンドの書き換えは不要です。変更ファイルが複数あれば `git add` に並べます。PR作成時は変更内容と検証結果を入力します。同じ作業のPRが既にある場合は、pushまでで更新されるので `gh pr create` は不要です。
 
 ## 3. 確認してマージする
 
@@ -54,6 +84,8 @@ gh pr checks --required --watch
 ```bash
 gh pr merge --merge
 ```
+
+マージ後も番号ブランチは削除せず、次の作業前に手順1の共通コマンドで統合版を取り込みます。
 
 他の人が先にマージした場合は、`git fetch origin` → `git merge origin/develop` → 依存取得・検証 → `git push` → 必須チェック確認をやり直してからマージします。
 
