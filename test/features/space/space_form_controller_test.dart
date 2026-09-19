@@ -22,6 +22,14 @@ void main() {
       form.selectCategory(CategoryType.workStudy);
       form.next();
       form.setNote('  おつかれさま  ');
+      form.next();
+      expect(form.step, SpaceStep.review);
+      form.next();
+      expect(form.step, SpaceStep.review);
+      form.back();
+      expect(form.step, SpaceStep.note);
+      expect(form.note, '  おつかれさま  ');
+      form.next();
       SpaceRecord? attempted;
       expect(
         await form.save((r) async {
@@ -45,6 +53,10 @@ void main() {
     addTearDown(form.dispose);
     form.selectEmotion(EmotionType.uneasy);
     form.selectCategory(CategoryType.self);
+    form.next();
+    form.next();
+    form.next();
+    form.next();
     final barrier = Completer<void>();
     var calls = 0;
     final pending = form.save((_) {
