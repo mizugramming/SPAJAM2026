@@ -10,28 +10,28 @@ git pull --ff-only origin rehearsal/02
 flutter pub get
 ```
 
-### ホーム担当
+### ホーム担当(長松さん)
 
 ```bash
 git switch -c feature/yohaku-home
 git push -u origin feature/yohaku-home
 ```
 
-### SPACE担当
+### SPACE担当(松本くん)
 
 ```bash
 git switch -c feature/yohaku-space
 git push -u origin feature/yohaku-space
 ```
 
-### 今日の星座担当
+### 今日の星座担当(嶋本さん)
 
 ```bash
 git switch -c feature/yohaku-constellation
 git push -u origin feature/yohaku-constellation
 ```
 
-### 宇宙・振り返り担当
+### 宇宙・振り返り担当(北林)
 
 ```bash
 git switch -c feature/yohaku-universe-history
@@ -62,10 +62,10 @@ flutter run
 
 | 担当 | ブランチ |
 |---|---|
-| ホーム | `feature/yohaku-home` |
-| SPACE | `feature/yohaku-space` |
-| 今日の星座 | `feature/yohaku-constellation` |
-| 宇宙・振り返り | `feature/yohaku-universe-history` |
+| ホーム(永松さん) | `feature/yohaku-home` |
+| SPACE(嶋本さん) | `feature/yohaku-space` |
+| 今日の星座(松本くん) | `feature/yohaku-constellation` |
+| 宇宙・振り返り(北林) | `feature/yohaku-universe-history` |
 
 ---
 
