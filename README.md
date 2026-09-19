@@ -5,6 +5,7 @@
 - **AIへ最初に渡すルール：[AGENTS.md](AGENTS.md)**
 - **環境構築・更新・PR・トラブル対応：[開発ガイド](docs/development.md)**
 - [画面間の接続ガイド](docs/feature_integration.md)
+- [画像の追加手順](docs/adding_assets.md) / [別のアプリを新しく始める手順](docs/new_app.md)
 - [実装内容とプレビュー](docs/implementation.md) / [設計書](yohaku_app_design.md)
 
 ## AIが開発を始めるときの読み方
@@ -52,6 +53,8 @@ fvm flutter run -d chrome
 | 宇宙・振り返り（北林） | `feature/yohaku-universe-history` | `lib/features/universe/`, `lib/features/history/` |
 
 各担当の素材は `assets/担当機能/`、テストは `test/features/担当機能/` に置きます。SPACEは `assets/star/` も使用します。共通ファイルは統合担当へ相談してください。
+
+登録済み素材フォルダの直下に画像を追加する場合、`pubspec.yaml` の変更は不要です。[画像の追加手順](docs/adding_assets.md)に従い、出典は `docs/asset_sources/担当機能.md` に記録します。この担当別の出典ファイルも各担当の変更範囲です。
 
 ## このアプリの変更範囲
 
