@@ -1,7 +1,18 @@
 import '../models/emotion_type.dart';
 import '../models/space_record.dart';
 
-const _kConstellationNouns = ['灯', '波', '風', '雫', '橋', '扉', '道', '欠片', '花', '光'];
+const _kConstellationNouns = [
+  '灯',
+  '波',
+  '風',
+  '雫',
+  '橋',
+  '扉',
+  '道',
+  '欠片',
+  '花',
+  '光',
+];
 
 EmotionType? _dominantEmotion(List<SpaceRecord> records) {
   if (records.isEmpty) return null;

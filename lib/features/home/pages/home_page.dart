@@ -129,8 +129,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                                       minimumSize: const Size(40, 26),
                                       foregroundColor: Colors.white54,
                                     ),
-                                    onPressed: () =>
-                                        setState(() => _reminderDismissed = true),
+                                    onPressed: () => setState(
+                                      () => _reminderDismissed = true,
+                                    ),
                                     child: const Text(
                                       '後で',
                                       style: TextStyle(fontSize: 11),

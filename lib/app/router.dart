@@ -46,7 +46,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.constellationReveal,
         builder: (_, state) => ConstellationRevealPage(
-          date: parseDateKey(state.uri.queryParameters['date']) ?? localDay(DateTime.now()),
+          date:
+              parseDateKey(state.uri.queryParameters['date']) ??
+              localDay(DateTime.now()),
         ),
       ),
     ],

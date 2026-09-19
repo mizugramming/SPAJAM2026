@@ -599,7 +599,8 @@ class _SparkleBurstPainter extends CustomPainter {
       final angle = (i / 14) * 2 * math.pi + random.nextDouble() * .3;
       final speed = .55 + random.nextDouble() * .45;
       final distance = maxRadius * progress * speed;
-      final point = center + Offset(math.cos(angle), math.sin(angle)) * distance;
+      final point =
+          center + Offset(math.cos(angle), math.sin(angle)) * distance;
       final radius = 1.4 + random.nextDouble() * 2.4;
       canvas.drawCircle(
         point,

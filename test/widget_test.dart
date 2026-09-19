@@ -174,7 +174,11 @@ void main() {
     await tester.enterText(find.byType(TextField), '静かな夜。');
     await tapText(tester, '星を作る');
     expect(find.text('あなたの言葉が、\n星になりました。'), findsOneWidget);
-    await tester.fling(find.byIcon(Icons.star_rounded), const Offset(0, -300), 800);
+    await tester.fling(
+      find.byIcon(Icons.star_rounded),
+      const Offset(0, -300),
+      800,
+    );
     await tester.pumpAndSettle();
     expect(find.text('その星を、\n夜空へ。'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

@@ -7,9 +7,10 @@ const starReminderInterval = Duration(hours: 1);
 
 // Ticks periodically (and on app resume) so starReminderDueProvider is
 // re-evaluated without needing a real OS notification.
-final _starReminderTickProvider = NotifierProvider<_StarReminderTickNotifier, int>(
-  _StarReminderTickNotifier.new,
-);
+final _starReminderTickProvider =
+    NotifierProvider<_StarReminderTickNotifier, int>(
+      _StarReminderTickNotifier.new,
+    );
 
 class _StarReminderTickNotifier extends Notifier<int> {
   @override
