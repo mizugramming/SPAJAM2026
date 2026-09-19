@@ -120,7 +120,7 @@ void main() {
       await tapText(tester, '今日');
       expect(find.text('この日は、静かな宇宙。'), findsOneWidget);
       await tapText(tester, '宇宙');
-      expect(find.text('まだ眠っている惑星'), findsNWidgets(6));
+      expect(find.textContaining('まだ眠っている惑星'), findsOneWidget);
       await tapText(tester, '振り返り');
       expect(find.text('この日は、静かな余白。'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -153,8 +153,10 @@ void main() {
         '少し休んで、また明日。',
       );
       await tapText(tester, '宇宙');
-      expect(find.text('小さな惑星'), findsOneWidget);
-      await tapText(tester, '学業・仕事');
+      await tester.tap(find.byTooltip('学業・仕事を表示'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('小さな惑星'), findsOneWidget);
+      await tapText(tester, 'この惑星のすべての記録');
       expect(find.text('学業・仕事の惑星'), findsOneWidget);
       Navigator.of(tester.element(find.text('学業・仕事の惑星'))).pop();
       await tester.pumpAndSettle();
@@ -170,7 +172,7 @@ void main() {
       expect(restarted.read(spaceRecordsProvider).requireValue, isEmpty);
       expect(find.text('この日は、静かな余白。'), findsOneWidget);
       await tapText(tester, '宇宙');
-      expect(find.text('まだ眠っている惑星'), findsNWidgets(6));
+      expect(find.textContaining('まだ眠っている惑星'), findsOneWidget);
       await tapText(tester, '今日');
       expect(find.text('この日は、静かな宇宙。'), findsOneWidget);
       expect(tester.takeException(), isNull);
