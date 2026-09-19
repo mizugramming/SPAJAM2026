@@ -50,7 +50,7 @@ Future<void> tapText(WidgetTester tester, String text) async {
 
 Future<void> goToNote(WidgetTester tester) async {
   await tapText(tester, 'SPACE');
-  await tapText(tester, 'スキップして気持ちを選ぶ');
+  await tapText(tester, 'はじめる');
   final next = tester.widget<FilledButton>(
     find.widgetWithText(FilledButton, '次へ'),
   );
@@ -133,9 +133,11 @@ void main() {
       final container = await boot(tester);
       await goToNote(tester);
       await tester.enterText(find.byType(TextField), '少し休んで、また明日。');
-      await tapText(tester, '宇宙へ放つ');
-      expect(find.text('あなたの言葉が、\n星になりました。'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+      await tapText(tester, '確認へ進む');
+      await tapText(tester, '星にする');
+      expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
+      await tapText(tester, '今日の星座を見る');
       await tester.pumpAndSettle();
       expect(find.byType(ConstellationMap), findsOneWidget);
       expect(
@@ -197,19 +199,22 @@ void main() {
         200,
       );
       await tester.enterText(find.byType(TextField), '残しておきたい言葉');
-      await tapText(tester, '宇宙へ放つ');
-      expect(find.text('保存できませんでした。入力は残っています。もう一度お試しください。'), findsOneWidget);
+      await tapText(tester, '確認へ進む');
+      await tapText(tester, '星にする');
+      expect(find.text('記録を保存できませんでした。入力内容はそのまま残っています。'), findsOneWidget);
+      await tester.tap(find.byTooltip('前のステップへ'));
+      await tester.pumpAndSettle();
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         '残しておきたい言葉',
       );
+      await tapText(tester, '確認へ進む');
       await tester.tap(find.byTooltip('閉じる'));
       await tester.pumpAndSettle();
       expect(find.text('入力を閉じますか？'), findsOneWidget);
       await tapText(tester, '続ける');
       repository.failSave = false;
-      await tapText(tester, '宇宙へ放つ');
-      await tester.pump(const Duration(seconds: 3));
+      await tapText(tester, '星にする');
       await tester.pumpAndSettle();
       expect(repository.records, hasLength(1));
       await tester.pumpWidget(const SizedBox.shrink());
@@ -254,6 +259,47 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  testWidgets(
+    'SPACE can be left without a record and empty note can become a star',
+    (tester) async {
+      final repository = MemoryRepository();
+      await boot(tester, repository: repository);
+      await tapText(tester, 'SPACE');
+      expect(find.text('30秒だけ、ここに。'), findsOneWidget);
+      await tapText(tester, '今はやめておく');
+      expect(repository.records, isEmpty);
+      expect(find.text('余 白'), findsOneWidget);
+      await goToNote(tester);
+      await tapText(tester, '何も書かずに進む');
+      expect(find.text('この気持ちを、星に。'), findsOneWidget);
+      await tapText(tester, '星にする');
+      expect(repository.records.single.note, isEmpty);
+      expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
+      await tapText(tester, '今日の星座を見る');
+      expect(find.byType(ConstellationMap), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets('swiping the saved star opens constellation creation', (
+    tester,
+  ) async {
+    await boot(tester);
+    await goToNote(tester);
+    await tapText(tester, '何も書かずに進む');
+    await tapText(tester, '星にする');
+    expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
+    await tester.fling(
+      find.byIcon(Icons.star_rounded),
+      const Offset(0, -300),
+      800,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('その星を、夜空へ。'), findsOneWidget);
+    await tapText(tester, '今日の星座を作成する');
+    await tapText(tester, '作成する');
+    expect(find.byType(ConstellationMap), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets(
     'narrow screen and large text preserve scrollable selection controls',
     (tester) async {
