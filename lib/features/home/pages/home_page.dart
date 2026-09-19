@@ -7,18 +7,50 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/design_tokens.dart';
+import '../../../core/providers/constellation_creation_provider.dart';
 import '../../../core/providers/space_records_provider.dart';
+import '../../../core/providers/star_reminder_provider.dart';
+import '../../../core/utils/date_key.dart';
 import '../../../core/utils/record_queries.dart';
+import '../../../core/widgets/constellation_creation_flow.dart';
 import '../../../core/widgets/error_state.dart';
 import '../../../core/widgets/planet_orb.dart';
 
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  bool _reminderDismissed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPendingReveal());
+  }
+
+  Future<void> _checkPendingReveal() async {
+    final state = await ref.read(constellationCreationProvider.future);
+    final pending = state.pendingReveal;
+    if (pending == null || !mounted) return;
+    final date = parseDateKey(pending);
+    await ref.read(constellationCreationProvider.notifier).clearPendingReveal();
+    if (date == null || !mounted) return;
+    if (GoRouterState.of(context).uri.path != AppRoutes.home) return;
+    context.push(AppRoutes.constellationRevealOn(date));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final today = ref.watch(todayProvider);
     final records = ref.watch(spaceRecordsProvider);
+    final reminderDue = ref.watch(starReminderDueProvider);
+    final createdToday =
+        ref.watch(constellationCreationProvider).value?.isCreated(today) ??
+        false;
 
     return Scaffold(
       body: DecoratedBox(
@@ -26,11 +58,7 @@ class HomePage extends ConsumerWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF071A2A),
-              Color(0xFF112C42),
-              Color(0xFF1D3850),
-            ],
+            colors: [Color(0xFF071A2A), Color(0xFF112C42), Color(0xFF1D3850)],
           ),
         ),
         child: SafeArea(
@@ -50,11 +78,72 @@ class HomePage extends ConsumerWidget {
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 11,
+                          letterSpacing: 1,
                         ),
                       ),
                     ),
+                    if (reminderDue && !_reminderDismissed) ...[
+                      const SizedBox(height: 12),
+                      GlassCard(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.notifications_active_outlined,
+                                color: DesignTokens.gold,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  '星を作る時間です。\n今の気持ちを、ひとつ残しませんか？',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: const Size(40, 26),
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    onPressed: () =>
+                                        context.push(AppRoutes.space),
+                                    child: const Text(
+                                      '作る',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: const Size(40, 26),
+                                      foregroundColor: Colors.white54,
+                                    ),
+                                    onPressed: () =>
+                                        setState(() => _reminderDismissed = true),
+                                    child: const Text(
+                                      '後で',
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
-
                     const Column(
                       children: [
                         Text(
@@ -79,9 +168,7 @@ class HomePage extends ConsumerWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 24),
-
                     const Center(
                       child: PlanetOrb(
                         color: Color(0xFF90B8BE),
@@ -91,9 +178,7 @@ class HomePage extends ConsumerWidget {
                         rings: true,
                       ),
                     ),
-
                     const SizedBox(height: 20),
-
                     records.when(
                       loading: () => const Center(
                         child: Padding(
@@ -108,7 +193,8 @@ class HomePage extends ConsumerWidget {
                         final stars = recordsOnDay(all, today);
 
                         return GestureDetector(
-                          onTap: () => context.go(AppRoutes.constellationOn(today)),
+                          onTap: () =>
+                              context.go(AppRoutes.constellationOn(today)),
                           child: GlassCard(
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -188,15 +274,34 @@ class HomePage extends ConsumerWidget {
                         );
                       },
                     ),
-
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white24),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      onPressed: () => createTodayConstellationFlow(
+                        context,
+                        ref,
+                        alreadyCreated: createdToday,
+                      ),
+                      icon: Icon(
+                        createdToday
+                            ? Icons.check_circle_outline
+                            : Icons.auto_awesome,
+                        size: 16,
+                      ),
+                      label: Text(
+                        createdToday ? '今日の星座は作成ずみです' : '今日の星座を作成する',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
                     const SizedBox(height: 20),
-
                     SpaceKeyButton(
                       onPressed: () => context.push(AppRoutes.space),
                     ),
-
                     const SizedBox(height: 12),
-
                     Row(
                       children: [
                         Expanded(

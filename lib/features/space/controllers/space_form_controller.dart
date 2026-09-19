@@ -23,7 +23,7 @@ class SpaceFormController extends ChangeNotifier {
   }
 
   void next() {
-    if (saving || step == SpaceStep.complete) return;
+    if (saving || step == SpaceStep.values.last) return;
     if (step == SpaceStep.emotion && emotion == null) return;
     if (step == SpaceStep.category && category == null) return;
     step = SpaceStep.values[step.index + 1];
@@ -31,10 +31,12 @@ class SpaceFormController extends ChangeNotifier {
   }
 
   void back() {
-    if (saving || step.index == 0 || step == SpaceStep.complete) return;
+    if (saving || step.index == 0 || isFinalStep) return;
     step = SpaceStep.values[step.index - 1];
     _changed();
   }
+
+  bool get isFinalStep => step == SpaceStep.complete;
 
   void selectEmotion(EmotionType value) {
     emotion = value;
