@@ -10,7 +10,7 @@ git pull --ff-only origin rehearsal/02
 flutter pub get
 ```
 
-### ホーム担当(長松さん)
+### ホーム担当(永松さん)
 
 ```bash
 git switch -c feature/yohaku-home
