@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spajam2026/app/app.dart';
+import 'package:spajam2026/app/app_shell.dart';
 import 'package:spajam2026/app/router.dart';
 import 'package:spajam2026/core/constants/app_routes.dart';
 import 'package:spajam2026/core/models/category_type.dart';
@@ -73,7 +74,7 @@ void main() {
       repository: MemoryRepository([record(1, at: DateTime.now())]),
     );
     final phone = Rect.fromLTWH(505, 74, 430, 932);
-    expect(tester.getRect(find.byType(Scaffold).last), phone);
+    expect(tester.getRect(find.byType(AppShell)), phone);
     expect(tester.getSize(find.byType(NavigationBar)).width, 430);
     await tapText(tester, 'SPACE');
     expect(tester.getRect(find.byType(Scaffold).last), phone);
@@ -158,6 +159,10 @@ void main() {
       await tester.tap(find.byTooltip('学業・仕事を表示'));
       await tester.pumpAndSettle();
       expect(find.textContaining('小さな惑星'), findsOneWidget);
+      expect(
+        tester.widget<RecordList>(find.byType(RecordList)).records.single.note,
+        '少し休んで、また明日。',
+      );
       await tapText(tester, 'この惑星のすべての記録');
       expect(find.text('学業・仕事の惑星'), findsOneWidget);
       Navigator.of(tester.element(find.text('学業・仕事の惑星'))).pop();

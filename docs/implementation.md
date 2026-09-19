@@ -36,7 +36,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory build/web
 ## 実装済みの機能
 
 - ホーム：今日の星のプレビュー、SPACEへの入口。
-- SPACE：スキップ可能な停止時間 → 感情 → テーマ → 任意メモ → 星の誕生。
+- SPACE：スキップ可能な停止時間 → 感情 → テーマ → 任意メモ → 確認 → 星の誕生。上方向へのスワイプで星を送り、星座作成へ進めます。
 - 今日の星座：記録時刻順の接続、感情別の色、星タップで詳細。
 - 宇宙：6テーマの惑星を奥行きのある回転表示で巡る。ドラッグ・慣性移動、累計記録数に応じた成長、中央のテーマの今日の記録、過去分の一覧。
 - 振り返り：月カレンダー、記録日の星印、日別記録、過去の星座への遷移。
@@ -59,7 +59,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory build/web
 
 Feature間の直接importはありません。共通の詳細表示・一覧・描画部品は `core/widgets/`、保存と状態管理は `core/repositories/` と `core/providers/` にあります。依存やルートの変更はAが管理します。素材も `assets/<feature>/` に分離しています。
 
-ルートは `/home`, `/space`, `/constellation?date=YYYY-MM-DD`, `/universe`, `/history`。`/` はホームへ移動し、不正な日付は今日として扱います。
+ルートは `/home`, `/space`, `/constellation?date=YYYY-MM-DD`, `/universe`, `/history`。星座のお披露目は `/constellation-reveal?date=YYYY-MM-DD`、星の配置編集は `/space/star-placement` です。`/` はホームへ移動し、不正な日付は今日として扱います。
 
 ## 確認コマンド
 

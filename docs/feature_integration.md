@@ -55,7 +55,7 @@ await ref.read(spaceRecordsProvider.notifier).deleteById(record.id);
 
 SPACE担当は `features/space/controllers/space_form_controller.dart` をそのまま利用できます。
 
-- `step`：`pause / emotion / category / note / complete`
+- `step`：`pause / emotion / category / note / review / complete`
 - `emotion`, `category`, `note`：入力値
 - `selectEmotion(value)`, `selectCategory(value)`, `setNote(value)`：入力更新
 - `next()`, `back()`：ステップ移動
@@ -63,6 +63,8 @@ SPACE担当は `features/space/controllers/space_form_controller.dart` をその
 - `await form.save(ref.read(spaceRecordsProvider.notifier).save)`：成功時は保存した `SpaceRecord`、失敗時は `null`
 
 コントローラーは画面で生成して `dispose()` し、`ListenableBuilder` でUIを更新します。失敗時の入力保持、連打防止、再試行時のID維持、成功時の入力リセットはコントローラー内にあります。戻る・閉じるときの入力破棄確認は現在の `SpacePage` を参照してください。
+
+保存は確認ステップ `review` の「星にする」で行います。誕生した星を上にスワイプする演出と、その後の星座作成では記録を追加保存しません。SPACE・星座・宇宙・振り返りは引き続き同じ `spaceRecordsProvider` の記録を使います。
 
 削除はユーザー確認後に呼び出してください。共通の詳細シート `showRecordDetail(context, record)` には確認ダイアログ・削除・失敗時の再試行が実装済みです。
 
