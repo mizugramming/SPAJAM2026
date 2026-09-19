@@ -27,8 +27,9 @@ class SpaceFormController extends ChangeNotifier {
   }
 
   void next() {
-    if (saving || step == SpaceStep.review || step == SpaceStep.complete)
+    if (saving || step == SpaceStep.review || step == SpaceStep.complete) {
       return;
+    }
     if (step == SpaceStep.emotion && emotion == null) return;
     if (step == SpaceStep.category && category == null) return;
     step = SpaceStep.values[step.index + 1];
