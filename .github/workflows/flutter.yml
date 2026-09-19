@@ -43,6 +43,9 @@ jobs:
       - run: flutter test --no-pub
       - run: flutter build web --release --no-web-resources-cdn --no-pub
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - name: Install pinned Android components
         env:
           COMPILE_SDK: ${{ steps.toolchain.outputs.androidCompileSdk }}
