@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:spajam2026/app/app.dart';
+import 'package:spajam2026/app/app_shell.dart';
 import 'package:spajam2026/app/router.dart';
 import 'package:spajam2026/core/constants/app_routes.dart';
 import 'package:spajam2026/core/models/category_type.dart';
@@ -18,8 +19,9 @@ import 'helpers.dart';
 Future<ProviderContainer> boot(
   WidgetTester tester, {
   MemoryRepository? repository,
+  Size size = const Size(430, 932),
 }) async {
-  tester.view.physicalSize = const Size(430, 932);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -63,6 +65,54 @@ Future<void> goToNote(WidgetTester tester) async {
 void main() {
   setUpAll(() async => initializeDateFormatting('ja_JP'));
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  testWidgets('desktop viewport contains routes, sheets and dialogs', (
+    tester,
+  ) async {
+    await boot(
+      tester,
+      size: const Size(1440, 1080),
+      repository: MemoryRepository([record(1, at: DateTime.now())]),
+    );
+    final phone = Rect.fromLTWH(505, 74, 430, 932);
+    expect(tester.getRect(find.byType(AppShell)), phone);
+    expect(tester.getSize(find.byType(NavigationBar)).width, 430);
+    await tapText(tester, 'SPACE');
+    expect(tester.getRect(find.byType(Scaffold).last), phone);
+    expect(
+      MediaQuery.sizeOf(tester.element(find.byType(Scaffold).last)),
+      phone.size,
+    );
+    final context = tester.element(find.byType(Scaffold).last);
+    GoRouter.of(context).pop();
+    await tester.pumpAndSettle();
+    await tapText(tester, '振り返り');
+    await tapText(tester, '疲れた · 学業・仕事');
+    final sheet = tester.getRect(find.byType(BottomSheet));
+    expect(sheet.left, phone.left);
+    expect(sheet.right, phone.right);
+    expect(sheet.top, greaterThanOrEqualTo(phone.top));
+    expect(sheet.bottom, lessThanOrEqualTo(phone.bottom));
+    await tapText(tester, 'この記録を削除');
+    final dialog = tester.getRect(find.byType(AlertDialog));
+    expect(dialog.intersect(phone), dialog);
+    await tapText(tester, '残す');
+    Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.byType(Scaffold).last),
+      const Rect.fromLTWH(0, 0, 390, 844),
+    );
+    tester.view.physicalSize = const Size(1280, 640);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.byType(Scaffold).last),
+      const Rect.fromLTWH(425, 0, 430, 640),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets(
     'empty screens and all navigation destinations render without errors',
     (tester) async {
@@ -71,7 +121,7 @@ void main() {
       await tapText(tester, '今日');
       expect(find.text('この日は、静かな宇宙。'), findsOneWidget);
       await tapText(tester, '宇宙');
-      expect(find.text('まだ眠っている惑星'), findsNWidgets(6));
+      expect(find.textContaining('まだ眠っている惑星'), findsOneWidget);
       await tapText(tester, '振り返り');
       expect(find.text('この日は、静かな余白。'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -106,8 +156,14 @@ void main() {
         '少し休んで、また明日。',
       );
       await tapText(tester, '宇宙');
-      expect(find.text('小さな惑星'), findsOneWidget);
-      await tapText(tester, '学業・仕事');
+      await tester.tap(find.byTooltip('学業・仕事を表示'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('小さな惑星'), findsOneWidget);
+      expect(
+        tester.widget<RecordList>(find.byType(RecordList)).records.single.note,
+        '少し休んで、また明日。',
+      );
+      await tapText(tester, 'この惑星のすべての記録');
       expect(find.text('学業・仕事の惑星'), findsOneWidget);
       Navigator.of(tester.element(find.text('学業・仕事の惑星'))).pop();
       await tester.pumpAndSettle();
@@ -123,7 +179,7 @@ void main() {
       expect(restarted.read(spaceRecordsProvider).requireValue, isEmpty);
       expect(find.text('この日は、静かな余白。'), findsOneWidget);
       await tapText(tester, '宇宙');
-      expect(find.text('まだ眠っている惑星'), findsNWidgets(6));
+      expect(find.textContaining('まだ眠っている惑星'), findsOneWidget);
       await tapText(tester, '今日');
       expect(find.text('この日は、静かな宇宙。'), findsOneWidget);
       expect(tester.takeException(), isNull);
