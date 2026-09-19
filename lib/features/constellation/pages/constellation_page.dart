@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/design_tokens.dart';
-import '../../../core/models/constellation_rarity.dart';
 import '../../../core/models/emotion_type.dart';
 import '../../../core/providers/space_records_provider.dart';
 import '../../../core/utils/date_key.dart';
@@ -14,7 +13,6 @@ import '../../../core/widgets/error_state.dart';
 import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/record_list.dart';
 import '../widgets/constellation_map.dart';
-import '../widgets/rarity_badge.dart';
 
 class ConstellationPage extends ConsumerWidget {
   const ConstellationPage({super.key, this.date});
@@ -41,8 +39,6 @@ class ConstellationPage extends ConsumerWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Center(child: RarityBadge(rarity: computeRarity(stars))),
-                    const SizedBox(height: 16),
                     GlassPanel(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,

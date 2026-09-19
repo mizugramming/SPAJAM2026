@@ -27,7 +27,6 @@ flutter:
     - assets/common/
     - assets/home/
     - assets/space/
-    - assets/star/
     - assets/constellation/
     - assets/universe/
     - assets/history/
