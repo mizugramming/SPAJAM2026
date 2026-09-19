@@ -84,10 +84,13 @@ void main() {
       final container = await boot(tester);
       await goToNote(tester);
       await tester.enterText(find.byType(TextField), '少し休んで、また明日。');
-      await tapText(tester, '宇宙へ放つ');
+      await tapText(tester, '星を作る');
       expect(find.text('あなたの言葉が、\n星になりました。'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 3));
-      await tester.pumpAndSettle();
+      await tapText(tester, '星を飛ばす');
+      expect(find.text('その星を、\n夜空へ。'), findsOneWidget);
+      expect(find.text('少し休んで、また明日。'), findsOneWidget);
+      await tapText(tester, '今日の星座を作成する');
+      await tapText(tester, '作成する');
       expect(find.byType(ConstellationMap), findsOneWidget);
       expect(
         container.read(spaceRecordsProvider).requireValue.single.emotion,
@@ -146,7 +149,7 @@ void main() {
         200,
       );
       await tester.enterText(find.byType(TextField), '残しておきたい言葉');
-      await tapText(tester, '宇宙へ放つ');
+      await tapText(tester, '星を作る');
       expect(find.text('保存できませんでした。入力は残っています。もう一度お試しください。'), findsOneWidget);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
@@ -157,13 +160,25 @@ void main() {
       expect(find.text('入力を閉じますか？'), findsOneWidget);
       await tapText(tester, '続ける');
       repository.failSave = false;
-      await tapText(tester, '宇宙へ放つ');
-      await tester.pump(const Duration(seconds: 3));
-      await tester.pumpAndSettle();
+      await tapText(tester, '星を作る');
+      await tapText(tester, '星を飛ばす');
       expect(repository.records, hasLength(1));
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  testWidgets('swiping the star up also advances to the launch step', (
+    tester,
+  ) async {
+    await boot(tester);
+    await goToNote(tester);
+    await tester.enterText(find.byType(TextField), '静かな夜。');
+    await tapText(tester, '星を作る');
+    expect(find.text('あなたの言葉が、\n星になりました。'), findsOneWidget);
+    await tester.fling(find.byIcon(Icons.star_rounded), const Offset(0, -300), 800);
+    await tester.pumpAndSettle();
+    expect(find.text('その星を、\n夜空へ。'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets(
     'past date route and calendar selection agree; multiple stars render',
     (tester) async {

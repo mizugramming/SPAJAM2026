@@ -4,18 +4,50 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/design_tokens.dart';
+import '../../../core/providers/constellation_creation_provider.dart';
 import '../../../core/providers/space_records_provider.dart';
+import '../../../core/providers/star_reminder_provider.dart';
+import '../../../core/utils/date_key.dart';
 import '../../../core/utils/record_queries.dart';
+import '../../../core/widgets/constellation_creation_flow.dart';
 import '../../../core/widgets/error_state.dart';
 import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/planet_orb.dart';
 
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  bool _reminderDismissed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPendingReveal());
+  }
+
+  Future<void> _checkPendingReveal() async {
+    final state = await ref.read(constellationCreationProvider.future);
+    final pending = state.pendingReveal;
+    if (pending == null || !mounted) return;
+    final date = parseDateKey(pending);
+    await ref.read(constellationCreationProvider.notifier).clearPendingReveal();
+    if (date == null || !mounted) return;
+    if (GoRouterState.of(context).uri.path != AppRoutes.home) return;
+    context.push(AppRoutes.constellationRevealOn(date));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final today = ref.watch(todayProvider);
     final records = ref.watch(spaceRecordsProvider);
+    final reminderDue = ref.watch(starReminderDueProvider);
+    final createdToday =
+        ref.watch(constellationCreationProvider).value?.isCreated(today) ??
+        false;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 20, 28, 32),
       child: Center(
@@ -46,6 +78,43 @@ class HomePage extends ConsumerWidget {
                   ),
                 ],
               ),
+              if (reminderDue && !_reminderDismissed) ...[
+                const SizedBox(height: 16),
+                GlassPanel(
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.notifications_active_outlined,
+                        color: DesignTokens.gold,
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          '星を作る時間です。\n今の気持ちを、ひとつ残しませんか？',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: () => context.push(AppRoutes.space),
+                            child: const Text('作る'),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                setState(() => _reminderDismissed = true),
+                            child: const Text(
+                              '後で',
+                              style: TextStyle(color: DesignTokens.muted),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 30),
               const Text(
                 '余 白',
@@ -155,6 +224,22 @@ class HomePage extends ConsumerWidget {
                     ),
                   );
                 },
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => createTodayConstellationFlow(
+                  context,
+                  ref,
+                  alreadyCreated: createdToday,
+                ),
+                icon: Icon(
+                  createdToday
+                      ? Icons.check_circle_outline
+                      : Icons.auto_awesome,
+                ),
+                label: Text(
+                  createdToday ? '今日の星座は作成ずみです' : '今日の星座を作成する',
+                ),
               ),
               const SizedBox(height: 24),
               GlowButton(
