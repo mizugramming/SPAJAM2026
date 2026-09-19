@@ -1,60 +1,21 @@
 # 「余白」アプリ 共同開発手順
 
-画面間の状態共有・保存・削除を接続したMVPを実装済みです。画面・ボタンは分担開発向けの仮UIなので、各担当で差し替えてください。
+各画面は同じ記録データで接続されています。担当フォルダ内でデザインと動作を変更してください。
 
-`flutter run -d chrome` で起動すると、PCではアプリ全体を最大430×932のスマホ相当サイズで確認できます。スマホでは端末の画面サイズに合わせます。
+- **AIへ最初に渡すルール：[AGENTS.md](AGENTS.md)**
+- **環境構築・更新・PR・トラブル対応：[開発ガイド](docs/development.md)**
+- [画面間の接続ガイド](docs/feature_integration.md)
+- [実装内容とプレビュー](docs/implementation.md) / [設計書](yohaku_app_design.md)
 
-- [画面担当向けの接続ガイド](docs/feature_integration.md)
-- [実装内容・起動方法・検証結果](docs/implementation.md)
-- [開発設計書](yohaku_app_design.md)
+## 全員で使うバージョン
 
-## 1. 初回準備
+Flutter **3.41.5** / 同梱Dart **3.11.3**。最新版への更新は各自で行わず、プロジェクト用にFVMで揃えます。Android開発はJDK **17**を使います。
 
-```bash
-cd SPAJAM2026
-git fetch origin
-git switch rehearsal/02
-git pull --ff-only origin rehearsal/02
-flutter pub get
-```
+初回は[開発ガイド](docs/development.md#初回セットアップ)を読んでFVMを用意してください。端末に別バージョンのFlutterがあっても、プロジェクトでは指定版を使えます。
 
-### ホーム担当(永松さん)
+## 2回目以降の作業開始
 
-```bash
-git switch -c feature/yohaku-home
-git push -u origin feature/yohaku-home
-```
-
-### SPACE担当(松本くん)
-
-```bash
-git switch -c feature/yohaku-space
-git push -u origin feature/yohaku-space
-```
-
-### 今日の星座担当(嶋本さん)
-
-```bash
-git switch -c feature/yohaku-constellation
-git push -u origin feature/yohaku-constellation
-```
-
-### 宇宙・振り返り担当(北林)
-
-```bash
-git switch -c feature/yohaku-universe-history
-git push -u origin feature/yohaku-universe-history
-```
-
-ここから担当機能の実装を開始してください。
-
-```bash
-flutter run
-```
-
----
-
-## 2. 2回目以降の作業開始
+**未コミットの変更があれば先に保存し、コマンドは1行ずつ実行してください。エラーが出たらその時点で止めます。**
 
 ```bash
 cd SPAJAM2026
@@ -62,104 +23,27 @@ git switch 自分のブランチ名
 git pull --ff-only
 git fetch origin
 git merge origin/rehearsal/02
-flutter pub get
-flutter run
+fvm install
+fvm dart tool/check_environment.dart
+fvm flutter pub get --enforce-lockfile
+fvm flutter run -d chrome
 ```
 
-ブランチ名は次のとおりです。
+初回に `git push -u origin 自分のブランチ名` を実行して追跡先を設定します。Androidでは最後を `fvm flutter run -d デバイスID` に置き換えます。PCではアプリ全体が最大430×932のスマホ相当サイズになります。
 
-| 担当 | ブランチ |
-|---|---|
-| ホーム(永松さん) | `feature/yohaku-home` |
-| SPACE(嶋本さん) | `feature/yohaku-space` |
-| 今日の星座(松本くん) | `feature/yohaku-constellation` |
-| 宇宙・振り返り(北林) | `feature/yohaku-universe-history` |
+## 分担
 
----
+| 担当 | 作業ブランチ例 | 主なソース |
+|---|---|---|
+| ホーム（永松さん） | `feature/yohaku-home` | `lib/features/home/` |
+| SPACE（松本くん） | `feature/yohaku-space` | `lib/features/space/` |
+| 今日の星座（嶋本さん） | `feature/yohaku-constellation` | `lib/features/constellation/` |
+| 宇宙・振り返り（北林） | `feature/yohaku-universe-history` | `lib/features/universe/`, `lib/features/history/` |
 
-## 3. 作業終了後
+各担当の素材は `assets/担当機能/`、テストは `test/features/担当機能/` に置きます。SPACEは `assets/star/` も使用します。共通ファイルは統合担当へ相談してください。
 
-```bash
-flutter analyze
-flutter test
-git status
-```
+## 共有する前に
 
-### ホーム担当
+[開発ガイドのチェック](docs/development.md#共有前のチェック)を実行し、担当ファイルを指定してコミット・pushします。PR先は `rehearsal/02` です。
 
-```bash
-dart format lib/features/home
-git add lib/features/home
-git add assets/home test/features/home
-git diff --staged
-git commit -m "feat(home): implement home screen"
-git push
-gh pr create --base rehearsal/02 --head feature/yohaku-home --fill
-gh pr view --web
-gh pr merge feature/yohaku-home --merge
-```
-
-### SPACE担当
-
-```bash
-dart format lib/features/space
-git add lib/features/space
-git add assets/space test/features/space
-git diff --staged
-git commit -m "feat(space): implement space recording flow"
-git push
-gh pr create --base rehearsal/02 --head feature/yohaku-space --fill
-gh pr view --web
-gh pr merge feature/yohaku-space --merge
-```
-
-### 今日の星座担当
-
-```bash
-dart format lib/features/constellation
-git add lib/features/constellation
-git add assets/constellation test/features/constellation
-git diff --staged
-git commit -m "feat(constellation): implement daily constellation"
-git push
-gh pr create --base rehearsal/02 --head feature/yohaku-constellation --fill
-gh pr view --web
-gh pr merge feature/yohaku-constellation --merge
-```
-
-### 宇宙・振り返り担当
-
-```bash
-dart format lib/features/universe lib/features/history
-git add lib/features/universe lib/features/history
-git add assets/universe assets/history
-git add test/features/universe test/features/history
-git diff --staged
-git commit -m "feat(universe-history): implement universe and history"
-git push
-gh pr create --base rehearsal/02 --head feature/yohaku-universe-history --fill
-gh pr view --web
-gh pr merge feature/yohaku-universe-history --merge
-```
-
----
-
-## 4. マージ後
-
-```bash
-git switch rehearsal/02
-git pull --ff-only origin rehearsal/02
-flutter pub get
-flutter analyze
-flutter test
-flutter run
-```
-
----
-
-## 注意
-
-- `main`と`rehearsal/02`では直接作業しない
-- `git add .`は使用しない
-- コンフリクトやエラーがある場合はマージしない
-- `lib/app/`、`lib/core/`、`pubspec.yaml`を変更する場合は事前に共有する
+**最新の共有ブランチを取り込んだPRで、GitHubの必須チェック `check` がすべて成功してからマージします。** チェック待ち・失敗・競合中はマージせず、原因を解決します。AIにはPR作成とマージを別の依頼として伝えてください。

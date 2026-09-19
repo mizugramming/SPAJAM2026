@@ -1,0 +1,7 @@
+{
+  "dart": "3.11.3",
+  "java": "17",
+  "androidCompileSdk": "36",
+  "androidBuildTools": "35.0.0",
+  "androidNdk": "28.2.13676358"
+}
