@@ -93,6 +93,12 @@ class ConstellationPage extends ConsumerWidget {
             ),
         const SizedBox(height: 24),
         OutlinedButton.icon(
+          onPressed: () => context.push(AppRoutes.constellationBook),
+          icon: const Icon(Icons.auto_stories_outlined, size: 18),
+          label: const Text('星座図鑑を見る'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
           onPressed: () => context.go(AppRoutes.history),
           icon: const Icon(Icons.calendar_month_outlined, size: 18),
           label: const Text('ほかの日を振り返る'),
