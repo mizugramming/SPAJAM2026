@@ -1080,7 +1080,7 @@ const List<ConstellationData> constellations = [
     name: '一番星',
     description: 'ひとつの出来事や感情が、とても強く心に残った日に現れる星座。',
     imagePath: 'assets/constellation/first_star.png',
-    rarity: 5,
+    rarity: 1,
     discovered: false,
     points: [Offset(0.5, 0.5)],
     connections: [],
