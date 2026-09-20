@@ -45,7 +45,7 @@ void main() {
       expect(saved!.id, attempted!.id);
       expect(saved.note, 'おつかれさま');
       expect(form.hasInput, false);
-      expect(form.step, SpaceStep.complete);
+      expect(form.step, SpaceStep.review);
     },
   );
   test('double submission is blocked, empty note is valid', () async {

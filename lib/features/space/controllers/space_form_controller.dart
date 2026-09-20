@@ -4,7 +4,7 @@ import '../../../core/models/category_type.dart';
 import '../../../core/models/emotion_type.dart';
 import '../../../core/models/space_record.dart';
 
-enum SpaceStep { pause, emotion, category, note, review, complete }
+enum SpaceStep { pause, emotion, category, note, review }
 
 class SpaceFormController extends ChangeNotifier {
   SpaceStep step = SpaceStep.pause;
@@ -27,7 +27,7 @@ class SpaceFormController extends ChangeNotifier {
   }
 
   void next() {
-    if (saving || step == SpaceStep.review || isFinalStep) {
+    if (saving || step == SpaceStep.review) {
       return;
     }
     if (step == SpaceStep.emotion && emotion == null) return;
@@ -37,12 +37,10 @@ class SpaceFormController extends ChangeNotifier {
   }
 
   void back() {
-    if (saving || step.index == 0 || isFinalStep) return;
+    if (saving || step.index == 0) return;
     step = SpaceStep.values[step.index - 1];
     _changed();
   }
-
-  bool get isFinalStep => step == SpaceStep.complete;
 
   void selectEmotion(EmotionType value) {
     emotion = value;
@@ -82,7 +80,6 @@ class SpaceFormController extends ChangeNotifier {
       emotion = null;
       category = null;
       note = '';
-      step = SpaceStep.complete;
       return record;
     } catch (_) {
       error = '記録を保存できませんでした。入力内容はそのまま残っています。';

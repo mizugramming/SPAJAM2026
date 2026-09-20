@@ -51,12 +51,15 @@ class _SpacePageState extends ConsumerState<SpacePage>
     );
   }
 
+  // True once the record is saved: the review step then shows the star
+  // experience in place of the review form, instead of moving to a new step.
+  bool get _isFinal => _savedRecord != null;
+
   // The ambient sparkle only needs to tick while the resting star is
   // actually shown; running it for the page's whole lifetime would leave
   // an animation perpetually in flight for no visual benefit.
   void _syncIdleSparkle() {
-    final shouldRun =
-        _form.step == SpaceStep.complete && !_launching && !_launched;
+    final shouldRun = _isFinal && !_launching && !_launched;
     if (shouldRun && !_idleSparkleController.isAnimating) {
       _idleSparkleController.repeat();
     } else if (!shouldRun && _idleSparkleController.isAnimating) {
@@ -81,7 +84,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
 
   void _backOrExit() {
     if (_form.saving) return;
-    if (_form.step != SpaceStep.pause && _form.step != SpaceStep.complete) {
+    if (_form.step != SpaceStep.pause && !_isFinal) {
       _form.back();
     } else {
       _exit();
@@ -90,7 +93,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
 
   Future<void> _exit() async {
     if (_form.saving || _confirming) return;
-    if (_form.step == SpaceStep.complete) {
+    if (_isFinal) {
       _finish();
       return;
     }
@@ -192,7 +195,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
         child: Scaffold(
           resizeToAvoidBottomInset: true,
           body: SpaceBackground(
-            scenic: step == SpaceStep.pause || step == SpaceStep.complete,
+            scenic: step == SpaceStep.pause || _isFinal,
             child: SafeArea(
               child: Column(
                 children: [
@@ -203,8 +206,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
                     ),
                     child: Row(
                       children: [
-                        if (step != SpaceStep.pause &&
-                            step != SpaceStep.complete)
+                        if (step != SpaceStep.pause && !_isFinal)
                           IconButton(
                             tooltip: '前のステップへ',
                             onPressed: _form.saving ? null : _backOrExit,
@@ -214,9 +216,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
                           const SizedBox(width: 48),
                         Expanded(
                           child: Text(
-                            step == SpaceStep.complete
-                                ? 'A NEW STAR'
-                                : 'S P A C E',
+                            _isFinal ? 'A NEW STAR' : 'S P A C E',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 11,
@@ -449,241 +449,259 @@ class _SpacePageState extends ConsumerState<SpacePage>
           ],
         );
       case SpaceStep.review:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 26),
-            _heading(context, 'この気持ちを、星に。', 'いま残すものを、そっと確かめる。'),
-            _reviewItem(
-              label: '気持ち',
-              value: _form.emotion!.label,
-              icon: _form.emotion!.icon,
-              color: _form.emotion!.color,
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 450),
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween(begin: .3, end: 1.0).animate(animation),
+              child: child,
             ),
-            const SizedBox(height: 12),
-            _reviewItem(
-              label: 'テーマ',
-              value: _form.category!.label,
-              icon: _form.category!.icon,
-              color: _form.category!.color,
-            ),
-            if (_form.note.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: DesignTokens.surface.withValues(alpha: .7),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: DesignTokens.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: _isFinal
+              ? _starExperience(context, key: const ValueKey('star'))
+              : Column(
+                  key: const ValueKey('form'),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'ことば',
-                      style: TextStyle(fontSize: 11, color: DesignTokens.muted),
+                    const SizedBox(height: 26),
+                    _heading(context, 'この気持ちを、星に。', 'いま残すものを、そっと確かめる。'),
+                    _reviewItem(
+                      label: '気持ち',
+                      value: _form.emotion!.label,
+                      icon: _form.emotion!.icon,
+                      color: _form.emotion!.color,
                     ),
-                    const SizedBox(height: 10),
-                    Text(_form.note.trim()),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 28),
-            if (_form.error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    _form.error!,
-                    style: const TextStyle(color: DesignTokens.gold),
-                  ),
-                ),
-              ),
-            GlowButton(
-              label: '星にする',
-              icon: Icons.star_rounded,
-              busy: _form.saving,
-              onPressed: _form.canSave ? _save : null,
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'この記録は、端末の中だけに保存されます。',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: DesignTokens.muted),
-            ),
-          ],
-        );
-      case SpaceStep.complete:
-        final createdToday =
-            ref
-                .watch(constellationCreationProvider)
-                .value
-                ?.isCreated(DateTime.now()) ??
-            false;
-        final emotionColor = _savedRecord?.emotion.color ?? DesignTokens.gold;
-        final categoryColor =
-            _savedRecord?.category.color ?? DesignTokens.accent;
-        return Column(
-          children: [
-            const SizedBox(height: 30),
-            _heading(
-              context,
-              _launched ? 'その星を、夜空へ。' : 'ひとつ、星が生まれました。',
-              _launched ? '今日の星座に迎えてみましょう。' : '',
-            ),
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                clipBehavior: Clip.none,
-                children: [
-                  if (!_launching && !_launched)
-                    AnimatedBuilder(
-                      animation: _idleSparkleController,
-                      builder: (_, _) => CustomPaint(
-                        size: const Size(240, 240),
-                        painter: _AmbientSparklePainter(
-                          time: _idleSparkleController.value,
-                          color: emotionColor,
+                    const SizedBox(height: 12),
+                    _reviewItem(
+                      label: 'テーマ',
+                      value: _form.category!.label,
+                      icon: _form.category!.icon,
+                      color: _form.category!.color,
+                    ),
+                    if (_form.note.trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: DesignTokens.surface.withValues(alpha: .7),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: DesignTokens.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'ことば',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: DesignTokens.muted,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(_form.note.trim()),
+                          ],
                         ),
                       ),
-                    ),
-                  if (_launching) ...[
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : const Duration(milliseconds: 800),
-                      curve: Curves.easeIn,
-                      builder: (_, progress, _) => CustomPaint(
-                        size: const Size(320, 320),
-                        painter: _LaunchTrailPainter(
-                          progress: progress,
-                          direction: _launchDirection,
-                          color: emotionColor,
-                        ),
-                      ),
-                    ),
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : const Duration(milliseconds: 800),
-                      curve: Curves.easeIn,
-                      builder: (_, progress, _) => Opacity(
-                        opacity: (1 - progress).clamp(0.0, 1.0),
-                        child: Transform.translate(
-                          offset: _launchArc(progress, _launchDirection),
-                          child: Transform.scale(
-                            scale: (1 - progress * .7).clamp(0.3, 1.0),
-                            child: _starOrb(color: emotionColor),
+                    ],
+                    const SizedBox(height: 28),
+                    if (_form.error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            _form.error!,
+                            style: const TextStyle(color: DesignTokens.gold),
                           ),
                         ),
                       ),
+                    GlowButton(
+                      label: '星にする',
+                      icon: Icons.star_rounded,
+                      busy: _form.saving,
+                      onPressed: _form.canSave ? _save : null,
                     ),
-                  ] else if (!_launched)
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: MediaQuery.disableAnimationsOf(context)
-                          ? Duration.zero
-                          : const Duration(milliseconds: 1300),
-                      curve: Curves.easeOutCubic,
-                      builder: (_, birth, _) {
-                        // 0..1 over the first 60% of the timeline: the two
-                        // lights (emotion + theme) travel to the center.
-                        final merge = (birth / .6).clamp(0.0, 1.0);
-                        // 0..1 over the last 45%: the merged star fades in.
-                        final reveal = ((birth - .55) / .45).clamp(0.0, 1.0);
-                        return Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            if (merge < 1) ...[
-                              Opacity(
-                                opacity: 1 - merge,
-                                child: Transform.translate(
-                                  offset: Offset.lerp(
-                                    const Offset(-72, -14),
-                                    Offset.zero,
-                                    Curves.easeIn.transform(merge),
-                                  )!,
-                                  child: _lightOrb(emotionColor),
-                                ),
-                              ),
-                              Opacity(
-                                opacity: 1 - merge,
-                                child: Transform.translate(
-                                  offset: Offset.lerp(
-                                    const Offset(72, 14),
-                                    Offset.zero,
-                                    Curves.easeIn.transform(merge),
-                                  )!,
-                                  child: _lightOrb(categoryColor),
-                                ),
-                              ),
-                            ],
-                            if (reveal > 0)
-                              Opacity(
-                                opacity: reveal,
-                                child: Transform.scale(
-                                  scale: .4 + .6 * reveal,
-                                  child: GestureDetector(
-                                    onVerticalDragUpdate: _onLaunchDragUpdate,
-                                    onVerticalDragEnd: _onLaunchDragEnd,
-                                    child: Transform.translate(
-                                      offset: Offset(0, _launchDragOffset),
-                                      child: _starOrb(color: emotionColor),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
+                    const SizedBox(height: 18),
+                    const Text(
+                      'この記録は、端末の中だけに保存されます。',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: DesignTokens.muted),
                     ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 22),
-            if (_savedRecord != null)
-              Text(
-                '${DateFormat('HH:mm').format(_savedRecord!.createdAt.toLocal())} ・ '
-                '${_savedRecord!.emotion.label} ・ ${_savedRecord!.category.label}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: DesignTokens.muted),
-              ),
-            const SizedBox(height: 28),
-            if (!_launched && !_launching) ...[
-              const Text(
-                '↑ 星をスワイプして飛ばそう',
-                style: TextStyle(fontSize: 11, color: DesignTokens.muted),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton(onPressed: _launch, child: const Text('星を飛ばす')),
-              const SizedBox(height: 18),
-            ],
-            if (_launched) ...[
-              GlowButton(
-                label: createdToday ? '今日の星座は作成ずみです' : '今日の星座を作成する',
-                icon: Icons.auto_awesome,
-                onPressed: () => createTodayConstellationFlow(
-                  context,
-                  ref,
-                  alreadyCreated: createdToday,
+                  ],
                 ),
-              ),
-              const SizedBox(height: 14),
-            ],
-            if (_launched) ...[
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => context.go(AppRoutes.home),
-                child: const Text('ホームへ戻る'),
-              ),
-            ],
-          ],
         );
     }
+  }
+
+  Widget _starExperience(BuildContext context, {required Key key}) {
+    final createdToday =
+        ref
+            .watch(constellationCreationProvider)
+            .value
+            ?.isCreated(DateTime.now()) ??
+        false;
+    final emotionColor = _savedRecord?.emotion.color ?? DesignTokens.gold;
+    final categoryColor = _savedRecord?.category.color ?? DesignTokens.accent;
+    return Column(
+      key: key,
+      children: [
+        const SizedBox(height: 30),
+        _heading(
+          context,
+          _launched ? 'その星を、夜空へ。' : 'ひとつ、星が生まれました。',
+          _launched ? '今日の星座に迎えてみましょう。' : '',
+        ),
+        Center(
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              if (!_launching && !_launched)
+                AnimatedBuilder(
+                  animation: _idleSparkleController,
+                  builder: (_, _) => CustomPaint(
+                    size: const Size(240, 240),
+                    painter: _AmbientSparklePainter(
+                      time: _idleSparkleController.value,
+                      color: emotionColor,
+                    ),
+                  ),
+                ),
+              if (_launching) ...[
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 800),
+                  curve: Curves.easeIn,
+                  builder: (_, progress, _) => CustomPaint(
+                    size: const Size(320, 320),
+                    painter: _LaunchTrailPainter(
+                      progress: progress,
+                      direction: _launchDirection,
+                      color: emotionColor,
+                    ),
+                  ),
+                ),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 800),
+                  curve: Curves.easeIn,
+                  builder: (_, progress, _) => Opacity(
+                    opacity: (1 - progress).clamp(0.0, 1.0),
+                    child: Transform.translate(
+                      offset: _launchArc(progress, _launchDirection),
+                      child: Transform.scale(
+                        scale: (1 - progress * .7).clamp(0.3, 1.0),
+                        child: _starOrb(color: emotionColor),
+                      ),
+                    ),
+                  ),
+                ),
+              ] else if (!_launched)
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 1300),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, birth, _) {
+                    // 0..1 over the first 60% of the timeline: the two
+                    // lights (emotion + theme) travel to the center.
+                    final merge = (birth / .6).clamp(0.0, 1.0);
+                    // 0..1 over the last 45%: the merged star fades in.
+                    final reveal = ((birth - .55) / .45).clamp(0.0, 1.0);
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (merge < 1) ...[
+                          Opacity(
+                            opacity: 1 - merge,
+                            child: Transform.translate(
+                              offset: Offset.lerp(
+                                const Offset(-72, -14),
+                                Offset.zero,
+                                Curves.easeIn.transform(merge),
+                              )!,
+                              child: _lightOrb(emotionColor),
+                            ),
+                          ),
+                          Opacity(
+                            opacity: 1 - merge,
+                            child: Transform.translate(
+                              offset: Offset.lerp(
+                                const Offset(72, 14),
+                                Offset.zero,
+                                Curves.easeIn.transform(merge),
+                              )!,
+                              child: _lightOrb(categoryColor),
+                            ),
+                          ),
+                        ],
+                        if (reveal > 0)
+                          Opacity(
+                            opacity: reveal,
+                            child: Transform.scale(
+                              scale: .4 + .6 * reveal,
+                              child: GestureDetector(
+                                onVerticalDragUpdate: _onLaunchDragUpdate,
+                                onVerticalDragEnd: _onLaunchDragEnd,
+                                child: Transform.translate(
+                                  offset: Offset(0, _launchDragOffset),
+                                  child: _starOrb(color: emotionColor),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        if (_savedRecord != null)
+          Text(
+            '${DateFormat('HH:mm').format(_savedRecord!.createdAt.toLocal())} ・ '
+            '${_savedRecord!.emotion.label} ・ ${_savedRecord!.category.label}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: DesignTokens.muted),
+          ),
+        const SizedBox(height: 28),
+        if (!_launched && !_launching) ...[
+          const Text(
+            '↑ 星をスワイプして飛ばそう',
+            style: TextStyle(fontSize: 11, color: DesignTokens.muted),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(onPressed: _launch, child: const Text('星を飛ばす')),
+          const SizedBox(height: 18),
+        ],
+        if (_launched) ...[
+          GlowButton(
+            label: createdToday ? '今日の星座は作成ずみです' : '今日の星座を作成する',
+            icon: Icons.auto_awesome,
+            onPressed: () => createTodayConstellationFlow(
+              context,
+              ref,
+              alreadyCreated: createdToday,
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        if (_launched) ...[
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => context.go(AppRoutes.home),
+            child: const Text('ホームへ戻る'),
+          ),
+        ],
+      ],
+    );
   }
 
   Widget _reviewItem({
