@@ -602,7 +602,6 @@ class _SpacePageState extends ConsumerState<SpacePage>
               ),
               const SizedBox(height: 14),
             ],
-            GlowButton(label: '今日の星座を見る', onPressed: _finish),
             if (_launched) ...[
               const SizedBox(height: 12),
               TextButton(

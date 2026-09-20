@@ -148,8 +148,15 @@ void main() {
       await tapText(tester, '確認へ進む');
       await tapTextThenPump(tester, '星にする');
       expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
-      await tapText(tester, '今日の星座を見る');
+      await tester.fling(
+        find.byIcon(Icons.star_rounded),
+        const Offset(0, -300),
+        800,
+      );
       await tester.pumpAndSettle();
+      expect(find.text('その星を、夜空へ。'), findsOneWidget);
+      await tapText(tester, '今日の星座を作成する');
+      await tapText(tester, '作成する');
       expect(find.byType(ConstellationMap), findsOneWidget);
       expect(
         container.read(spaceRecordsProvider).requireValue.single.emotion,
@@ -289,7 +296,14 @@ void main() {
       await tapTextThenPump(tester, '星にする');
       expect(repository.records.single.note, isEmpty);
       expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
-      await tapText(tester, '今日の星座を見る');
+      await tester.fling(
+        find.byIcon(Icons.star_rounded),
+        const Offset(0, -300),
+        800,
+      );
+      await tester.pumpAndSettle();
+      await tapText(tester, '今日の星座を作成する');
+      await tapText(tester, '作成する');
       expect(find.byType(ConstellationMap), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     },
