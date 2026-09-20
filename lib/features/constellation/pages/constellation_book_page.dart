@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import '../../../core/providers/constellation_discovery_provider.dart';
 
-class ConstellationBookPage extends StatelessWidget {
+class ConstellationBookPage extends ConsumerWidget {
   const ConstellationBookPage({super.key});
 
   static const Color background = Color(0xFF050714);
@@ -10,8 +13,14 @@ class ConstellationBookPage extends StatelessWidget {
   static const Color muted = Color(0xFF858CA8);
 
   @override
-  Widget build(BuildContext context) {
-    final discoveredCount = constellations.where((e) => e.discovered).length;
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Entries the user has actually created join the ones seeded as found.
+    final found = ref.watch(discoveredConstellationsProvider);
+    final entries = [
+      for (final data in constellations)
+        found.containsKey(data.name) ? data.foundOn(found[data.name]!) : data,
+    ];
+    final discoveredCount = entries.where((e) => e.discovered).length;
 
     return Scaffold(
       backgroundColor: background,
@@ -22,7 +31,7 @@ class ConstellationBookPage extends StatelessWidget {
             SliverToBoxAdapter(
               child: _Header(
                 discovered: discoveredCount,
-                total: constellations.length,
+                total: entries.length,
               ),
             ),
 
@@ -36,7 +45,7 @@ class ConstellationBookPage extends StatelessWidget {
                   childAspectRatio: 0.82,
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
-                  final data = constellations[index];
+                  final data = entries[index];
 
                   return ConstellationCard(
                     data: data,
@@ -44,7 +53,7 @@ class ConstellationBookPage extends StatelessWidget {
                       showConstellationDetail(context, data);
                     },
                   );
-                }, childCount: constellations.length),
+                }, childCount: entries.length),
               ),
             ),
           ],
@@ -544,6 +553,19 @@ class ConstellationData {
 
   /// pointsのindex同士を接続
   final List<List<int>> connections;
+
+  /// 実際に作成された星座として、発見済みにしたコピーを返す。
+  ConstellationData foundOn(DateTime day) => ConstellationData(
+    id: id,
+    name: name,
+    description: description,
+    imagePath: imagePath,
+    rarity: rarity,
+    discovered: true,
+    discoveredDate: DateFormat('yyyy.MM.dd').format(day),
+    points: points,
+    connections: connections,
+  );
 }
 
 /// 星座名から図鑑の配置を引く。createConstellationResultが返す名前で
