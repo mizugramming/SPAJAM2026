@@ -14,6 +14,7 @@ import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/space_background.dart';
 import '../widgets/constellation_map.dart';
 import '../widgets/rarity_badge.dart';
+import 'constellation_book_page.dart' show constellationShapeByName;
 
 class ConstellationRevealPage extends ConsumerWidget {
   const ConstellationRevealPage({super.key, required this.date});
@@ -96,7 +97,12 @@ class ConstellationRevealPage extends ConsumerWidget {
                                               const SizedBox.shrink(),
                                         ),
                                       ),
-                                    ConstellationMap(records: stars),
+                                    ConstellationMap(
+                                      records: stars,
+                                      shape: constellationShapeByName(
+                                        result.name,
+                                      ),
+                                    ),
                                   ],
                                 ),
                         ),

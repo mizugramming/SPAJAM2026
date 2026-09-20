@@ -7,6 +7,7 @@ import '../../../core/constants/design_tokens.dart';
 import '../../../core/models/constellation_rarity.dart';
 import '../../../core/models/emotion_type.dart';
 import '../../../core/providers/space_records_provider.dart';
+import '../../../core/utils/constellation_name.dart';
 import '../../../core/utils/date_key.dart';
 import '../../../core/utils/record_queries.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -15,6 +16,7 @@ import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/record_list.dart';
 import '../widgets/constellation_map.dart';
 import '../widgets/rarity_badge.dart';
+import 'constellation_book_page.dart' show constellationShapeByName;
 
 class ConstellationPage extends ConsumerWidget {
   const ConstellationPage({super.key, this.date});
@@ -48,7 +50,12 @@ class ConstellationPage extends ConsumerWidget {
                         horizontal: 12,
                         vertical: 16,
                       ),
-                      child: ConstellationMap(records: stars),
+                      child: ConstellationMap(
+                        records: stars,
+                        shape: constellationShapeByName(
+                          createConstellationResult(stars).name,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     const Text(

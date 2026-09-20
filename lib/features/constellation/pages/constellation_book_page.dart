@@ -546,6 +546,15 @@ class ConstellationData {
   final List<List<int>> connections;
 }
 
+/// 星座名から図鑑の配置を引く。createConstellationResultが返す名前で
+/// 検索できるよう、図鑑側のnameはその名前と一致させておくこと。
+List<Offset>? constellationShapeByName(String name) {
+  for (final data in constellations) {
+    if (data.name == name) return data.points;
+  }
+  return null;
+}
+
 // ============================================================
 // 共通の星配置
 //
@@ -1046,7 +1055,7 @@ const List<ConstellationData> constellations = [
 
   ConstellationData(
     id: 'first_star',
-    name: '一等星座',
+    name: '一番星',
     description: 'ひとつの出来事や感情が、とても強く心に残った日に現れる星座。',
     imagePath: 'assets/constellation/first_star.png',
     rarity: 5,
