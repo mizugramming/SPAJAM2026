@@ -19,10 +19,14 @@ Flutter **3.41.5** / 同梱Dart **3.11.3**。最新版への更新は各自で�
 
 ```bash
 cd SPAJAM2026
+
+git status
 git switch 自分のブランチ名
-git pull --ff-only
+
 git fetch origin
+git merge --ff-only origin/自分のブランチ名
 git merge origin/rehearsal/02
+
 fvm install
 fvm dart tool/check_environment.dart
 fvm flutter pub get --enforce-lockfile
