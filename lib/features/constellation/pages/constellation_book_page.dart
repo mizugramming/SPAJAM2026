@@ -1082,8 +1082,8 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/first_star.png',
     rarity: 5,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [Offset(0.5, 0.5)],
+    connections: [],
   ),
 
   ConstellationData(
