@@ -63,7 +63,9 @@ class PlanetChoice extends StatelessWidget {
                           stops: const [0, .55, 1],
                         ),
                         border: Border.all(
-                          color: selected ? color : DesignTokens.border,
+                          color: selected
+                              ? color
+                              : DesignTokens.border.withValues(alpha: .3),
                           width: selected ? 2 : 1,
                         ),
                         boxShadow: selected
@@ -88,8 +90,8 @@ class PlanetChoice extends StatelessWidget {
                             ),
                           if (selected)
                             const Positioned(
-                              right: 5,
-                              bottom: 5,
+                              right: 11,
+                              bottom: 11,
                               child: Icon(
                                 Icons.check_circle,
                                 size: 20,

@@ -14,6 +14,7 @@ import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/space_background.dart';
 import '../widgets/constellation_map.dart';
 import '../widgets/rarity_badge.dart';
+import 'constellation_book_page.dart' show constellationShapeByName;
 
 class ConstellationRevealPage extends ConsumerWidget {
   const ConstellationRevealPage({super.key, required this.date});
@@ -40,6 +41,7 @@ class ConstellationRevealPage extends ConsumerWidget {
             data: (all) {
               final stars = recordsOnDay(all, date);
               final rarity = computeRarity(stars);
+              final result = createConstellationResult(stars);
               return SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(28, 48, 28, 32),
                 child: Center(
@@ -57,7 +59,7 @@ class ConstellationRevealPage extends ConsumerWidget {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          constellationName(stars),
+                          result.name.isEmpty ? '静かな星座' : result.name,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
@@ -82,11 +84,33 @@ class ConstellationRevealPage extends ConsumerWidget {
                                   message: 'この日は、静かな宇宙。',
                                   showAction: false,
                                 )
-                              : ConstellationMap(records: stars),
+                              : Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    if (result.imagePath.isNotEmpty)
+                                      Opacity(
+                                        opacity: .16,
+                                        child: Image.asset(
+                                          result.imagePath,
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (_, _, _) =>
+                                              const SizedBox.shrink(),
+                                        ),
+                                      ),
+                                    ConstellationMap(
+                                      records: stars,
+                                      shape: constellationShapeByName(
+                                        result.name,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          constellationDescription(stars),
+                          result.message.isEmpty
+                              ? '今日は、まだ何も語られていない。'
+                              : result.message,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 13,

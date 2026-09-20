@@ -7,6 +7,7 @@ import '../../../core/constants/design_tokens.dart';
 import '../../../core/models/constellation_rarity.dart';
 import '../../../core/models/emotion_type.dart';
 import '../../../core/providers/space_records_provider.dart';
+import '../../../core/utils/constellation_name.dart';
 import '../../../core/utils/date_key.dart';
 import '../../../core/utils/record_queries.dart';
 import '../../../core/widgets/empty_state.dart';
@@ -15,6 +16,7 @@ import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/record_list.dart';
 import '../widgets/constellation_map.dart';
 import '../widgets/rarity_badge.dart';
+import 'constellation_book_page.dart' show constellationShapeByName;
 
 class ConstellationPage extends ConsumerWidget {
   const ConstellationPage({super.key, this.date});
@@ -38,9 +40,20 @@ class ConstellationPage extends ConsumerWidget {
                 if (stars.isEmpty) {
                   return const EmptyState(message: 'この日は、静かな宇宙。');
                 }
+                final result = createConstellationResult(stars);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (result.name.isNotEmpty)
+                      Text(
+                        result.name,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: DesignTokens.gold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    const SizedBox(height: 10),
                     Center(child: RarityBadge(rarity: computeRarity(stars))),
                     const SizedBox(height: 16),
                     GlassPanel(
@@ -48,7 +61,25 @@ class ConstellationPage extends ConsumerWidget {
                         horizontal: 12,
                         vertical: 16,
                       ),
-                      child: ConstellationMap(records: stars),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          if (result.imagePath.isNotEmpty)
+                            Opacity(
+                              opacity: .16,
+                              child: Image.asset(
+                                result.imagePath,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            ),
+                          ConstellationMap(
+                            records: stars,
+                            shape: constellationShapeByName(result.name),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -92,6 +123,12 @@ class ConstellationPage extends ConsumerWidget {
               },
             ),
         const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: () => context.push(AppRoutes.constellationBook),
+          icon: const Icon(Icons.auto_stories_outlined, size: 18),
+          label: const Text('星座図鑑を見る'),
+        ),
+        const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: () => context.go(AppRoutes.history),
           icon: const Icon(Icons.calendar_month_outlined, size: 18),

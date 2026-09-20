@@ -6,6 +6,7 @@ abstract final class AppRoutes {
   static const starPlacementEditor = '/space/star-placement';
   static const constellation = '/constellation';
   static const constellationReveal = '/constellation-reveal';
+  static const constellationBook = '/constellation-book';
   static const universe = '/universe';
   static const history = '/history';
   static String constellationOn(DateTime date) =>

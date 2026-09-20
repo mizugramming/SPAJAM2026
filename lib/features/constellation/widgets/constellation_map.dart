@@ -6,20 +6,27 @@ import '../../../core/widgets/record_detail.dart';
 import '../painters/constellation_painter.dart';
 
 class ConstellationMap extends StatelessWidget {
-  const ConstellationMap({super.key, required this.records});
+  const ConstellationMap({super.key, required this.records, this.shape});
   final List<SpaceRecord> records;
+
+  /// The matching book entry's layout, so the day's stars trace the same
+  /// silhouette as its encyclopedia entry.
+  final List<Offset>? shape;
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final height = math.max(260.0, records.length * 72.0);
       final size = Size(constraints.maxWidth, height);
-      final positions = starPositions(records, size);
+      final positions = starPositions(records, size, shape: shape);
       return SizedBox(
         height: height,
         child: Stack(
           children: [
             Positioned.fill(
-              child: CustomPaint(painter: ConstellationPainter(records)),
+              child: CustomPaint(
+                painter: ConstellationPainter(records, shape: shape),
+              ),
             ),
             for (var i = 0; i < records.length; i++)
               Positioned(

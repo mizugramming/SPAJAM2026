@@ -6,6 +6,7 @@ import '../core/utils/date_key.dart';
 import '../features/home/pages/home_page.dart';
 import '../features/space/pages/space_page.dart';
 import '../features/space/pages/star_placement_editor_page.dart';
+import '../features/constellation/pages/constellation_book_page.dart';
 import '../features/constellation/pages/constellation_page.dart';
 import '../features/constellation/pages/constellation_reveal_page.dart';
 import '../features/universe/pages/universe_page.dart';
@@ -50,6 +51,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               parseDateKey(state.uri.queryParameters['date']) ??
               localDay(DateTime.now()),
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.constellationBook,
+        builder: (_, _) => const ConstellationBookPage(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
