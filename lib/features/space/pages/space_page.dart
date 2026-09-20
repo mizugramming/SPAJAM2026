@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,7 +25,8 @@ class SpacePage extends ConsumerStatefulWidget {
   ConsumerState<SpacePage> createState() => _SpacePageState();
 }
 
-class _SpacePageState extends ConsumerState<SpacePage> {
+class _SpacePageState extends ConsumerState<SpacePage>
+    with SingleTickerProviderStateMixin {
   final _form = SpaceFormController();
   final _note = TextEditingController();
   Timer? _pauseTimer;
@@ -34,19 +36,39 @@ class _SpacePageState extends ConsumerState<SpacePage> {
   bool _launching = false;
   Timer? _launchAnimTimer;
   double _launchDragOffset = 0;
+  int _launchDirection = 1;
   SpaceRecord? _savedRecord;
+  late final AnimationController _idleSparkleController;
   @override
   void initState() {
     super.initState();
     _pauseTimer = Timer(const Duration(seconds: 30), () {
       if (mounted && _form.step == SpaceStep.pause) _form.next();
     });
+    _idleSparkleController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    );
+  }
+
+  // The ambient sparkle only needs to tick while the resting star is
+  // actually shown; running it for the page's whole lifetime would leave
+  // an animation perpetually in flight for no visual benefit.
+  void _syncIdleSparkle() {
+    final shouldRun =
+        _form.step == SpaceStep.complete && !_launching && !_launched;
+    if (shouldRun && !_idleSparkleController.isAnimating) {
+      _idleSparkleController.repeat();
+    } else if (!shouldRun && _idleSparkleController.isAnimating) {
+      _idleSparkleController.stop();
+    }
   }
 
   @override
   void dispose() {
     _pauseTimer?.cancel();
     _launchAnimTimer?.cancel();
+    _idleSparkleController.dispose();
     _note.dispose();
     _form.dispose();
     super.dispose();
@@ -125,8 +147,11 @@ class _SpacePageState extends ConsumerState<SpacePage> {
 
   void _launch() {
     if (!mounted || _launched || _launching) return;
-    setState(() => _launching = true);
-    _launchAnimTimer = Timer(const Duration(milliseconds: 700), () {
+    setState(() {
+      _launchDirection = math.Random().nextBool() ? 1 : -1;
+      _launching = true;
+    });
+    _launchAnimTimer = Timer(const Duration(milliseconds: 800), () {
       if (!mounted) return;
       setState(() {
         _launching = false;
@@ -158,6 +183,7 @@ class _SpacePageState extends ConsumerState<SpacePage> {
     listenable: _form,
     builder: (context, _) {
       final step = _form.step;
+      _syncIdleSparkle();
       return PopScope(
         canPop: _allowPop,
         onPopInvokedWithResult: (didPop, _) {
@@ -226,6 +252,21 @@ class _SpacePageState extends ConsumerState<SpacePage> {
         ),
       );
     },
+  );
+  Widget _starOrb() => Container(
+    width: 180,
+    height: 180,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: RadialGradient(
+        colors: [
+          DesignTokens.gold.withValues(alpha: .55),
+          DesignTokens.accent.withValues(alpha: .12),
+          Colors.transparent,
+        ],
+      ),
+    ),
+    child: const Icon(Icons.star_rounded, color: DesignTokens.gold, size: 70),
   );
   Widget _heading(BuildContext context, String title, String subtitle) =>
       Padding(
@@ -470,51 +511,65 @@ class _SpacePageState extends ConsumerState<SpacePage> {
               _launched ? 'その星を、夜空へ。' : 'ひとつ、星が生まれました。',
               _launched ? '今日の星座に迎えてみましょう。' : '',
             ),
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: MediaQuery.disableAnimationsOf(context)
-                  ? Duration.zero
-                  : const Duration(milliseconds: 1700),
-              curve: Curves.easeOutCubic,
-              builder: (_, value, _) => AnimatedOpacity(
-                opacity: _launching ? 0 : value.clamp(0.0, 1.0),
-                duration: const Duration(milliseconds: 700),
-                child: AnimatedSlide(
-                  offset: _launching
-                      ? const Offset(0, -2.4)
-                      : Offset(0, _launchDragOffset / 230),
-                  duration: const Duration(milliseconds: 700),
-                  child: GestureDetector(
-                    onVerticalDragUpdate: _onLaunchDragUpdate,
-                    onVerticalDragEnd: _onLaunchDragEnd,
-                    child: Transform.scale(
-                      scale: .08 + .92 * value,
-                      child: Container(
-                        width: 180,
-                        height: 180,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              DesignTokens.gold.withValues(
-                                alpha: .35 + .2 * (1 - (value - .8).abs()),
-                              ),
-                              DesignTokens.accent.withValues(alpha: .1 * value),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                        child: Icon(
-                          Icons.star_rounded,
-                          color: DesignTokens.gold.withValues(
-                            alpha: value < .55 ? .65 : 1,
-                          ),
-                          size: 24 + 46 * value,
+            Center(
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  if (!_launching && !_launched)
+                    AnimatedBuilder(
+                      animation: _idleSparkleController,
+                      builder: (_, _) => CustomPaint(
+                        size: const Size(240, 240),
+                        painter: _AmbientSparklePainter(
+                          time: _idleSparkleController.value,
+                          color: DesignTokens.gold,
                         ),
                       ),
                     ),
-                  ),
-                ),
+                  if (_launching) ...[
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 800),
+                      curve: Curves.easeIn,
+                      builder: (_, progress, _) => CustomPaint(
+                        size: const Size(320, 320),
+                        painter: _LaunchTrailPainter(
+                          progress: progress,
+                          direction: _launchDirection,
+                          color: DesignTokens.gold,
+                        ),
+                      ),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 800),
+                      curve: Curves.easeIn,
+                      builder: (_, progress, _) => Opacity(
+                        opacity: (1 - progress).clamp(0.0, 1.0),
+                        child: Transform.translate(
+                          offset: _launchArc(progress, _launchDirection),
+                          child: Transform.scale(
+                            scale: (1 - progress * .7).clamp(0.3, 1.0),
+                            child: _starOrb(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else if (!_launched)
+                    GestureDetector(
+                      onVerticalDragUpdate: _onLaunchDragUpdate,
+                      onVerticalDragEnd: _onLaunchDragEnd,
+                      child: Transform.translate(
+                        offset: Offset(0, _launchDragOffset),
+                        child: _starOrb(),
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 22),
@@ -590,4 +645,84 @@ class _SpacePageState extends ConsumerState<SpacePage> {
       ],
     ),
   );
+}
+
+// Quadratic-bezier arc the star travels along while launching, curving to
+// one side (direction: 1 or -1) as it rises.
+Offset _launchArc(double t, int direction) {
+  final control = Offset(direction * 90.0, -150.0);
+  final end = Offset(direction * 50.0, -340.0);
+  final u = 1 - t;
+  return control * (2 * u * t) + end * (t * t);
+}
+
+class _LaunchTrailPainter extends CustomPainter {
+  _LaunchTrailPainter({
+    required this.progress,
+    required this.direction,
+    required this.color,
+  });
+  final double progress;
+  final int direction;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0) return;
+    final origin = size.center(Offset.zero);
+    final random = math.Random(11);
+    for (var i = 0; i < 12; i++) {
+      final trailT = progress - i * .045;
+      if (trailT <= 0) continue;
+      final point = origin + _launchArc(trailT, direction);
+      final fade = (1 - i / 12) * (1 - progress * .5);
+      if (fade <= 0) continue;
+      final radius = 1.2 + random.nextDouble() * 2.2;
+      canvas.drawCircle(
+        point,
+        radius,
+        Paint()
+          ..color = (i.isEven ? color : Colors.white).withValues(
+            alpha: fade.clamp(0.0, 1.0) * .9,
+          ),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _LaunchTrailPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.direction != direction;
+}
+
+class _AmbientSparklePainter extends CustomPainter {
+  _AmbientSparklePainter({required this.time, required this.color});
+  final double time; // 0..1, looping
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final random = math.Random(5);
+    const count = 10;
+    for (var i = 0; i < count; i++) {
+      final baseAngle = (i / count) * 2 * math.pi;
+      final angle = baseAngle + time * 2 * math.pi * .3;
+      final radius = size.shortestSide / 2 * (.55 + random.nextDouble() * .35);
+      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+      final twinkle = (.5 + .5 * math.sin((time * 2 * math.pi) + i * 1.7))
+          .clamp(0.0, 1.0);
+      canvas.drawCircle(
+        point,
+        1.0 + random.nextDouble() * 1.8,
+        Paint()
+          ..color = (i.isEven ? color : Colors.white).withValues(
+            alpha: twinkle * .7,
+          ),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AmbientSparklePainter oldDelegate) =>
+      oldDelegate.time != time;
 }

@@ -49,6 +49,16 @@ Future<void> tapText(WidgetTester tester, String text) async {
   await tester.pumpAndSettle();
 }
 
+// Use for the tap that saves and lands on the resting-star screen: its
+// ambient sparkle animation repeats forever, so pumpAndSettle never returns.
+Future<void> tapTextThenPump(WidgetTester tester, String text) async {
+  final finder = find.text(text).last;
+  await tester.ensureVisible(finder);
+  await tester.tap(finder);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
+}
+
 Future<void> goToNote(WidgetTester tester) async {
   await tapText(tester, 'SPACE');
   await tapText(tester, 'はじめる');
@@ -136,7 +146,7 @@ void main() {
       await tester.enterText(find.byType(TextField), '少し休んで、また明日。');
       await tester.pump();
       await tapText(tester, '確認へ進む');
-      await tapText(tester, '星にする');
+      await tapTextThenPump(tester, '星にする');
       expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
       await tapText(tester, '今日の星座を見る');
       await tester.pumpAndSettle();
@@ -219,8 +229,7 @@ void main() {
       expect(find.text('入力を閉じますか？'), findsOneWidget);
       await tapText(tester, '続ける');
       repository.failSave = false;
-      await tapText(tester, '星にする');
-      await tester.pumpAndSettle();
+      await tapTextThenPump(tester, '星にする');
       expect(repository.records, hasLength(1));
       await tester.pumpWidget(const SizedBox.shrink());
     },
@@ -277,7 +286,7 @@ void main() {
       await goToNote(tester);
       await tapText(tester, '何も書かずに進む');
       expect(find.text('この気持ちを、星に。'), findsOneWidget);
-      await tapText(tester, '星にする');
+      await tapTextThenPump(tester, '星にする');
       expect(repository.records.single.note, isEmpty);
       expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
       await tapText(tester, '今日の星座を見る');
@@ -291,7 +300,7 @@ void main() {
     await boot(tester);
     await goToNote(tester);
     await tapText(tester, '何も書かずに進む');
-    await tapText(tester, '星にする');
+    await tapTextThenPump(tester, '星にする');
     expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
     await tester.fling(
       find.byIcon(Icons.star_rounded),
