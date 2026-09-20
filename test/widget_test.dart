@@ -276,7 +276,7 @@ void main() {
       expect(find.text('余 白'), findsOneWidget);
       await goToNote(tester);
       await tapText(tester, '何も書かずに進む');
-      expect(find.text('この気持ちを、星に。'), findsOneWidget);
+      expect(find.text('この瞬間を、星に。'), findsOneWidget);
       await tapText(tester, '星にする');
       expect(repository.records.single.note, isEmpty);
       expect(find.text('ひとつ、星が生まれました。'), findsOneWidget);
