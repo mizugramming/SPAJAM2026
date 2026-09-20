@@ -323,13 +323,20 @@ class _SpacePageState extends ConsumerState<SpacePage>
   );
   Widget _heading(BuildContext context, String title, String subtitle) =>
       Padding(
-        padding: const EdgeInsets.only(bottom: 28),
+        padding: const EdgeInsets.only(bottom: 32),
         child: Column(
           children: [
             Text(
               title,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineMedium,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontFamily: 'NotoSansJP',
+                fontSize: title == 'ことばにしたくなったら。' ? 19 : 22,
+                fontWeight: FontWeight.w300,
+                letterSpacing: 2.2,
+                height: 1.65,
+                color: DesignTokens.ink.withValues(alpha: .94),
+              ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -392,7 +399,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
         return Column(
           children: [
             const SizedBox(height: 26),
-            _heading(context, '今に近いものをひとつ。', 'どの気持ちも、同じように星になります。'),
+            _heading(context, '今に近いものを、ひとつ。', 'どの気持ちも、同じように星になります。'),
             for (final emotion in EmotionType.values)
               ChoiceTile(
                 label: emotion.label,
@@ -426,6 +433,11 @@ class _SpacePageState extends ConsumerState<SpacePage>
                         width: width,
                         label: category.label,
                         icon: category.icon,
+                        symbol: switch (category) {
+                          CategoryType.relationships => PlanetSymbol.connection,
+                          CategoryType.self => PlanetSymbol.innerCenter,
+                          _ => PlanetSymbol.icon,
+                        },
                         color: category.color,
                         selected: _form.category == category,
                         onTap: () => _form.selectCategory(category),
@@ -446,7 +458,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 26),
-            _heading(context, 'ことばにしたくなったら、ここに。', 'メモは残さなくても大丈夫です。'),
+            _heading(context, 'ことばにしたくなったら。', 'メモは残さなくても大丈夫です。'),
             TextField(
               controller: _note,
               onChanged: _form.setNote,
@@ -493,7 +505,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 26),
-                    _heading(context, 'この気持ちを、星に。', 'いま残すものを、そっと確かめる。'),
+                    _heading(context, 'この瞬間を、星に。', 'いま残すものを、そっと確かめる。'),
                     _reviewItem(
                       label: '気持ち',
                       value: _form.emotion!.label,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/design_tokens.dart';
 
+enum PlanetSymbol { icon, connection, innerCenter }
+
 class PlanetChoice extends StatelessWidget {
   const PlanetChoice({
     super.key,
@@ -10,6 +12,7 @@ class PlanetChoice extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.width,
+    this.symbol = PlanetSymbol.icon,
   });
 
   final String label;
@@ -18,6 +21,7 @@ class PlanetChoice extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final double width;
+  final PlanetSymbol symbol;
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +81,13 @@ class PlanetChoice extends StatelessWidget {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          Icon(icon, color: DesignTokens.ink, size: 30),
+                          if (symbol == PlanetSymbol.icon)
+                            Icon(icon, color: DesignTokens.ink, size: 30)
+                          else
+                            CustomPaint(
+                              size: const Size.square(30),
+                              painter: _PlanetSymbolPainter(symbol),
+                            ),
                           if (selected)
                             const Positioned(
                               right: 11,
@@ -109,4 +119,55 @@ class PlanetChoice extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PlanetSymbolPainter extends CustomPainter {
+  const _PlanetSymbolPainter(this.symbol);
+
+  final PlanetSymbol symbol;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final ink = Paint()..color = DesignTokens.ink;
+    if (symbol == PlanetSymbol.connection) {
+      final orbit = Path()
+        ..moveTo(5, center.dy)
+        ..quadraticBezierTo(center.dx, 7, 25, center.dy);
+      canvas.drawPath(
+        orbit,
+        Paint()
+          ..color = DesignTokens.ink.withValues(alpha: .8)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.drawCircle(Offset(5, center.dy), 3.5, ink);
+      canvas.drawCircle(Offset(25, center.dy), 3.5, ink);
+    } else if (symbol == PlanetSymbol.innerCenter) {
+      for (final (radius, opacity, stroke) in [
+        (12.0, .55, 1.6),
+        (7.0, .8, 1.4),
+      ]) {
+        canvas.drawCircle(
+          center,
+          radius,
+          Paint()
+            ..color = DesignTokens.ink.withValues(alpha: opacity)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = stroke,
+        );
+      }
+      canvas.drawCircle(
+        center,
+        5.5,
+        Paint()..color = DesignTokens.ink.withValues(alpha: .2),
+      );
+      canvas.drawCircle(center, 3, ink);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlanetSymbolPainter oldDelegate) =>
+      symbol != oldDelegate.symbol;
 }
