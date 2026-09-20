@@ -1056,6 +1056,19 @@ const List<ConstellationData> constellations = [
   ),
 
   ConstellationData(
+    id: 'yorisoi',
+    name: 'よりそい座',
+    description: 'ふたつの気持ちが、そっと寄り添った日に現れる星座。',
+    imagePath: 'assets/constellation/yorisoi.png',
+    rarity: 2,
+    discovered: false,
+    points: [Offset(0.4, 0.52), Offset(0.6, 0.48)],
+    connections: [
+      [0, 1],
+    ],
+  ),
+
+  ConstellationData(
     id: 'miracle',
     name: '奇跡座',
     description: 'めったにない特別な感情の動きが生まれた日に現れる星座。',

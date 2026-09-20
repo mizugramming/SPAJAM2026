@@ -13,6 +13,8 @@ enum ConstellationRarity {
 }
 
 // More stars, and more spread-out creation times, make a rarer constellation.
+// Star count alone can raise the rarity; a wide time spread can raise it
+// further at the same count.
 ConstellationRarity computeRarity(List<SpaceRecord> records) {
   if (records.length < 3) return ConstellationRarity.normal;
   final hours = records
@@ -21,7 +23,9 @@ ConstellationRarity computeRarity(List<SpaceRecord> records) {
       )
       .toList();
   final spread = hours.reduce(math.max) - hours.reduce(math.min);
-  if (records.length >= 5 && spread >= 8) return ConstellationRarity.superRare;
-  if (spread >= 4) return ConstellationRarity.rare;
+  if (records.length >= 6 || (records.length >= 5 && spread >= 8)) {
+    return ConstellationRarity.superRare;
+  }
+  if (records.length >= 4 || spread >= 4) return ConstellationRarity.rare;
   return ConstellationRarity.normal;
 }
