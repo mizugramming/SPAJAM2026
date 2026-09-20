@@ -253,20 +253,34 @@ class _SpacePageState extends ConsumerState<SpacePage>
       );
     },
   );
-  Widget _starOrb() => Container(
+  Widget _starOrb({Color color = DesignTokens.gold}) => Container(
     width: 180,
     height: 180,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       gradient: RadialGradient(
         colors: [
-          DesignTokens.gold.withValues(alpha: .55),
+          color.withValues(alpha: .55),
           DesignTokens.accent.withValues(alpha: .12),
           Colors.transparent,
         ],
       ),
     ),
-    child: const Icon(Icons.star_rounded, color: DesignTokens.gold, size: 70),
+    child: Icon(Icons.star_rounded, color: color, size: 70),
+  );
+  Widget _lightOrb(Color color) => Container(
+    width: 46,
+    height: 46,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: RadialGradient(
+        colors: [
+          color.withValues(alpha: .95),
+          color.withValues(alpha: .25),
+          Colors.transparent,
+        ],
+      ),
+    ),
   );
   Widget _heading(BuildContext context, String title, String subtitle) =>
       Padding(
@@ -503,6 +517,9 @@ class _SpacePageState extends ConsumerState<SpacePage>
                 .value
                 ?.isCreated(DateTime.now()) ??
             false;
+        final emotionColor = _savedRecord?.emotion.color ?? DesignTokens.gold;
+        final categoryColor =
+            _savedRecord?.category.color ?? DesignTokens.accent;
         return Column(
           children: [
             const SizedBox(height: 30),
@@ -523,7 +540,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
                         size: const Size(240, 240),
                         painter: _AmbientSparklePainter(
                           time: _idleSparkleController.value,
-                          color: DesignTokens.gold,
+                          color: emotionColor,
                         ),
                       ),
                     ),
@@ -539,7 +556,7 @@ class _SpacePageState extends ConsumerState<SpacePage>
                         painter: _LaunchTrailPainter(
                           progress: progress,
                           direction: _launchDirection,
-                          color: DesignTokens.gold,
+                          color: emotionColor,
                         ),
                       ),
                     ),
@@ -555,19 +572,69 @@ class _SpacePageState extends ConsumerState<SpacePage>
                           offset: _launchArc(progress, _launchDirection),
                           child: Transform.scale(
                             scale: (1 - progress * .7).clamp(0.3, 1.0),
-                            child: _starOrb(),
+                            child: _starOrb(color: emotionColor),
                           ),
                         ),
                       ),
                     ),
                   ] else if (!_launched)
-                    GestureDetector(
-                      onVerticalDragUpdate: _onLaunchDragUpdate,
-                      onVerticalDragEnd: _onLaunchDragEnd,
-                      child: Transform.translate(
-                        offset: Offset(0, _launchDragOffset),
-                        child: _starOrb(),
-                      ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 1300),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, birth, _) {
+                        // 0..1 over the first 60% of the timeline: the two
+                        // lights (emotion + theme) travel to the center.
+                        final merge = (birth / .6).clamp(0.0, 1.0);
+                        // 0..1 over the last 45%: the merged star fades in.
+                        final reveal = ((birth - .55) / .45).clamp(0.0, 1.0);
+                        return Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (merge < 1) ...[
+                              Opacity(
+                                opacity: 1 - merge,
+                                child: Transform.translate(
+                                  offset: Offset.lerp(
+                                    const Offset(-72, -14),
+                                    Offset.zero,
+                                    Curves.easeIn.transform(merge),
+                                  )!,
+                                  child: _lightOrb(emotionColor),
+                                ),
+                              ),
+                              Opacity(
+                                opacity: 1 - merge,
+                                child: Transform.translate(
+                                  offset: Offset.lerp(
+                                    const Offset(72, 14),
+                                    Offset.zero,
+                                    Curves.easeIn.transform(merge),
+                                  )!,
+                                  child: _lightOrb(categoryColor),
+                                ),
+                              ),
+                            ],
+                            if (reveal > 0)
+                              Opacity(
+                                opacity: reveal,
+                                child: Transform.scale(
+                                  scale: .4 + .6 * reveal,
+                                  child: GestureDetector(
+                                    onVerticalDragUpdate: _onLaunchDragUpdate,
+                                    onVerticalDragEnd: _onLaunchDragEnd,
+                                    child: Transform.translate(
+                                      offset: Offset(0, _launchDragOffset),
+                                      child: _starOrb(color: emotionColor),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     ),
                 ],
               ),

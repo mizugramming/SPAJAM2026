@@ -51,12 +51,14 @@ Future<void> tapText(WidgetTester tester, String text) async {
 
 // Use for the tap that saves and lands on the resting-star screen: its
 // ambient sparkle animation repeats forever, so pumpAndSettle never returns.
+// The bounded pump runs past the star's birth animation (two lights merging
+// into the star) so the star icon has actually appeared in the tree.
 Future<void> tapTextThenPump(WidgetTester tester, String text) async {
   final finder = find.text(text).last;
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 50));
+  await tester.pump(const Duration(milliseconds: 1350));
 }
 
 Future<void> goToNote(WidgetTester tester) async {
