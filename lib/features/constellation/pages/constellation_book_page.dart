@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/constants/app_routes.dart';
+import '../controllers/constellation_shape_controller.dart';
 
-class ConstellationBookPage extends StatelessWidget {
+class ConstellationBookPage extends ConsumerWidget {
   const ConstellationBookPage({super.key});
 
   static const Color background = Color(0xFF050714);
@@ -10,8 +14,26 @@ class ConstellationBookPage extends StatelessWidget {
   static const Color muted = Color(0xFF858CA8);
 
   @override
-  Widget build(BuildContext context) {
-    final discoveredCount = constellations.where((e) => e.discovered).length;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overrides =
+        ref.watch(constellationShapeOverridesProvider).value ?? const {};
+    final effective = [
+      for (final data in constellations)
+        overrides.containsKey(data.id)
+            ? ConstellationData(
+                id: data.id,
+                name: data.name,
+                description: data.description,
+                imagePath: data.imagePath,
+                rarity: data.rarity,
+                discovered: data.discovered,
+                discoveredDate: data.discoveredDate,
+                points: overrides[data.id]!.points,
+                connections: overrides[data.id]!.connections,
+              )
+            : data,
+    ];
+    final discoveredCount = effective.where((e) => e.discovered).length;
 
     return Scaffold(
       backgroundColor: background,
@@ -22,7 +44,9 @@ class ConstellationBookPage extends StatelessWidget {
             SliverToBoxAdapter(
               child: _Header(
                 discovered: discoveredCount,
-                total: constellations.length,
+                total: effective.length,
+                onEditTap: () =>
+                    context.push(AppRoutes.constellationShapeEditor),
               ),
             ),
 
@@ -36,7 +60,7 @@ class ConstellationBookPage extends StatelessWidget {
                   childAspectRatio: 0.82,
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
-                  final data = constellations[index];
+                  final data = effective[index];
 
                   return ConstellationCard(
                     data: data,
@@ -44,7 +68,7 @@ class ConstellationBookPage extends StatelessWidget {
                       showConstellationDetail(context, data);
                     },
                   );
-                }, childCount: constellations.length),
+                }, childCount: effective.length),
               ),
             ),
           ],
@@ -59,10 +83,15 @@ class ConstellationBookPage extends StatelessWidget {
 // ============================================================
 
 class _Header extends StatelessWidget {
-  const _Header({required this.discovered, required this.total});
+  const _Header({
+    required this.discovered,
+    required this.total,
+    required this.onEditTap,
+  });
 
   final int discovered;
   final int total;
+  final VoidCallback onEditTap;
 
   @override
   Widget build(BuildContext context) {
@@ -70,80 +99,105 @@ class _Header extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 28, 22, 22),
-      child: Column(
+      child: Stack(
         children: [
-          const Icon(
-            Icons.auto_awesome,
-            color: ConstellationBookPage.gold,
-            size: 25,
-          ),
-
-          const SizedBox(height: 10),
-
-          const Text(
-            '星 座 図 鑑',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 5,
+          Positioned(
+            right: 0,
+            top: 4,
+            child: IconButton(
+              onPressed: onEditTap,
+              icon: const Icon(
+                Icons.edit_outlined,
+                color: ConstellationBookPage.muted,
+                size: 20,
+              ),
+              tooltip: '星座の形を編集',
             ),
           ),
+          Column(
+            children: [
+              const Icon(
+                Icons.auto_awesome,
+                color: ConstellationBookPage.gold,
+                size: 25,
+              ),
 
-          const SizedBox(height: 8),
+              const SizedBox(height: 10),
 
-          const Text(
-            'あなたの余白から生まれた星座たち',
-            style: TextStyle(color: ConstellationBookPage.muted, fontSize: 12),
-          ),
+              const Text(
+                '星 座 図 鑑',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 5,
+                ),
+              ),
 
-          const SizedBox(height: 24),
+              const SizedBox(height: 8),
 
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            decoration: BoxDecoration(
-              color: ConstellationBookPage.card,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: .06)),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              const Text(
+                'あなたの余白から生まれた星座たち',
+                style: TextStyle(
+                  color: ConstellationBookPage.muted,
+                  fontSize: 12,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: ConstellationBookPage.card,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: .06),
+                  ),
+                ),
+                child: Column(
                   children: [
-                    const Text(
-                      '発見した星座',
-                      style: TextStyle(
-                        color: ConstellationBookPage.muted,
-                        fontSize: 12,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '発見した星座',
+                          style: TextStyle(
+                            color: ConstellationBookPage.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          '$discovered / $total',
+                          style: const TextStyle(
+                            color: ConstellationBookPage.gold,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '$discovered / $total',
-                      style: const TextStyle(
-                        color: ConstellationBookPage.gold,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+
+                    const SizedBox(height: 12),
+
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 5,
+                        backgroundColor: Colors.white.withValues(alpha: .06),
+                        valueColor: const AlwaysStoppedAnimation(
+                          ConstellationBookPage.lavender,
+                        ),
                       ),
                     ),
                   ],
                 ),
-
-                const SizedBox(height: 12),
-
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 5,
-                    backgroundColor: Colors.white.withValues(alpha: .06),
-                    valueColor: const AlwaysStoppedAnimation(
-                      ConstellationBookPage.lavender,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -156,11 +210,7 @@ class _Header extends StatelessWidget {
 // ============================================================
 
 class ConstellationCard extends StatelessWidget {
-  const ConstellationCard({
-    super.key,
-    required this.data,
-    required this.onTap,
-  });
+  const ConstellationCard({super.key, required this.data, required this.onTap});
 
   final ConstellationData data;
   final VoidCallback onTap;
@@ -502,11 +552,7 @@ class ConstellationPainter extends CustomPainter {
 
       canvas.drawCircle(point, large ? 3.5 : 2.5, star);
 
-      canvas.drawCircle(
-        point,
-        large ? 1.4 : .9,
-        Paint()..color = Colors.white,
-      );
+      canvas.drawCircle(point, large ? 1.4 : .9, Paint()..color = Colors.white);
     }
   }
 
