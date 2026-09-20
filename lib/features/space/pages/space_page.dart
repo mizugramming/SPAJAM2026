@@ -258,6 +258,54 @@ class _SpacePageState extends ConsumerState<SpacePage>
       );
     },
   );
+  // Spirals + fades + scales the outgoing review form inward and the
+  // incoming star outward, with a brief brightness flash at the midpoint,
+  // like the content is being swirled into a single point of light.
+  Widget _swirlIntoStarTransition(Widget child, Animation<double> animation) {
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
+    return AnimatedBuilder(
+      animation: curved,
+      child: child,
+      builder: (context, builtChild) {
+        final t = curved.value;
+        final flash = (1 - (t * 2 - 1).abs()).clamp(0.0, 1.0);
+        return Opacity(
+          opacity: t,
+          child: Transform.scale(
+            scale: .55 + .45 * t,
+            child: Transform.rotate(
+              angle: (1 - t) * .35,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  builtChild!,
+                  IgnorePointer(
+                    child: Opacity(
+                      opacity: flash * .16,
+                      child: Container(
+                        width: 220,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              DesignTokens.gold.withValues(alpha: .9),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _starOrb({Color color = DesignTokens.gold}) => Container(
     width: 180,
     height: 180,
@@ -450,14 +498,8 @@ class _SpacePageState extends ConsumerState<SpacePage>
         );
       case SpaceStep.review:
         return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 450),
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: ScaleTransition(
-              scale: Tween(begin: .3, end: 1.0).animate(animation),
-              child: child,
-            ),
-          ),
+          duration: const Duration(milliseconds: 550),
+          transitionBuilder: _swirlIntoStarTransition,
           child: _isFinal
               ? _starExperience(context, key: const ValueKey('star'))
               : Column(
