@@ -234,13 +234,18 @@ class _SpacePageState extends ConsumerState<SpacePage>
                     ),
                   ),
                   Expanded(
-                    child: SingleChildScrollView(
-                      key: ValueKey(step),
-                      padding: const EdgeInsets.fromLTRB(28, 16, 28, 32),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 480),
-                          child: _content(context),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 350),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: SingleChildScrollView(
+                        key: ValueKey(step),
+                        padding: const EdgeInsets.fromLTRB(28, 16, 28, 32),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 480),
+                            child: _content(context),
+                          ),
                         ),
                       ),
                     ),
