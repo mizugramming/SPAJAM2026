@@ -40,9 +40,20 @@ class ConstellationPage extends ConsumerWidget {
                 if (stars.isEmpty) {
                   return const EmptyState(message: 'この日は、静かな宇宙。');
                 }
+                final result = createConstellationResult(stars);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (result.name.isNotEmpty)
+                      Text(
+                        result.name,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: DesignTokens.gold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    const SizedBox(height: 10),
                     Center(child: RarityBadge(rarity: computeRarity(stars))),
                     const SizedBox(height: 16),
                     GlassPanel(
@@ -50,11 +61,24 @@ class ConstellationPage extends ConsumerWidget {
                         horizontal: 12,
                         vertical: 16,
                       ),
-                      child: ConstellationMap(
-                        records: stars,
-                        shape: constellationShapeByName(
-                          createConstellationResult(stars).name,
-                        ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          if (result.imagePath.isNotEmpty)
+                            Opacity(
+                              opacity: .16,
+                              child: Image.asset(
+                                result.imagePath,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            ),
+                          ConstellationMap(
+                            records: stars,
+                            shape: constellationShapeByName(result.name),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 16),
