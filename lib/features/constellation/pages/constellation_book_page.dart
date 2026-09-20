@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../core/constants/app_routes.dart';
-import '../controllers/constellation_shape_controller.dart';
 
-class ConstellationBookPage extends ConsumerWidget {
+class ConstellationBookPage extends StatelessWidget {
   const ConstellationBookPage({super.key});
 
   static const Color background = Color(0xFF050714);
@@ -14,26 +10,8 @@ class ConstellationBookPage extends ConsumerWidget {
   static const Color muted = Color(0xFF858CA8);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final overrides =
-        ref.watch(constellationShapeOverridesProvider).value ?? const {};
-    final effective = [
-      for (final data in constellations)
-        overrides.containsKey(data.id)
-            ? ConstellationData(
-                id: data.id,
-                name: data.name,
-                description: data.description,
-                imagePath: data.imagePath,
-                rarity: data.rarity,
-                discovered: data.discovered,
-                discoveredDate: data.discoveredDate,
-                points: overrides[data.id]!.points,
-                connections: overrides[data.id]!.connections,
-              )
-            : data,
-    ];
-    final discoveredCount = effective.where((e) => e.discovered).length;
+  Widget build(BuildContext context) {
+    final discoveredCount = constellations.where((e) => e.discovered).length;
 
     return Scaffold(
       backgroundColor: background,
@@ -44,9 +22,7 @@ class ConstellationBookPage extends ConsumerWidget {
             SliverToBoxAdapter(
               child: _Header(
                 discovered: discoveredCount,
-                total: effective.length,
-                onEditTap: () =>
-                    context.push(AppRoutes.constellationShapeEditor),
+                total: constellations.length,
               ),
             ),
 
@@ -60,7 +36,7 @@ class ConstellationBookPage extends ConsumerWidget {
                   childAspectRatio: 0.82,
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
-                  final data = effective[index];
+                  final data = constellations[index];
 
                   return ConstellationCard(
                     data: data,
@@ -68,7 +44,7 @@ class ConstellationBookPage extends ConsumerWidget {
                       showConstellationDetail(context, data);
                     },
                   );
-                }, childCount: effective.length),
+                }, childCount: constellations.length),
               ),
             ),
           ],
@@ -83,15 +59,10 @@ class ConstellationBookPage extends ConsumerWidget {
 // ============================================================
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.discovered,
-    required this.total,
-    required this.onEditTap,
-  });
+  const _Header({required this.discovered, required this.total});
 
   final int discovered;
   final int total;
-  final VoidCallback onEditTap;
 
   @override
   Widget build(BuildContext context) {
@@ -99,105 +70,80 @@ class _Header extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 28, 22, 22),
-      child: Stack(
+      child: Column(
         children: [
-          Positioned(
-            right: 0,
-            top: 4,
-            child: IconButton(
-              onPressed: onEditTap,
-              icon: const Icon(
-                Icons.edit_outlined,
-                color: ConstellationBookPage.muted,
-                size: 20,
-              ),
-              tooltip: '星座の形を編集',
+          const Icon(
+            Icons.auto_awesome,
+            color: ConstellationBookPage.gold,
+            size: 25,
+          ),
+
+          const SizedBox(height: 10),
+
+          const Text(
+            '星 座 図 鑑',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 5,
             ),
           ),
-          Column(
-            children: [
-              const Icon(
-                Icons.auto_awesome,
-                color: ConstellationBookPage.gold,
-                size: 25,
-              ),
 
-              const SizedBox(height: 10),
+          const SizedBox(height: 8),
 
-              const Text(
-                '星 座 図 鑑',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 5,
-                ),
-              ),
+          const Text(
+            'あなたの余白から生まれた星座たち',
+            style: TextStyle(color: ConstellationBookPage.muted, fontSize: 12),
+          ),
 
-              const SizedBox(height: 8),
+          const SizedBox(height: 24),
 
-              const Text(
-                'あなたの余白から生まれた星座たち',
-                style: TextStyle(
-                  color: ConstellationBookPage.muted,
-                  fontSize: 12,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: ConstellationBookPage.card,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: .06),
-                  ),
-                ),
-                child: Column(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: ConstellationBookPage.card,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: .06)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          '発見した星座',
-                          style: TextStyle(
-                            color: ConstellationBookPage.muted,
-                            fontSize: 12,
-                          ),
-                        ),
-                        Text(
-                          '$discovered / $total',
-                          style: const TextStyle(
-                            color: ConstellationBookPage.gold,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                    const Text(
+                      '発見した星座',
+                      style: TextStyle(
+                        color: ConstellationBookPage.muted,
+                        fontSize: 12,
+                      ),
                     ),
-
-                    const SizedBox(height: 12),
-
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 5,
-                        backgroundColor: Colors.white.withValues(alpha: .06),
-                        valueColor: const AlwaysStoppedAnimation(
-                          ConstellationBookPage.lavender,
-                        ),
+                    Text(
+                      '$discovered / $total',
+                      style: const TextStyle(
+                        color: ConstellationBookPage.gold,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 12),
+
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 5,
+                    backgroundColor: Colors.white.withValues(alpha: .06),
+                    valueColor: const AlwaysStoppedAnimation(
+                      ConstellationBookPage.lavender,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -603,8 +549,7 @@ class ConstellationData {
 // ============================================================
 // 共通の星配置
 //
-// 今は仮配置。
-// あとで星座ごとに専用配置へ変更できる。
+// 個別配置が用意されていない星座(未編集)のフォールバック用。
 // ============================================================
 
 const defaultPoints = <Offset>[
@@ -645,8 +590,17 @@ const List<ConstellationData> constellations = [
     rarity: 3,
     discovered: true,
     discoveredDate: '2026.09.18',
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.147, 0.620),
+      Offset(0.299, 0.473),
+      Offset(0.688, 0.600),
+      Offset(0.834, 0.438),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+    ],
   ),
 
   ConstellationData(
@@ -657,8 +611,17 @@ const List<ConstellationData> constellations = [
     rarity: 2,
     discovered: true,
     discoveredDate: '2026.09.17',
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.180, 0.580),
+      Offset(0.423, 0.569),
+      Offset(0.647, 0.576),
+      Offset(0.852, 0.570),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+    ],
   ),
 
   ConstellationData(
@@ -669,8 +632,17 @@ const List<ConstellationData> constellations = [
     rarity: 2,
     discovered: true,
     discoveredDate: '2026.09.15',
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.180, 0.580),
+      Offset(0.369, 0.580),
+      Offset(0.595, 0.506),
+      Offset(0.755, 0.435),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+    ],
   ),
 
   ConstellationData(
@@ -681,8 +653,21 @@ const List<ConstellationData> constellations = [
     rarity: 4,
     discovered: true,
     discoveredDate: '2026.09.12',
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.131, 0.602),
+      Offset(0.179, 0.643),
+      Offset(0.331, 0.586),
+      Offset(0.375, 0.517),
+      Offset(0.604, 0.486),
+      Offset(0.754, 0.425),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [4, 5],
+    ],
   ),
 
   ConstellationData(
@@ -693,8 +678,21 @@ const List<ConstellationData> constellations = [
     rarity: 2,
     discovered: true,
     discoveredDate: '2026.09.10',
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.180, 0.580),
+      Offset(0.371, 0.452),
+      Offset(0.695, 0.381),
+      Offset(0.488, 0.616),
+      Offset(0.748, 0.548),
+      Offset(0.916, 0.632),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [4, 5],
+    ],
   ),
 
   ConstellationData(
@@ -705,8 +703,26 @@ const List<ConstellationData> constellations = [
     rarity: 4,
     discovered: true,
     discoveredDate: '2026.09.08',
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.180, 0.580),
+      Offset(0.358, 0.450),
+      Offset(0.524, 0.406),
+      Offset(0.760, 0.440),
+      Offset(0.719, 0.542),
+      Offset(0.414, 0.611),
+      Offset(0.531, 0.634),
+      Offset(0.672, 0.600),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [5, 0],
+      [6, 5],
+      [7, 6],
+      [4, 7],
+    ],
   ),
 
   ConstellationData(
@@ -716,8 +732,19 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/sparkle.png',
     rarity: 3,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.384, 0.463),
+      Offset(0.501, 0.474),
+      Offset(0.502, 0.376),
+      Offset(0.642, 0.468),
+      Offset(0.498, 0.626),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [1, 3],
+      [1, 4],
+    ],
   ),
 
   ConstellationData(
@@ -727,8 +754,19 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/crescent_moon.png',
     rarity: 2,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.342, 0.498),
+      Offset(0.474, 0.385),
+      Offset(0.699, 0.608),
+      Offset(0.554, 0.643),
+      Offset(0.401, 0.595),
+    ],
+    connections: [
+      [0, 1],
+      [2, 3],
+      [3, 4],
+      [4, 0],
+    ],
   ),
 
   ConstellationData(
@@ -738,8 +776,27 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/rocket.png',
     rarity: 3,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.505, 0.469),
+      Offset(0.657, 0.377),
+      Offset(0.783, 0.349),
+      Offset(0.740, 0.423),
+      Offset(0.603, 0.516),
+      Offset(0.462, 0.514),
+      Offset(0.203, 0.614),
+      Offset(0.533, 0.537),
+      Offset(0.277, 0.668),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [1, 3],
+      [0, 4],
+      [6, 5],
+      [8, 7],
+    ],
   ),
 
   ConstellationData(
@@ -749,8 +806,31 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/parachute.png',
     rarity: 3,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.254, 0.463),
+      Offset(0.364, 0.362),
+      Offset(0.529, 0.330),
+      Offset(0.698, 0.375),
+      Offset(0.763, 0.466),
+      Offset(0.463, 0.597),
+      Offset(0.500, 0.631),
+      Offset(0.497, 0.579),
+      Offset(0.536, 0.593),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [5, 0],
+      [0, 4],
+      [5, 6],
+      [7, 5],
+      [7, 6],
+      [8, 6],
+      [7, 8],
+      [8, 4],
+    ],
   ),
 
   ConstellationData(
@@ -760,8 +840,17 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/lightning.png',
     rarity: 3,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.459, 0.492),
+      Offset(0.672, 0.354),
+      Offset(0.660, 0.480),
+      Offset(0.378, 0.665),
+    ],
+    connections: [
+      [0, 1],
+      [0, 2],
+      [2, 3],
+    ],
   ),
 
   ConstellationData(
@@ -771,8 +860,25 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/butterfly.png',
     rarity: 3,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.210, 0.379),
+      Offset(0.493, 0.472),
+      Offset(0.507, 0.549),
+      Offset(0.760, 0.440),
+      Offset(0.706, 0.629),
+      Offset(0.451, 0.423),
+      Offset(0.533, 0.424),
+      Offset(0.274, 0.630),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [1, 3],
+      [6, 1],
+      [5, 1],
+      [7, 2],
+      [2, 4],
+    ],
   ),
 
   ConstellationData(
@@ -782,8 +888,26 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/traveler.png',
     rarity: 4,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.307, 0.504),
+      Offset(0.505, 0.377),
+      Offset(0.714, 0.505),
+      Offset(0.498, 0.631),
+      Offset(0.459, 0.478),
+      Offset(0.449, 0.522),
+      Offset(0.546, 0.520),
+      Offset(0.541, 0.478),
+    ],
+    connections: [
+      [1, 4],
+      [0, 4],
+      [5, 3],
+      [5, 0],
+      [6, 3],
+      [6, 2],
+      [1, 7],
+      [7, 2],
+    ],
   ),
 
   ConstellationData(
@@ -793,8 +917,29 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/lost_child.png',
     rarity: 3,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.359, 0.379),
+      Offset(0.492, 0.345),
+      Offset(0.513, 0.419),
+      Offset(0.732, 0.513),
+      Offset(0.825, 0.466),
+      Offset(0.593, 0.456),
+      Offset(0.357, 0.462),
+      Offset(0.228, 0.514),
+      Offset(0.169, 0.620),
+      Offset(0.805, 0.628),
+    ],
+    connections: [
+      [0, 1],
+      [3, 4],
+      [4, 5],
+      [5, 6],
+      [6, 0],
+      [1, 2],
+      [3, 7],
+      [8, 9],
+      [7, 8],
+    ],
   ),
 
   ConstellationData(
@@ -804,8 +949,42 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/sun.png',
     rarity: 4,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.347, 0.501),
+      Offset(0.394, 0.441),
+      Offset(0.501, 0.411),
+      Offset(0.599, 0.564),
+      Offset(0.498, 0.589),
+      Offset(0.396, 0.566),
+      Offset(0.659, 0.505),
+      Offset(0.613, 0.444),
+      Offset(0.679, 0.383),
+      Offset(0.495, 0.350),
+      Offset(0.305, 0.386),
+      Offset(0.213, 0.497),
+      Offset(0.308, 0.614),
+      Offset(0.503, 0.653),
+      Offset(0.705, 0.620),
+      Offset(0.764, 0.500),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [3, 4],
+      [4, 5],
+      [5, 0],
+      [2, 7],
+      [3, 6],
+      [6, 7],
+      [6, 15],
+      [8, 7],
+      [9, 2],
+      [10, 1],
+      [0, 11],
+      [5, 12],
+      [4, 13],
+      [3, 14],
+    ],
   ),
 
   ConstellationData(
@@ -815,8 +994,28 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/rain_cloud.png',
     rarity: 2,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.162, 0.474),
+      Offset(0.333, 0.385),
+      Offset(0.506, 0.324),
+      Offset(0.752, 0.397),
+      Offset(0.840, 0.479),
+      Offset(0.652, 0.492),
+      Offset(0.352, 0.501),
+      Offset(0.651, 0.602),
+      Offset(0.354, 0.582),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [4, 5],
+      [5, 6],
+      [6, 0],
+      [5, 7],
+      [6, 8],
+    ],
   ),
 
   ConstellationData(
@@ -826,8 +1025,23 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/spiral.png',
     rarity: 3,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.321, 0.640),
+      Offset(0.490, 0.500),
+      Offset(0.375, 0.457),
+      Offset(0.555, 0.388),
+      Offset(0.826, 0.518),
+      Offset(0.665, 0.652),
+      Offset(0.205, 0.469),
+    ],
+    connections: [
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [4, 5],
+      [5, 0],
+      [6, 0],
+    ],
   ),
 
   ConstellationData(
@@ -848,8 +1062,28 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/miracle.png',
     rarity: 5,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.215, 0.512),
+      Offset(0.322, 0.480),
+      Offset(0.204, 0.612),
+      Offset(0.744, 0.349),
+      Offset(0.326, 0.512),
+      Offset(0.772, 0.410),
+      Offset(0.354, 0.539),
+      Offset(0.813, 0.485),
+      Offset(0.208, 0.562),
+      Offset(0.274, 0.559),
+      Offset(0.123, 0.557),
+    ],
+    connections: [
+      [3, 1],
+      [5, 4],
+      [7, 6],
+      [0, 8],
+      [8, 10],
+      [9, 8],
+      [8, 2],
+    ],
   ),
 
   ConstellationData(
@@ -859,7 +1093,23 @@ const List<ConstellationData> constellations = [
     imagePath: 'assets/constellation/welcome_back.png',
     rarity: 4,
     discovered: false,
-    points: defaultPoints,
-    connections: defaultConnections,
+    points: [
+      Offset(0.352, 0.484),
+      Offset(0.279, 0.489),
+      Offset(0.511, 0.387),
+      Offset(0.727, 0.489),
+      Offset(0.675, 0.589),
+      Offset(0.347, 0.587),
+      Offset(0.669, 0.489),
+    ],
+    connections: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [4, 5],
+      [5, 0],
+      [6, 4],
+      [3, 6],
+    ],
   ),
 ];
