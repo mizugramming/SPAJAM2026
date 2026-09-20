@@ -321,20 +321,6 @@ class _SpacePageState extends ConsumerState<SpacePage>
     ),
     child: Icon(Icons.star_rounded, color: color, size: 70),
   );
-  Widget _lightOrb(Color color) => Container(
-    width: 46,
-    height: 46,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      gradient: RadialGradient(
-        colors: [
-          color.withValues(alpha: .95),
-          color.withValues(alpha: .25),
-          Colors.transparent,
-        ],
-      ),
-    ),
-  );
   Widget _heading(BuildContext context, String title, String subtitle) =>
       Padding(
         padding: const EdgeInsets.only(bottom: 28),
@@ -648,41 +634,61 @@ class _SpacePageState extends ConsumerState<SpacePage>
                   tween: Tween(begin: 0, end: 1),
                   duration: MediaQuery.disableAnimationsOf(context)
                       ? Duration.zero
-                      : const Duration(milliseconds: 1300),
-                  curve: Curves.easeOutCubic,
+                      : const Duration(milliseconds: 1900),
+                  curve: Curves.linear,
                   builder: (_, birth, _) {
-                    // 0..1 over the first 60% of the timeline: the two
-                    // lights (emotion + theme) travel to the center.
-                    final merge = (birth / .6).clamp(0.0, 1.0);
-                    // 0..1 over the last 45%: the merged star fades in.
-                    final reveal = ((birth - .55) / .45).clamp(0.0, 1.0);
+                    // 0..55%: the two lights (emotion + theme) spiral
+                    // inward together, trailing particles as they go.
+                    final spiral = (birth / .55).clamp(0.0, 1.0);
+                    // 50%-62%: once converged, the light briefly
+                    // collapses into a point.
+                    final collapse = ((birth - .5) / .12).clamp(0.0, 1.0);
+                    final collapseScale =
+                        1 - Curves.easeIn.transform(collapse) * .7;
+                    // 55%-77%: a bright flash marks the birth.
+                    final flashWindow = ((birth - .55) / .22).clamp(0.0, 1.0);
+                    final flash = 1 - (flashWindow * 2 - 1).abs();
+                    // 62%-100%: the emotion-colored star fades/scales in.
+                    final reveal = ((birth - .62) / .38).clamp(0.0, 1.0);
                     return Stack(
                       alignment: Alignment.center,
                       children: [
-                        if (merge < 1) ...[
+                        if (reveal < 1)
                           Opacity(
-                            opacity: 1 - merge,
-                            child: Transform.translate(
-                              offset: Offset.lerp(
-                                const Offset(-72, -14),
-                                Offset.zero,
-                                Curves.easeIn.transform(merge),
-                              )!,
-                              child: _lightOrb(emotionColor),
+                            opacity: 1 - reveal,
+                            child: Transform.scale(
+                              scale: collapseScale,
+                              child: CustomPaint(
+                                size: const Size(220, 220),
+                                painter: _SpiralConvergePainter(
+                                  t: spiral,
+                                  emotionColor: emotionColor,
+                                  categoryColor: categoryColor,
+                                ),
+                              ),
                             ),
                           ),
-                          Opacity(
-                            opacity: 1 - merge,
-                            child: Transform.translate(
-                              offset: Offset.lerp(
-                                const Offset(72, 14),
-                                Offset.zero,
-                                Curves.easeIn.transform(merge),
-                              )!,
-                              child: _lightOrb(categoryColor),
+                        if (flash > 0)
+                          IgnorePointer(
+                            child: Opacity(
+                              opacity: flash,
+                              child: Container(
+                                width: 190,
+                                height: 190,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(
+                                    colors: [
+                                      Colors.white.withValues(alpha: .85),
+                                      emotionColor.withValues(alpha: .45),
+                                      Colors.transparent,
+                                    ],
+                                    stops: const [0, .4, 1],
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ],
                         if (reveal > 0)
                           Opacity(
                             opacity: reveal,
@@ -823,6 +829,67 @@ class _LaunchTrailPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _LaunchTrailPainter oldDelegate) =>
       oldDelegate.progress != progress || oldDelegate.direction != direction;
+}
+
+class _SpiralConvergePainter extends CustomPainter {
+  _SpiralConvergePainter({
+    required this.t,
+    required this.emotionColor,
+    required this.categoryColor,
+  });
+  final double t; // 0..1, spiral progress
+  final Color emotionColor;
+  final Color categoryColor;
+
+  static const _turns = 2.0;
+  static const _trailCount = 14;
+
+  Offset _positionAt(double localT, double angleOffset) {
+    final angle = angleOffset + localT * _turns * 2 * math.pi;
+    final radius = 84 * (1 - Curves.easeIn.transform(localT));
+    return Offset(math.cos(angle), math.sin(angle)) * radius;
+  }
+
+  void _drawLight(
+    Canvas canvas,
+    Offset center,
+    Color color,
+    double angleOffset,
+  ) {
+    final random = math.Random(color.toARGB32());
+    for (var i = _trailCount; i >= 1; i--) {
+      final trailT = (t - i * .018).clamp(0.0, 1.0);
+      if (trailT <= 0) continue;
+      final fade = (1 - i / _trailCount) * (1 - t);
+      if (fade <= 0) continue;
+      final point = center + _positionAt(trailT, angleOffset);
+      canvas.drawCircle(
+        point,
+        1.0 + random.nextDouble() * 1.6,
+        Paint()..color = color.withValues(alpha: fade * .6),
+      );
+    }
+    final pos = center + _positionAt(t, angleOffset);
+    canvas.drawCircle(
+      pos,
+      7,
+      Paint()
+        ..color = color.withValues(alpha: .3)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
+    canvas.drawCircle(pos, 3, Paint()..color = color);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    _drawLight(canvas, center, emotionColor, 0);
+    _drawLight(canvas, center, categoryColor, math.pi);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpiralConvergePainter oldDelegate) =>
+      oldDelegate.t != t;
 }
 
 class _AmbientSparklePainter extends CustomPainter {
