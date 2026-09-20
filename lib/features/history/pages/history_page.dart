@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -56,87 +57,104 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   children: [
                     GlassPanel(
                       padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
-                      child: TableCalendar<SpaceRecord>(
-                        locale: 'ja_JP',
-                        firstDay: firstDay,
-                        lastDay: lastDay,
-                        focusedDay: _focused,
-                        currentDay: today,
-                        startingDayOfWeek: StartingDayOfWeek.monday,
-                        availableGestures: AvailableGestures.horizontalSwipe,
-                        daysOfWeekStyle: const DaysOfWeekStyle(
-                          weekdayStyle: TextStyle(
-                            color: DesignTokens.muted,
-                            fontSize: 12,
-                          ),
-                          weekendStyle: TextStyle(
-                            color: DesignTokens.muted,
-                            fontSize: 12,
-                          ),
+                      child: ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(
+                          dragDevices: {
+                            ...ScrollConfiguration.of(context).dragDevices,
+                            PointerDeviceKind.mouse,
+                          },
                         ),
-                        rowHeight: 49,
-                        daysOfWeekHeight: 26,
-                        selectedDayPredicate: (day) =>
-                            isSameDay(day, _selected),
-                        onDaySelected: (selected, focused) => setState(() {
-                          _selected = localDay(selected);
-                          _focused = focused;
-                        }),
-                        onPageChanged: (focused) => _focused = focused,
-                        eventLoader: (day) => byDay[dateKey(day)] ?? const [],
-                        headerStyle: const HeaderStyle(
-                          formatButtonVisible: false,
-                          titleCentered: true,
-                          titleTextStyle: TextStyle(
-                            fontSize: 15,
-                            letterSpacing: 1,
+                        child: TableCalendar<SpaceRecord>(
+                          locale: 'ja_JP',
+                          firstDay: firstDay,
+                          lastDay: lastDay,
+                          focusedDay: _focused,
+                          currentDay: today,
+                          startingDayOfWeek: StartingDayOfWeek.monday,
+                          availableGestures: AvailableGestures.horizontalSwipe,
+                          daysOfWeekStyle: const DaysOfWeekStyle(
+                            weekdayStyle: TextStyle(
+                              color: DesignTokens.muted,
+                              fontSize: 12,
+                            ),
+                            weekendStyle: TextStyle(
+                              color: DesignTokens.muted,
+                              fontSize: 12,
+                            ),
                           ),
-                          leftChevronIcon: Icon(Icons.chevron_left, size: 22),
-                          rightChevronIcon: Icon(Icons.chevron_right, size: 22),
-                        ),
-                        calendarStyle: CalendarStyle(
-                          outsideDaysVisible: false,
-                          defaultTextStyle: const TextStyle(
-                            color: DesignTokens.ink,
-                            fontSize: 13,
+                          rowHeight: 49,
+                          daysOfWeekHeight: 26,
+                          selectedDayPredicate: (day) =>
+                              isSameDay(day, _selected),
+                          onDaySelected: (selected, focused) => setState(() {
+                            _selected = localDay(selected);
+                            _focused = focused;
+                          }),
+                          onPageChanged: (focused) => _focused = focused,
+                          eventLoader: (day) => byDay[dateKey(day)] ?? const [],
+                          headerStyle: const HeaderStyle(
+                            formatButtonVisible: false,
+                            titleCentered: true,
+                            titleTextStyle: TextStyle(
+                              fontSize: 15,
+                              letterSpacing: 1,
+                            ),
+                            leftChevronIcon: Icon(Icons.chevron_left, size: 22),
+                            rightChevronIcon: Icon(
+                              Icons.chevron_right,
+                              size: 22,
+                            ),
                           ),
-                          weekendTextStyle: const TextStyle(
-                            color: DesignTokens.ink,
-                            fontSize: 13,
+                          calendarStyle: CalendarStyle(
+                            outsideDaysVisible: false,
+                            defaultTextStyle: const TextStyle(
+                              color: DesignTokens.ink,
+                              fontSize: 13,
+                            ),
+                            weekendTextStyle: const TextStyle(
+                              color: DesignTokens.ink,
+                              fontSize: 13,
+                            ),
+                            todayDecoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: DesignTokens.accent),
+                            ),
+                            selectedDecoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: DesignTokens.accent,
+                            ),
+                            selectedTextStyle: const TextStyle(
+                              color: DesignTokens.background,
+                            ),
+                            markerDecoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: DesignTokens.gold,
+                            ),
+                            markersMaxCount: 1,
+                            markerSize: 5,
+                            cellMargin: const EdgeInsets.all(6),
                           ),
-                          todayDecoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: DesignTokens.accent),
-                          ),
-                          selectedDecoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: DesignTokens.accent,
-                          ),
-                          selectedTextStyle: const TextStyle(
-                            color: DesignTokens.background,
-                          ),
-                          markerDecoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: DesignTokens.gold,
-                          ),
-                          markersMaxCount: 1,
-                          markerSize: 5,
-                          cellMargin: const EdgeInsets.all(6),
-                        ),
-                        calendarBuilders: CalendarBuilders(
-                          markerBuilder: (context, day, events) =>
-                              events.isEmpty
-                              ? null
-                              : const Positioned(
-                                  bottom: 0,
-                                  child: Icon(
-                                    Icons.star_rounded,
-                                    color: DesignTokens.gold,
-                                    size: 13,
+                          calendarBuilders: CalendarBuilders(
+                            markerBuilder: (context, day, events) =>
+                                events.isEmpty
+                                ? null
+                                : const Positioned(
+                                    bottom: 0,
+                                    child: Icon(
+                                      Icons.star_rounded,
+                                      color: DesignTokens.gold,
+                                      size: 13,
+                                    ),
                                   ),
-                                ),
+                          ),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '左右にスワイプして月を移動',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: DesignTokens.muted, fontSize: 11),
                     ),
                     const SizedBox(height: 24),
                     Wrap(

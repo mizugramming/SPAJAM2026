@@ -3,7 +3,7 @@ description: "余白が、わたしの宇宙をつくる。端末内で完結す
 publish_to: 'none'
 version: 1.0.0+1
 environment:
-  sdk: ^3.11.3
+  sdk: '>=3.11.3 <3.12.0'
 dependencies:
   flutter:
     sdk: flutter
@@ -27,6 +27,7 @@ flutter:
     - assets/common/
     - assets/home/
     - assets/space/
+    - assets/star/
     - assets/constellation/
     - assets/universe/
     - assets/history/

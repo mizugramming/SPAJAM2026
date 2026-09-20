@@ -9,7 +9,9 @@ import '../../../core/constants/design_tokens.dart';
 import '../../../core/models/category_type.dart';
 import '../../../core/models/emotion_type.dart';
 import '../../../core/models/space_record.dart';
+import '../../../core/providers/constellation_creation_provider.dart';
 import '../../../core/providers/space_records_provider.dart';
+import '../../../core/widgets/constellation_creation_flow.dart';
 import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/space_background.dart';
 import '../controllers/space_form_controller.dart';
@@ -28,6 +30,10 @@ class _SpacePageState extends ConsumerState<SpacePage> {
   Timer? _pauseTimer;
   bool _allowPop = false;
   bool _confirming = false;
+  bool _launched = false;
+  bool _launching = false;
+  Timer? _launchAnimTimer;
+  double _launchDragOffset = 0;
   SpaceRecord? _savedRecord;
   @override
   void initState() {
@@ -40,6 +46,7 @@ class _SpacePageState extends ConsumerState<SpacePage> {
   @override
   void dispose() {
     _pauseTimer?.cancel();
+    _launchAnimTimer?.cancel();
     _note.dispose();
     _form.dispose();
     super.dispose();
@@ -114,6 +121,36 @@ class _SpacePageState extends ConsumerState<SpacePage> {
     if (mounted && _savedRecord != null) {
       context.go(AppRoutes.constellationOn(_savedRecord!.createdAt));
     }
+  }
+
+  void _launch() {
+    if (!mounted || _launched || _launching) return;
+    setState(() => _launching = true);
+    _launchAnimTimer = Timer(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      setState(() {
+        _launching = false;
+        _launched = true;
+      });
+    });
+  }
+
+  void _onLaunchDragUpdate(DragUpdateDetails details) {
+    if (_launching) return;
+    setState(() {
+      _launchDragOffset = (_launchDragOffset + details.delta.dy).clamp(
+        -160.0,
+        40.0,
+      );
+    });
+  }
+
+  void _onLaunchDragEnd(DragEndDetails details) {
+    if (_launching) return;
+    final flungUp =
+        _launchDragOffset < -60 || (details.primaryVelocity ?? 0) < -600;
+    setState(() => _launchDragOffset = 0);
+    if (flungUp) _launch();
   }
 
   @override
@@ -419,41 +456,62 @@ class _SpacePageState extends ConsumerState<SpacePage> {
           ],
         );
       case SpaceStep.complete:
+        final createdToday =
+            ref
+                .watch(constellationCreationProvider)
+                .value
+                ?.isCreated(DateTime.now()) ??
+            false;
         return Column(
           children: [
-            const SizedBox(height: 64),
-            _heading(context, 'ひとつ、星が生まれました。', ''),
+            const SizedBox(height: 30),
+            _heading(
+              context,
+              _launched ? 'その星を、夜空へ。' : 'ひとつ、星が生まれました。',
+              _launched ? '今日の星座に迎えてみましょう。' : '',
+            ),
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: 1),
               duration: MediaQuery.disableAnimationsOf(context)
                   ? Duration.zero
                   : const Duration(milliseconds: 1700),
               curve: Curves.easeOutCubic,
-              builder: (_, value, _) => Opacity(
-                opacity: value.clamp(0.0, 1.0),
-                child: Transform.scale(
-                  scale: .08 + .92 * value,
-                  child: Container(
-                    width: 180,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          DesignTokens.gold.withValues(
-                            alpha: .35 + .2 * (1 - (value - .8).abs()),
+              builder: (_, value, _) => AnimatedOpacity(
+                opacity: _launching ? 0 : value.clamp(0.0, 1.0),
+                duration: const Duration(milliseconds: 700),
+                child: AnimatedSlide(
+                  offset: _launching
+                      ? const Offset(0, -2.4)
+                      : Offset(0, _launchDragOffset / 230),
+                  duration: const Duration(milliseconds: 700),
+                  child: GestureDetector(
+                    onVerticalDragUpdate: _onLaunchDragUpdate,
+                    onVerticalDragEnd: _onLaunchDragEnd,
+                    child: Transform.scale(
+                      scale: .08 + .92 * value,
+                      child: Container(
+                        width: 180,
+                        height: 180,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              DesignTokens.gold.withValues(
+                                alpha: .35 + .2 * (1 - (value - .8).abs()),
+                              ),
+                              DesignTokens.accent.withValues(alpha: .1 * value),
+                              Colors.transparent,
+                            ],
                           ),
-                          DesignTokens.accent.withValues(alpha: .1 * value),
-                          Colors.transparent,
-                        ],
+                        ),
+                        child: Icon(
+                          Icons.star_rounded,
+                          color: DesignTokens.gold.withValues(
+                            alpha: value < .55 ? .65 : 1,
+                          ),
+                          size: 24 + 46 * value,
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      Icons.star_rounded,
-                      color: DesignTokens.gold.withValues(
-                        alpha: value < .55 ? .65 : 1,
-                      ),
-                      size: 24 + 46 * value,
                     ),
                   ),
                 ),
@@ -467,8 +525,36 @@ class _SpacePageState extends ConsumerState<SpacePage> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 12, color: DesignTokens.muted),
               ),
-            const SizedBox(height: 50),
+            const SizedBox(height: 28),
+            if (!_launched && !_launching) ...[
+              const Text(
+                '↑ 星をスワイプして飛ばそう',
+                style: TextStyle(fontSize: 11, color: DesignTokens.muted),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(onPressed: _launch, child: const Text('星を飛ばす')),
+              const SizedBox(height: 18),
+            ],
+            if (_launched) ...[
+              GlowButton(
+                label: createdToday ? '今日の星座は作成ずみです' : '今日の星座を作成する',
+                icon: Icons.auto_awesome,
+                onPressed: () => createTodayConstellationFlow(
+                  context,
+                  ref,
+                  alreadyCreated: createdToday,
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
             GlowButton(label: '今日の星座を見る', onPressed: _finish),
+            if (_launched) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => context.go(AppRoutes.home),
+                child: const Text('ホームへ戻る'),
+              ),
+            ],
           ],
         );
     }
