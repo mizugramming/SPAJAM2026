@@ -619,7 +619,7 @@ const List<ConstellationData> constellations = [
     name: 'ジェットコースター座',
     description: '気持ちが大きく上がったり、下がったりした日に現れる星座。',
     imagePath: 'assets/constellation/roller_coaster.png',
-    rarity: 3,
+    rarity: 1,
     discovered: true,
     discoveredDate: '2026.09.18',
     points: [
@@ -640,7 +640,7 @@ const List<ConstellationData> constellations = [
     name: '凪座',
     description: '心が穏やかで、静かな時間が流れた日に現れる星座。',
     imagePath: 'assets/constellation/calm.png',
-    rarity: 2,
+    rarity: 4,
     discovered: true,
     discoveredDate: '2026.09.17',
     points: [
@@ -661,7 +661,7 @@ const List<ConstellationData> constellations = [
     name: '日の出座',
     description: '少しずつ気持ちが上向いていった日に現れる星座。',
     imagePath: 'assets/constellation/sunrise.png',
-    rarity: 2,
+    rarity: 3,
     discovered: true,
     discoveredDate: '2026.09.15',
     points: [
@@ -682,7 +682,7 @@ const List<ConstellationData> constellations = [
     name: '雨上がり座',
     description: '沈んでいた気持ちが、最後には晴れていった日に現れる星座。',
     imagePath: 'assets/constellation/after_rain.png',
-    rarity: 4,
+    rarity: 2,
     discovered: true,
     discoveredDate: '2026.09.12',
     points: [
@@ -979,7 +979,7 @@ const List<ConstellationData> constellations = [
     name: '太陽座',
     description: '明るい気持ちやエネルギーが一日を通して続いた日に現れる星座。',
     imagePath: 'assets/constellation/sun.png',
-    rarity: 4,
+    rarity: 5,
     discovered: false,
     points: [
       Offset(0.347, 0.501),
@@ -1024,7 +1024,7 @@ const List<ConstellationData> constellations = [
     name: '雨雲座',
     description: '少し沈んだ気持ちを抱えながら過ごした日に現れる星座。',
     imagePath: 'assets/constellation/rain_cloud.png',
-    rarity: 2,
+    rarity: 4,
     discovered: false,
     points: [
       Offset(0.162, 0.474),
