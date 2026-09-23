@@ -568,11 +568,12 @@ class ConstellationData {
   );
 }
 
-/// 星座名から図鑑の配置を引く。createConstellationResultが返す名前で
-/// 検索できるよう、図鑑側のnameはその名前と一致させておくこと。
-List<Offset>? constellationShapeByName(String name) {
+/// 星座名から図鑑のエントリ(配置・レア度など)を引く。
+/// createConstellationResultが返す名前で検索できるよう、図鑑側のnameは
+/// その名前と一致させておくこと。
+ConstellationData? constellationByName(String name) {
   for (final data in constellations) {
-    if (data.name == name) return data.points;
+    if (data.name == name) return data;
   }
   return null;
 }

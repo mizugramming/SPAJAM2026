@@ -16,7 +16,7 @@ import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/record_list.dart';
 import '../widgets/constellation_map.dart';
 import '../widgets/rarity_badge.dart';
-import 'constellation_book_page.dart' show constellationShapeByName;
+import 'constellation_book_page.dart' show constellationByName;
 
 class ConstellationPage extends ConsumerWidget {
   const ConstellationPage({super.key, this.date});
@@ -41,6 +41,7 @@ class ConstellationPage extends ConsumerWidget {
                   return const EmptyState(message: 'この日は、静かな宇宙。');
                 }
                 final result = createConstellationResult(stars);
+                final entry = constellationByName(result.name);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -54,7 +55,14 @@ class ConstellationPage extends ConsumerWidget {
                         ),
                       ),
                     const SizedBox(height: 10),
-                    Center(child: RarityBadge(rarity: computeRarity(stars))),
+                    Center(
+                      child: RarityBadge(
+                        rarity: computeRarity(
+                          stars,
+                          baseRarity: entry?.rarity ?? 1,
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     GlassPanel(
                       padding: const EdgeInsets.symmetric(
@@ -76,7 +84,7 @@ class ConstellationPage extends ConsumerWidget {
                             ),
                           ConstellationMap(
                             records: stars,
-                            shape: constellationShapeByName(result.name),
+                            shape: entry?.points,
                           ),
                         ],
                       ),

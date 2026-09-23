@@ -14,7 +14,7 @@ import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/space_background.dart';
 import '../widgets/constellation_map.dart';
 import '../widgets/rarity_badge.dart';
-import 'constellation_book_page.dart' show constellationShapeByName;
+import 'constellation_book_page.dart' show constellationByName;
 
 class ConstellationRevealPage extends ConsumerWidget {
   const ConstellationRevealPage({super.key, required this.date});
@@ -40,8 +40,12 @@ class ConstellationRevealPage extends ConsumerWidget {
             error: (_, _) => const Center(child: ErrorState()),
             data: (all) {
               final stars = recordsOnDay(all, date);
-              final rarity = computeRarity(stars);
               final result = createConstellationResult(stars);
+              final entry = constellationByName(result.name);
+              final rarity = computeRarity(
+                stars,
+                baseRarity: entry?.rarity ?? 1,
+              );
               return SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(28, 48, 28, 32),
                 child: Center(
@@ -99,9 +103,7 @@ class ConstellationRevealPage extends ConsumerWidget {
                                       ),
                                     ConstellationMap(
                                       records: stars,
-                                      shape: constellationShapeByName(
-                                        result.name,
-                                      ),
+                                      shape: entry?.points,
                                     ),
                                   ],
                                 ),

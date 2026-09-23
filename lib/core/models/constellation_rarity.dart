@@ -12,20 +12,34 @@ enum ConstellationRarity {
   final Color color;
 }
 
-// More stars, and more spread-out creation times, make a rarer constellation.
-// Star count alone can raise the rarity; a wide time spread can raise it
-// further at the same count.
-ConstellationRarity computeRarity(List<SpaceRecord> records) {
-  if (records.length < 3) return ConstellationRarity.normal;
-  final hours = records
-      .map(
-        (r) => r.createdAt.toLocal().hour + r.createdAt.toLocal().minute / 60,
-      )
-      .toList();
-  final spread = hours.reduce(math.max) - hours.reduce(math.min);
-  if (records.length >= 6 || (records.length >= 5 && spread >= 8)) {
-    return ConstellationRarity.superRare;
+/// The day's badge starts from how hard the constellation itself is to get
+/// ([baseRarity], the book entry's 1-5 stars) and is pushed up by how much of
+/// the day went into it: more stars, and more spread-out creation times.
+ConstellationRarity computeRarity(
+  List<SpaceRecord> records, {
+  int baseRarity = 1,
+}) {
+  if (records.isEmpty) return ConstellationRarity.normal;
+  var score = baseRarity.clamp(1, 5);
+  if (records.length >= 6) {
+    score += 2;
+  } else if (records.length >= 4) {
+    score += 1;
   }
-  if (records.length >= 4 || spread >= 4) return ConstellationRarity.rare;
+  if (records.length >= 3) {
+    final hours = records
+        .map(
+          (r) => r.createdAt.toLocal().hour + r.createdAt.toLocal().minute / 60,
+        )
+        .toList();
+    final spread = hours.reduce(math.max) - hours.reduce(math.min);
+    if (spread >= 8) {
+      score += 2;
+    } else if (spread >= 4) {
+      score += 1;
+    }
+  }
+  if (score >= 7) return ConstellationRarity.superRare;
+  if (score >= 4) return ConstellationRarity.rare;
   return ConstellationRarity.normal;
 }
