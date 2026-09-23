@@ -14,6 +14,7 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/error_state.dart';
 import '../../../core/widgets/page_frame.dart';
 import '../../../core/widgets/record_list.dart';
+import '../widgets/monthly_stats_panel.dart';
 
 class HistoryPage extends ConsumerStatefulWidget {
   const HistoryPage({super.key});
@@ -155,6 +156,11 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                       '左右にスワイプして月を移動',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: DesignTokens.muted, fontSize: 11),
+                    ),
+                    const SizedBox(height: 20),
+                    MonthlyStatsPanel(
+                      month: DateTime(_focused.year, _focused.month),
+                      records: recordsOnMonth(records, _focused),
                     ),
                     const SizedBox(height: 24),
                     Wrap(

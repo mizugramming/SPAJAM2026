@@ -9,6 +9,14 @@ List<SpaceRecord> chronological(Iterable<SpaceRecord> records) =>
     });
 List<SpaceRecord> recordsOnDay(Iterable<SpaceRecord> records, DateTime day) =>
     chronological(records.where((r) => dateKey(r.createdAt) == dateKey(day)));
+List<SpaceRecord> recordsOnMonth(
+  Iterable<SpaceRecord> records,
+  DateTime month,
+) => chronological(
+  records.where(
+    (r) => r.createdAt.year == month.year && r.createdAt.month == month.month,
+  ),
+);
 Map<CategoryType, int> categoryCounts(Iterable<SpaceRecord> records) {
   final counts = {for (final category in CategoryType.values) category: 0};
   for (final record in records) {
