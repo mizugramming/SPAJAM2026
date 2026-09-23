@@ -6,6 +6,7 @@ import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/design_tokens.dart';
 import '../../../core/models/constellation_rarity.dart';
 import '../../../core/models/emotion_type.dart';
+import '../../../core/providers/ai_comment_provider.dart';
 import '../../../core/providers/space_records_provider.dart';
 import '../../../core/utils/constellation_name.dart';
 import '../../../core/utils/date_key.dart';
@@ -42,6 +43,7 @@ class ConstellationPage extends ConsumerWidget {
                 }
                 final result = createConstellationResult(stars);
                 final entry = constellationByName(result.name);
+                final aiComment = ref.watch(aiCommentProvider(day));
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -90,6 +92,17 @@ class ConstellationPage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    if ((aiComment.value ?? result.message).isNotEmpty) ...[
+                      Text(
+                        aiComment.value ?? result.message,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: DesignTokens.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     const Text(
                       '星にふれると、そのときの気持ちがひらきます。',
                       textAlign: TextAlign.center,

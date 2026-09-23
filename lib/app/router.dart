@@ -9,6 +9,7 @@ import '../features/space/pages/star_placement_editor_page.dart';
 import '../features/constellation/pages/constellation_book_page.dart';
 import '../features/constellation/pages/constellation_page.dart';
 import '../features/constellation/pages/constellation_reveal_page.dart';
+import '../features/settings/pages/ai_comment_settings_page.dart';
 import '../features/universe/pages/universe_page.dart';
 import '../features/history/pages/history_page.dart';
 import 'app_shell.dart';
@@ -55,6 +56,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.constellationBook,
         builder: (_, _) => const ConstellationBookPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.aiCommentSettings,
+        builder: (_, _) => const AiCommentSettingsPage(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

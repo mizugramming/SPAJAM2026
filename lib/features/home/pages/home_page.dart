@@ -71,16 +71,30 @@ class _HomePageState extends ConsumerState<HomePage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        DateFormat('M月d日（E）', 'ja').format(today),
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                          letterSpacing: 1,
+                    Row(
+                      children: [
+                        Text(
+                          DateFormat('M月d日（E）', 'ja').format(today),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            letterSpacing: 1,
+                          ),
                         ),
-                      ),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: 'AIコメント設定',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () =>
+                              context.push(AppRoutes.aiCommentSettings),
+                          icon: const Icon(
+                            Icons.settings_outlined,
+                            color: Colors.white54,
+                            size: 18,
+                          ),
+                        ),
+                      ],
                     ),
                     if (reminderDue && !_reminderDismissed) ...[
                       const SizedBox(height: 12),

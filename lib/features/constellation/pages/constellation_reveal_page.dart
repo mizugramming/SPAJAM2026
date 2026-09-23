@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/design_tokens.dart';
 import '../../../core/models/constellation_rarity.dart';
+import '../../../core/providers/ai_comment_provider.dart';
 import '../../../core/providers/space_records_provider.dart';
 import '../../../core/utils/constellation_name.dart';
 import '../../../core/utils/record_queries.dart';
@@ -46,6 +47,7 @@ class ConstellationRevealPage extends ConsumerWidget {
                 stars,
                 baseRarity: entry?.rarity ?? 1,
               );
+              final aiComment = ref.watch(aiCommentProvider(date));
               return SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(28, 48, 28, 32),
                 child: Center(
@@ -110,15 +112,26 @@ class ConstellationRevealPage extends ConsumerWidget {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          result.message.isEmpty
-                              ? '今日は、まだ何も語られていない。'
-                              : result.message,
+                          aiComment.value ??
+                              (result.message.isEmpty
+                                  ? '今日は、まだ何も語られていない。'
+                                  : result.message),
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 13,
                             color: DesignTokens.ink,
                           ),
                         ),
+                        if (aiComment.isLoading) ...[
+                          const SizedBox(height: 6),
+                          const Text(
+                            'AIコメントを生成中…',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: DesignTokens.muted,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 6),
                         Text(
                           '${stars.length}つの星が、この星座になりました。',
