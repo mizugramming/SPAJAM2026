@@ -7,7 +7,10 @@ const _model = 'gpt-4o-mini';
 
 const _systemPrompt =
     '「余白」という感情記録アプリの語り手です。ユーザーが1日の中で残した感情の記録を読み、'
-    '短く詩的で、あたたかい一言コメントを日本語で返します。'
+    'その日をやさしく振り返る、短いまとめコメントを日本語で返します。'
+    'つらい・疲れたといった気持ちが含まれていても、否定的な言葉や批判めいた表現、'
+    '心配をあおる言い方は使わないでください。どんな一日であっても、その日を過ごした'
+    'こと自体を静かに肯定するトーンでまとめてください。'
     '説教や助言はせず、寄り添うトーンで、2文以内・80文字程度にまとめてください。';
 
 /// Calls the OpenAI Chat Completions API to write a short reflection on the
@@ -32,8 +35,8 @@ Future<String?> generateDailyComment({
 
   final userPrompt =
       '今日生まれた星座:$constellationName\n'
-      '今日の記録($constellationName):\n$lines\n\n'
-      'この1日にコメントをひとつ返してください。';
+      '今日の記録:\n$lines\n\n'
+      'この1日を、否定的な言葉を使わずにまとめてください。';
 
   try {
     final response = await http
