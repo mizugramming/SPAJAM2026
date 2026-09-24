@@ -19,7 +19,9 @@ git remote -v
 git status --short --branch
 ```
 
-全員が同じ基盤で起動・主要操作を確認してから担当開発へ進みます。
+全員が同じ基盤で起動・主要操作を確認してから担当開発へ進みます。担当者が普段読む入口はこのREADMEです。AIには開始・再開プロンプトを渡し、資料の詳細はAIと必要な箇所だけ確認します。
+
+各コマンドは1行ずつ実行し、エラー時は次へ進みません。[保存・競合・エラー時の対応](docs/development.md)を確認してください。
 
 開発者ごとに **`1`・`2`・`3`・`4`** のどれかを割り当て、担当画面が変わっても同じ番号を使います。同じ番号を複数人で使いません。
 
@@ -27,7 +29,7 @@ git status --short --branch
 
 ## 1. 自分のブランチで作業する
 
-未コミットの変更があれば、先に元の作業ブランチへ保存します。**初回だけ、自分の番号のブロックを1つ実行します。**
+未コミットの変更があれば、先に元の作業ブランチへ保存します。ファイルをエディタで保存するだけでは不十分です。[開発手順](docs/development.md)の途中コミットで保護し、作業ツリーがクリーンな状態で切り替え・取り込みを行います。**初回だけ、自分の番号のブロックを1つ実行します。**
 
 ### 開発者1
 
@@ -61,6 +63,8 @@ git switch --no-track -c 4 origin/develop
 
 **2回目以降は新規作成せず**、自分の番号に応じて `git switch 1` / `git switch 2` / `git switch 3` / `git switch 4` で切り替えます。別PCで同じ番号へpushした変更がある場合は、切り替え後に `git pull --ff-only` で取り込みます。
 
+指定SDKが未導入なら、以下の依存取得より先に `fvm install --skip-pub-get` を実行します。Flutterは `.fvmrc` の指定版を使い、[環境資料](docs/development.md)のバージョン・環境チェックを済ませます。
+
 以下は全員共通です。自分の番号のブランチで、毎回実行します。
 
 ```bash
@@ -70,15 +74,15 @@ fvm flutter pub get --enforce-lockfile
 fvm flutter run --no-pub
 ```
 
-指定SDKが未導入の場合だけ `fvm install --skip-pub-get` を実行します。Flutterは `.fvmrc` の指定版を使います。
+起動先を選べない場合は環境資料の対象端末と起動コマンドを確認します。
 
 起動後、自分の担当部分を編集します。AIには配置済みの `docs/ai_prompts.md` の開始・再開プロンプトを渡します。資料：[設計書](docs/app_design.md)・[構成と担当](docs/project_structure.md)・[環境](docs/development.md)・[素材](docs/assets.md)。
 
 ## 2. 作業が終わったら検証して共有する
 
-ページ単位のPRで構いません。共有データ・保存・画面遷移への接続が未確認なら、まず接続が動く段階でPRを出し、その後にページを仕上げます。未完成部分が既存操作を壊す場合はDraftで共有し、マージしません。同じ番号では同時に複数PRを進めません。
+ページ単位のPRで構いません。共有データ・保存・画面遷移への接続が未確認なら、まず接続が動く段階でPRを出し、その後にページを仕上げます。未完成部分が既存操作を壊す場合はDraftで共有し、マージしません。同じ番号では同時に複数PRを進めません。PR提出後はそのPRの修正だけを行い、次の別作業はマージ後に統合版を取り込んでから始めます。追加pushは提出済みPRにも入ります。
 
-アプリを停止し、未コミット変更を保護したうえで最新の統合先を取り込んでから実行します。取り込みは手順1に従い、競合があれば解決後に検証します。ファイル名とコミットメッセージは実際の変更に合わせます。[環境資料](docs/development.md)に追加の必須検証があれば、それも実行します。
+アプリを停止し、未コミット変更を途中コミットで保護してから `git fetch origin` → `git merge origin/develop` → `fvm flutter pub get --enforce-lockfile` を順に実行します。競合は開発手順に従って解決し、次の検証へ進みます。ここではアプリの再起動は不要です。ファイル名とコミットメッセージは実際の変更に合わせます。[環境資料](docs/development.md)に追加の必須検証があれば、それも実行します。
 
 ```bash
 fvm flutter analyze --no-pub
@@ -86,12 +90,16 @@ fvm flutter test --no-pub
 git diff --check
 git status --short
 git diff
+git diff --stat origin/develop...HEAD
+git diff origin/develop...HEAD
 git add -- "変更したファイルのパス"
 git diff --cached
 git commit -m "担当部分の変更内容"
 git push -u origin HEAD
 gh pr create --repo OWNER/REPO --base develop
 ```
+
+途中コミット済みで未コミット差分がなければ、`git add` から `git commit` までは省略し、検証後にpushします。未コミット差分だけでなく、上記の `origin/develop...HEAD` でPR全体のコミット済み差分も確認します。
 
 `OWNER/REPO` は配布前に作成者が本番用の値へ置き換えます。PR作成後も宛先とFiles changedを確認し、他アプリ・他担当の意図しない差分がないことを確かめます。
 
