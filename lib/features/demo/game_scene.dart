@@ -64,23 +64,29 @@ class GameScene extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: cooperative
-                ? CooperativeGame(
-                    self: self,
-                    peer: peer,
-                    onCompleted: (result) => onCompleted(
-                      result == CooperativeGameResult.success
-                          ? Outcome.coopSuccess
-                          : Outcome.coopFailure,
+            // Game painters may extend beyond their local origin (e.g. rope).
+            // Keep that paint inside the assigned area and off the header.
+            child: ClipRect(
+              child: cooperative
+                  ? CooperativeGame(
+                      self: self,
+                      peer: peer,
+                      onCompleted: (result) => onCompleted(
+                        result == CooperativeGameResult.success
+                            ? Outcome.coopSuccess
+                            : Outcome.coopFailure,
+                      ),
+                    )
+                  : DuelGame(
+                      self: self,
+                      peer: peer,
+                      onCompleted: (result) => onCompleted(
+                        result == DuelGameResult.win
+                            ? Outcome.win
+                            : Outcome.loss,
+                      ),
                     ),
-                  )
-                : DuelGame(
-                    self: self,
-                    peer: peer,
-                    onCompleted: (result) => onCompleted(
-                      result == DuelGameResult.win ? Outcome.win : Outcome.loss,
-                    ),
-                  ),
+            ),
           ),
         ],
       ),
