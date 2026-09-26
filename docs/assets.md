@@ -10,6 +10,7 @@
 | 協力の魂 | `assets/characters/tamashii.png` | ユーザー提供。協力ゲームで運ぶ魂 |
 | 協力のツナ缶・空き缶 | `assets/characters/tunakanaka.png`・`hadakan.png` | ユーザー提供。魂を運ぶ缶と、最後に魂が入る空き缶 |
 | 「ショBONE」の見出し | `assets/characters/shobone.png` | ユーザー提供（受領時のファイル名は `ショBONE.png`）。負けたときの結果の見出しを書体ごと画像で出し、少し波打たせる |
+| アプリ全体のフォント | `assets/fonts/KaiseiTokumin-Medium.ttf` | Kaisei Tokumin Medium（500）。[Google Fonts](https://fonts.google.com/specimen/Kaisei+Tokumin) の公開リポジトリ（google/fonts `ofl/kaiseitokumin`）から取得。SIL Open Font License 1.1、ライセンス全文は同じフォルダの `OFL.txt`。500 のみ同梱し、太字は合成で表示 |
 | 手書きラフ・旧生成画像 | `docs/tsunagun/references/` | 設計の参照用。アプリへ全量同梱しない |
 
 提供資料の原本は [v2資料](tsunagun/README.md) と [出典一覧](tsunagun/references/SOURCE_INDEX.md) に保持し、変更しません。アプリは `assets/characters/` のファイルを使用します。
