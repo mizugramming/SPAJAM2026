@@ -90,7 +90,9 @@ class CanStage extends StatelessWidget {
                 )
               : 0.0;
           final stageHeight = playing
-              ? math.max(304.0, visibleCanHeight + parentHeight + 60)
+              ? constraints.hasBoundedHeight
+                    ? constraints.maxHeight
+                    : math.max(304.0, visibleCanHeight + parentHeight + 60)
               : canHeight + actorHeight + (parentVisible ? 36 : 40);
           return SizedBox(
             height: stageHeight,

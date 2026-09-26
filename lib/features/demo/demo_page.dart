@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../data/demo_controller.dart';
 import '../../domain/models.dart';
 import 'can_stage.dart';
+import 'game_scene.dart';
 
 class DemoPage extends StatefulWidget {
   const DemoPage({super.key, this.controller});
@@ -26,6 +27,7 @@ class _DemoPageState extends State<DemoPage> {
   String? error;
   int durationMinutes = 3;
   int openSheets = 0;
+  int encounterGeneration = 0;
   AppPhase? observedPhase;
 
   @override
@@ -39,6 +41,9 @@ class _DemoPageState extends State<DemoPage> {
     final changed = demo.phase != observedPhase;
     final reachedFinale =
         demo.phase == AppPhase.finale && observedPhase != AppPhase.finale;
+    final leftGame =
+        observedPhase == AppPhase.game && demo.phase != AppPhase.game;
+    if (changed && demo.phase == AppPhase.game) encounterGeneration++;
     observedPhase = demo.phase;
     if (changed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -54,9 +59,12 @@ class _DemoPageState extends State<DemoPage> {
         }
       });
     }
-    if (reachedFinale && openSheets > 0) {
+    if ((reachedFinale || leftGame) && openSheets > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && demo.phase == AppPhase.finale && openSheets > 0) {
+        if (mounted &&
+            (demo.phase == AppPhase.finale ||
+                (leftGame && demo.phase != AppPhase.game)) &&
+            openSheets > 0) {
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       });
@@ -104,6 +112,8 @@ class _DemoPageState extends State<DemoPage> {
       listenable: demo,
       builder: (context, _) {
         final phase = demo.phase;
+        final peerId = demo.activePeer?.id;
+        final generation = encounterGeneration;
         final inEvent = {
           AppPhase.home,
           AppPhase.pairing,
@@ -118,98 +128,120 @@ class _DemoPageState extends State<DemoPage> {
           },
           child: Scaffold(
             body: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) => SingleChildScrollView(
-                  controller: sceneScroll,
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        children: [
-                          const Text(
-                            'つなぐん',
-                            style: TextStyle(
-                              fontSize: 25,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          TextButton.icon(
-                            key: const Key('demo-info'),
-                            onPressed: showDemoInfo,
-                            icon: const Icon(Icons.info_outline, size: 16),
-                            label: const Text('1台用 DEMO'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      if (inEvent) ...[
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 6,
-                          alignment: WrapAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${demo.roomName} · ${demo.self.team.label}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: phase == AppPhase.game
+                    ? GameScene(
+                        key: ValueKey(generation),
+                        self: demo.self,
+                        peer: demo.activePeer!,
+                        remainingLabel: demo.isClosing
+                            ? '結果の受付 残り ${formatTime(demo.settlementRemaining)}'
+                            : '残り ${formatTime(demo.remaining)}',
+                        onDemoMenu: showGameDemoMenu,
+                        onCompleted: (outcome) =>
+                            completeGame(generation, peerId!, outcome),
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) => SingleChildScrollView(
+                          controller: sceneScroll,
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                children: [
+                                  const Text(
+                                    'つなぐん',
+                                    style: TextStyle(
+                                      fontSize: 25,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 2,
+                                    ),
+                                  ),
+                                  TextButton.icon(
+                                    key: const Key('demo-info'),
+                                    onPressed: showDemoInfo,
+                                    icon: const Icon(
+                                      Icons.info_outline,
+                                      size: 16,
+                                    ),
+                                    label: const Text('1台用 DEMO'),
+                                  ),
+                                ],
                               ),
-                            ),
-                            Text(
-                              demo.isClosing
-                                  ? '終了処理中'
-                                  : '残り ${formatTime(demo.remaining)}',
-                              key: const Key('remaining-time'),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      if (phase != AppPhase.finale && phase != AppPhase.results)
-                        AnimatedSize(
-                          duration: const Duration(milliseconds: 350),
-                          curve: Curves.easeInOut,
-                          child: CanStage(
-                            phase: phase,
-                            profile: demo.profileDraft,
-                            result: demo.lastResult,
-                            team: inEvent ? demo.self.team : null,
+                              const SizedBox(height: 8),
+                              if (inEvent) ...[
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 6,
+                                  alignment: WrapAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${demo.roomName} · ${demo.self.team.label}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      demo.isClosing
+                                          ? '終了処理中'
+                                          : '残り ${formatTime(demo.remaining)}',
+                                      key: const Key('remaining-time'),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                              if (phase != AppPhase.finale &&
+                                  phase != AppPhase.results)
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 350),
+                                  curve: Curves.easeInOut,
+                                  child: CanStage(
+                                    phase: phase,
+                                    profile: demo.profileDraft,
+                                    result: demo.lastResult,
+                                    team: inEvent ? demo.self.team : null,
+                                  ),
+                                ),
+                              const SizedBox(height: 24),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 250),
+                                switchInCurve: Curves.easeOut,
+                                child: Column(
+                                  key: ValueKey(phase),
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: panel(phase),
+                                ),
+                              ),
+                              if (error != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Semantics(
+                                    liveRegion: true,
+                                    child: Text(
+                                      error!,
+                                      key: const Key('form-error'),
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 20),
+                            ],
                           ),
-                        ),
-                      const SizedBox(height: 24),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        switchInCurve: Curves.easeOut,
-                        child: Column(
-                          key: ValueKey(phase),
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: panel(phase),
                         ),
                       ),
-                      if (error != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Semantics(
-                            liveRegion: true,
-                            child: Text(
-                              error!,
-                              key: const Key('form-error'),
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
               ),
             ),
           ),
@@ -408,49 +440,8 @@ class _DemoPageState extends State<DemoPage> {
           ),
         ];
       case AppPhase.game:
-        final cooperative = demo.activePeer!.team == demo.self.team;
-        return [
-          heading(
-            '${demo.activePeer!.profile.nickname}さんと${cooperative ? '協力' : '対戦'}',
-          ),
-          if (demo.isClosing)
-            const Text('新しい交流は終了しました。このゲームは終了後30秒まで結果を反映できます。'),
-          const SizedBox(height: 8),
-          Padding(
-            padding: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('ミニゲーム準備中'),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'デモ操作：ゲームの結果を選ぶ',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    key: const Key('positive-outcome'),
-                    onPressed: () => demo.injectOutcome(
-                      cooperative ? Outcome.coopSuccess : Outcome.win,
-                    ),
-                    child: Text(cooperative ? '協力に成功' : '対戦に勝つ'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    key: const Key('negative-outcome'),
-                    onPressed: () => demo.injectOutcome(
-                      cooperative ? Outcome.coopFailure : Outcome.loss,
-                    ),
-                    child: Text(cooperative ? '協力に失敗' : '対戦に負ける'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          demoTimeControls(),
-        ];
+        // GameScene occupies the viewport outside the scrolling panels.
+        return const [];
       case AppPhase.result:
         final result = demo.lastResult!;
         final title = switch (result.outcome) {
@@ -636,6 +627,72 @@ class _DemoPageState extends State<DemoPage> {
       ],
     ),
   );
+
+  void completeGame(int generation, String peerId, Outcome outcome) {
+    // Ignore duplicate, expired, and previous-game callbacks, including
+    // callbacks from a room that was reset and started again.
+    if (!mounted ||
+        generation != encounterGeneration ||
+        demo.phase != AppPhase.game ||
+        demo.activePeer?.id != peerId) {
+      return;
+    }
+    runAction(() => demo.injectOutcome(outcome));
+  }
+
+  Future<void> showGameDemoMenu() async {
+    final peer = demo.activePeer;
+    if (demo.phase != AppPhase.game || peer == null || openSheets > 0) return;
+    final cooperative = peer.team == demo.self.team;
+    final generation = encounterGeneration;
+    openSheets++;
+    Outcome? outcome;
+    try {
+      outcome = await showModalBottomSheet<Outcome>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) => SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              heading('デモ操作'),
+              const Text('ミニゲームの結果を選んで、続きを確認できます。'),
+              const SizedBox(height: 16),
+              FilledButton(
+                key: const Key('positive-outcome'),
+                onPressed: () => Navigator.pop(
+                  sheetContext,
+                  cooperative ? Outcome.coopSuccess : Outcome.win,
+                ),
+                child: Text(cooperative ? '協力に成功' : '対戦に勝つ'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                key: const Key('negative-outcome'),
+                onPressed: () => Navigator.pop(
+                  sheetContext,
+                  cooperative ? Outcome.coopFailure : Outcome.loss,
+                ),
+                child: Text(cooperative ? '協力に失敗' : '対戦に負ける'),
+              ),
+              demoTimeControls(),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                child: const Text('ゲームへ戻る'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      openSheets--;
+    }
+    if (outcome != null) completeGame(generation, peer.id, outcome);
+  }
 
   void showDemoInfo() {
     openSheets++;

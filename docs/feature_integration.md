@@ -8,7 +8,10 @@
 lib/main.dart                       起動
 lib/app/tsunagun_app.dart            アプリ設定・共通PhoneViewport
 lib/features/demo/demo_page.dart    一台デモの場面・操作UI
+lib/features/demo/game_scene.dart   安全領域全体を使うゲーム表示枠
 lib/features/demo/can_stage.dart    缶・親分・子分と演出
+lib/features/duel/duel_game.dart     対戦ゲームの差込口
+lib/features/cooperative/cooperative_game.dart  協力ゲームの差込口
 lib/domain/models.dart              プロフィール・参加者・子分・結果・状態
 lib/domain/reward_rules.dart        報酬・成長・戦力・最終集計
 lib/data/demo_controller.dart       デモの単一状態・進行管理
@@ -34,9 +37,20 @@ docs/tsunagun/                     v2受領原本（画像・手書きPDFを含�
 
 同チームは協力、別チームは対戦です。現在のゲーム枠は空で、結果注入はデモ用です。正式なゲーム内容は未決定です。
 
-ゲームは参加者情報と開始条件を受け取り、完了した一つの結果を共通処理へ渡す境界にします。報酬計算・チーム分岐・再戦禁止・期限処理をゲーム内へ複製しません。引き分け、離脱、エラー、制限時間の扱いを決めてから公開APIとテストを追加します。
+`game_scene.dart` は共通 `PhoneViewport` 内の安全領域全体をゲームに渡す表示枠です。缶・親分を右下へ小さく重ね、ゲーム中の結果選択・時刻早送りは右上の `DEMO` メニューからのみ使います。メニューの開閉と結果適用は `demo_page.dart` が担当します。通常のページ見出し・操作パネルをゲームの前後へ追加して領域を狭めたり、共通の画面幅・高さを変更したりしません。
 
-将来のゲーム用フォルダはまだありません。担当開始前に統合担当が追加するファイル・親画面の組み込み担当を決めます。同じ `demo_page.dart` を各ゲーム担当が同時に変更しません。
+対戦担当は `DuelGame`、協力担当は `CooperativeGame` を実装します。どちらも確定済みの参加者 `self`・`peer` と、完了通知 `onCompleted` を受け取ります。現在は準備中表示のみで、自動で結果を作りません。
+
+| 差込口 | 通知する結果 | 共通処理への変換 |
+|---|---|---|
+| `DuelGame` | `DuelGameResult.win` / `.loss` | `Outcome.win` / `.loss` |
+| `CooperativeGame` | `CooperativeGameResult.success` / `.failure` | `Outcome.coopSuccess` / `.coopFailure` |
+
+`game_scene.dart` が相手チームで差込口を選び、型付き結果を共通の `Outcome` へ変換します。`demo_page.dart` が現在のゲーム場面・相手ID・交流開始ごとの識別番号を照合して `DemoController` へ渡し、重複・古い通知を拒否します。ゲーム側の完了通知も一交流につき一度にします。ゲーム内で報酬計算・チーム分岐・再戦禁止・期限処理を複製したり、子分や戦力を直接変更したりしません。
+
+各担当者は自分のゲームWidgetの `build` の中身を置き換え、確定時に `onCompleted(DuelGameResult.win)` などを一度呼びます。`Navigator` で結果画面へ直接移動せず、共通の結果処理へ戻します。毎秒の残り時間更新で親は再描画するため、タイマーやゲーム状態は `State` に保持して `build` で再初期化せず、終了時に `dispose` で解放します。上部の状態表示・右下の缶は共通側が重ねるので、重要なゲーム操作をその直下へ配置しません。
+
+対戦と協力は別ファイルで並行開発できます。共通の親画面へ両担当が直接手を入れず、差込口の変更が必要なら統合担当へ調整します。引き分け、離脱、エラー、制限時間と結果の正当性は未決定です。正式ゲームを実装する前に扱いを決め、必要な公開APIとテストを統合担当と更新します。
 
 ## 担当表
 
@@ -44,9 +58,10 @@ docs/tsunagun/                     v2受領原本（画像・手書きPDFを含�
 
 | 責務 | ソース・素材・関連テスト | 担当・ブランチ |
 |---|---|---|
-| 画面の流れと入力・接続パネル | `lib/features/demo/demo_page.dart`、関連するwidgetテスト | 未割当 |
+| 画面の流れと入力・接続パネル | `lib/features/demo/demo_page.dart`、`lib/features/demo/game_scene.dart`、関連するwidgetテスト | 未割当 |
 | 缶・キャラクターの表示と演出 | `lib/features/demo/can_stage.dart`、`assets/characters/`、関連するwidgetテスト | 未割当 |
-| 対戦・協力ゲーム | 未作成。開始前にゲームごとのファイルと組み込み担当を確定 | 未割当 |
+| 対戦ゲーム | `lib/features/duel/`、`test/features/duel/` | 未割当 |
+| 協力ゲーム | `lib/features/cooperative/`、`test/features/cooperative/` | 未割当 |
 | 共通基盤・ルール・データ・接続・統合 | `lib/app/`、`lib/domain/`、`lib/data/`、`lib/main.dart`、共有テスト | 基盤作成者 |
 | SDK・依存・プラットフォーム・CI・資料 | `pubspec.*`、`.fvmrc`、`tool/`、`android/`、`web/`、`.github/`、`docs/`等 | 基盤作成者 |
 

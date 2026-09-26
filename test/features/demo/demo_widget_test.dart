@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:spajam2026/app/tsunagun_app.dart';
 import 'package:spajam2026/data/demo_controller.dart';
 import 'package:spajam2026/domain/models.dart';
+import 'package:spajam2026/features/cooperative/cooperative_game.dart';
 import 'package:spajam2026/features/demo/can_stage.dart';
+import 'package:spajam2026/features/duel/duel_game.dart';
 
 Future<DemoController> launch(
   WidgetTester tester, {
@@ -57,6 +59,11 @@ Future<void> meet(WidgetTester tester, Participant peer) async {
   await key(tester, 'meet-peer');
   await key(tester, 'peer-${peer.id}');
   await key(tester, 'confirm-peer');
+}
+
+Future<void> chooseOutcome(WidgetTester tester, String outcomeKey) async {
+  await key(tester, 'game-demo-menu');
+  await key(tester, outcomeKey);
 }
 
 Future<void> returnHome(WidgetTester tester) async {
@@ -121,7 +128,7 @@ void main() {
     final opponent = demo.peers.firstWhere((p) => p.team != demo.self.team);
     final partner = demo.peers.firstWhere((p) => p.team == demo.self.team);
     await meet(tester, opponent);
-    await key(tester, 'negative-outcome');
+    await chooseOutcome(tester, 'negative-outcome');
     expect(demo.phase, AppPhase.result);
     expect(find.text('ショBONE'), findsOneWidget);
     final parent = tester.widget<Image>(
@@ -135,7 +142,7 @@ void main() {
     await returnHome(tester);
     await checkProfile(tester, '骨 1 匹', opponent.profile);
     await meet(tester, partner);
-    await key(tester, 'positive-outcome');
+    await chooseOutcome(tester, 'positive-outcome');
     expect(
       find.text('${opponent.profile.nickname}さんの骨が、元気な子分に成長しました。'),
       findsOneWidget,
@@ -188,7 +195,7 @@ void main() {
     await key(tester, 'start-event');
     final peer = demo.peers.firstWhere((p) => p.team != demo.self.team);
     await meet(tester, peer);
-    await key(tester, 'negative-outcome');
+    await chooseOutcome(tester, 'negative-outcome');
     await returnHome(tester);
     await checkProfile(tester, '骨 1 匹', peer.profile);
     await key(tester, 'expire-event');
@@ -211,12 +218,144 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('ゲームは安全領域全体を使い、DEMOを開いたときだけ結果を選べる', (tester) async {
+    final demo = await launch(tester);
+    tester.view.padding = const FakeViewPadding(top: 24, bottom: 16);
+    tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 16);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
+    await tester.pumpAndSettle();
+    await start(tester);
+    final peer = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    await meet(tester, peer);
+    expect(
+      tester.getRect(find.byKey(const Key('game-surface'))),
+      const Rect.fromLTWH(0, 24, 360, 700),
+    );
+    expect(find.byKey(const Key('positive-outcome')), findsNothing);
+    expect(find.byKey(const Key('negative-outcome')), findsNothing);
+    expect(find.byKey(const Key('expire-event')), findsNothing);
+    expect(find.byType(BottomSheet), findsNothing);
+    await key(tester, 'game-demo-menu');
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.byKey(const Key('positive-outcome')), findsOneWidget);
+    expect(find.byKey(const Key('negative-outcome')), findsOneWidget);
+    await key(tester, 'positive-outcome');
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(demo.phase, AppPhase.result);
+    expect(demo.normalCount, 1);
+    expect(demo.boneCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ゲームのDEMOメニュー中も終了猶予が尽きれば閉じ、未確定の報酬を付けない', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final peer = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    await meet(tester, peer);
+    await key(tester, 'game-demo-menu');
+    demo.advance(demo.remaining);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.game);
+    expect(demo.isClosing, isTrue);
+    expect(find.byType(BottomSheet), findsOneWidget);
+    demo.advance(const Duration(seconds: 30));
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.byKey(const Key('positive-outcome')), findsNothing);
+    expect(demo.phase, AppPhase.finale);
+    expect(demo.finalSnapshot!.redPower, 0);
+    expect(demo.finalSnapshot!.bluePower, 0);
+    expect(demo.followers, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ゲーム差込口の完了でメニューを閉じ、重複と別相手への遅延通知を拒否する', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final opponent = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    final partner = demo.peers.firstWhere((p) => p.team == demo.self.team);
+    await meet(tester, opponent);
+    expect(find.byType(CooperativeGame), findsNothing);
+    final duel = tester.widget<DuelGame>(find.byType(DuelGame));
+    expect(duel.self.id, demo.self.id);
+    expect(duel.peer.id, opponent.id);
+    await key(tester, 'game-demo-menu');
+    duel.onCompleted(DuelGameResult.loss);
+    duel.onCompleted(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(demo.phase, AppPhase.result);
+    expect(demo.normalCount, 0);
+    expect(demo.boneCount, 1);
+    await returnHome(tester);
+    await meet(tester, partner);
+    expect(find.byType(DuelGame), findsNothing);
+    final cooperative = tester.widget<CooperativeGame>(
+      find.byType(CooperativeGame),
+    );
+    expect(cooperative.self.id, demo.self.id);
+    expect(cooperative.peer.id, partner.id);
+    duel.onCompleted(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.game);
+    expect(demo.followers, hasLength(1));
+    cooperative.onCompleted(CooperativeGameResult.success);
+    cooperative.onCompleted(CooperativeGameResult.failure);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.result);
+    expect(demo.normalCount, 1);
+    expect(demo.boneCount, 1);
+    expect(demo.completedPeerIds, {opponent.id, partner.id});
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ゲーム差込口の勝利・協力失敗を反映し、再開始後は同じ相手への旧通知を拒否する', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final opponent = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    final partner = demo.peers.firstWhere((p) => p.team == demo.self.team);
+    await meet(tester, opponent);
+    final previousDuel = tester.widget<DuelGame>(find.byType(DuelGame));
+    previousDuel.onCompleted(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(demo.normalCount, 1);
+    expect(demo.boneCount, 0);
+    await returnHome(tester);
+    await meet(tester, partner);
+    tester
+        .widget<CooperativeGame>(find.byType(CooperativeGame))
+        .onCompleted(CooperativeGameResult.failure);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.result);
+    expect(demo.normalCount, 1);
+    expect(demo.boneCount, 1);
+    await returnHome(tester);
+    await key(tester, 'expire-event');
+    await key(tester, 'show-results');
+    await key(tester, 'reset-demo');
+    await start(tester);
+    await meet(tester, opponent);
+    previousDuel.onCompleted(DuelGameResult.loss);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.game);
+    expect(demo.followers, isEmpty);
+    tester
+        .widget<DuelGame>(find.byType(DuelGame))
+        .onCompleted(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.result);
+    expect(demo.normalCount, 1);
+    expect(demo.boneCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('プロフィールを重ねて表示中も期限で両シートを閉じ、確定報酬を残す', (tester) async {
     final demo = await launch(tester);
     await start(tester);
     final peer = demo.peers.firstWhere((p) => p.team != demo.self.team);
     await meet(tester, peer);
-    await key(tester, 'negative-outcome');
+    await chooseOutcome(tester, 'negative-outcome');
     await returnHome(tester);
     await tap(tester, find.text('骨 1 匹'));
     await tap(tester, find.text(peer.profile.nickname));
@@ -230,10 +369,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('PCでは全画面と子分シートを共通412幅に収める', (tester) async {
+  testWidgets('PCでは通常画面・ゲーム・シートを共通412幅に収める', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
     try {
-      await launch(tester, size: const Size(1200, 1000));
+      final demo = await launch(tester, size: const Size(1200, 1000));
       expect(tester.getSize(find.byType(Scaffold)), const Size(412, 900));
       expect(
         MediaQuery.of(tester.element(find.byType(CanStage))).size,
@@ -241,6 +380,15 @@ void main() {
       );
       await start(tester);
       await tap(tester, find.text('子分 0 匹'));
+      expect(tester.getSize(find.byType(BottomSheet)).width, 412);
+      await tap(tester, find.text('閉じる'));
+      final peer = demo.peers.firstWhere((p) => p.team != demo.self.team);
+      await meet(tester, peer);
+      expect(
+        tester.getRect(find.byKey(const Key('game-surface'))),
+        tester.getRect(find.byType(Scaffold)),
+      );
+      await key(tester, 'game-demo-menu');
       expect(tester.getSize(find.byType(BottomSheet)).width, 412);
       expect(tester.takeException(), isNull);
     } finally {
