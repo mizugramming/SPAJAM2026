@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'app/tsunagun_app.dart';
 import 'data/conveyor_settings.dart';
+import 'features/demo/result_sound_player.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,5 +22,10 @@ Future<void> main() async {
     store: SharedPreferencesConveyorLayoutStore(),
   );
   await conveyorSettings.load();
-  runApp(TsunagunApp(conveyorSettings: conveyorSettings));
+  runApp(
+    TsunagunApp(
+      conveyorSettings: conveyorSettings,
+      resultSoundPlayer: AssetResultSoundPlayer(),
+    ),
+  );
 }

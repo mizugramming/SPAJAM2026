@@ -15,6 +15,7 @@ lib/features/demo/game_scene.dart   共通ヘッダーと残り領域を使う�
 lib/features/demo/can_stage.dart    缶・親分・子分・ショBONEの煙・帰還演出
 lib/features/demo/parent_character.dart  待機動画・静止画と停止条件
 lib/features/demo/font_comparison_controls.dart  DEMO内の書体切替
+lib/features/demo/result_sound_player.dart  結果音声の読み込み・再生・停止
 lib/features/demo/wavy_title_image.dart  画像見出しの有限の揺れ・読み上げ
 lib/features/demo/factory_backdrop.dart  工場背景と場面移動時のコンベア
 lib/features/demo/conveyor_editor.dart  配置プレビュー・調整・保存
@@ -67,6 +68,7 @@ docs/tsunagun/                     v2受領原本（画像・手書きPDFを含�
 - 親分の待機は `ParentCharacter` の透過WebPで、ホーム・相手確認かつ缶の登場演出後だけ再生します。動作軽減・バックグラウンド・無効な `TickerMode` では同寸法のPNGへ切り替えます。UIテストは `TsunagunApp(animateCharacters: false)` で無限ループだけを止め、缶やゲームの一度で終わる演出は検証します。
 - 書体の既定はKaisei Tokumin Medium 500です。`TypographyScope` でM PLUS Rounded 1c Medium 500へ切り替え、画面とControllerの状態を保持します。曲面ラベルは選択中の実フォントとOSの文字拡大・太字で計測します。
 - `CanStage` のショBONEは提供された画像見出しを使い、有限の揺れと一度で消える煙を伴います。見出しの実際の描画幅から高さを確保し、読み上げは「ショBONE」を維持します。REBORNは復活した普通の子分1匹だけを表示します。帰還時の缶底を越えない位置制約を維持します。
+- `DemoPage` が結果への遷移を監視し、敗北・協力失敗の初回描画後に `ResultSoundPlayer.playShobone` を呼びます。`CanStage` や `build` から再生せず、コンベア編集のプレビューと二重に鳴らしません。`main` は素材再生版を注入し、直接 `TsunagunApp` を作るテスト・プレビューは既定で無音です。Pageが停止・破棄を管理し、音声エラーを報酬処理へ伝播させません。詳しい条件は [素材管理](assets.md#ショboneの音声) を参照してください。
 - `TugOfWarFinale` は手動開始後、構え3秒・引き合い6.5秒・決着1.5秒で確定結果を開示します。紙吹雪は開示から2秒で消えます。動作軽減設定・両チーム0ptの場合も開始を待ち、押した後は決着を直接表示します。背景の観客は12匹固定で、所持子分数や得点を表しません。開始後の引き合い・決着中は席ごとに位相をずらして小さく跳ね、開始前・演出終了後・スキップ・動作軽減では静止します。既存の有限アニメーションを使い、追加の常時ループは作りません。
 - チーム・個人の内訳は確定した `FinalSnapshot.rankings` の普通子分数・骨数から表示します。演出用の観客や親分を集計へ加えず、開始・スキップ・再描画でも結果を再計算しません。
 - MVPに親分と子分のイラストを置き、内訳を読みやすく表示します。同点の説明文を省いても、共同MVPと同順位の規則は維持します。順位一覧は `rank <= 3` を全て表示し、本人が4位以下の場合だけ「あなたの順位」に追加します。先頭3人で切ったり、表示用に順位を振り直したりしません。

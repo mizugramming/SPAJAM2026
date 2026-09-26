@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -13,18 +15,26 @@ import 'factory_backdrop.dart';
 import 'final_awards.dart';
 import 'font_comparison_controls.dart';
 import 'illustrated_details.dart';
+import 'result_sound_player.dart';
 import 'tug_of_war_finale.dart';
 
 class DemoPage extends StatefulWidget {
-  const DemoPage({super.key, this.controller});
+  const DemoPage({super.key, this.controller, this.resultSoundPlayer});
   final DemoController? controller;
+
+  /// Owned and disposed by this page; omitted players keep previews silent.
+  final ResultSoundPlayer? resultSoundPlayer;
 
   @override
   State<DemoPage> createState() => _DemoPageState();
 }
 
-class _DemoPageState extends State<DemoPage> {
+class _DemoPageState extends State<DemoPage> with WidgetsBindingObserver {
   late final DemoController demo = widget.controller ?? DemoController();
+  late final ResultSoundPlayer _resultSoundPlayer =
+      widget.resultSoundPlayer ?? const SilentResultSoundPlayer();
+  bool _foreground = true;
+  int _soundGeneration = 0;
   final nickname = TextEditingController();
   final hobby = TextEditingController();
   final comment = TextEditingController();
@@ -40,11 +50,80 @@ class _DemoPageState extends State<DemoPage> {
   @override
   void initState() {
     super.initState();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addObserver(this);
     observedPhase = demo.phase;
     demo.addListener(handlePhase);
+    _handleSoundPhase(null);
+  }
+
+  // Audio is optional presentation. Device/player failures must not affect
+  // outcome settlement, navigation, or disposal of the rest of the app.
+  Future<void> _guardSound(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (_) {
+      // Keep the visual result and the game flow available without sound.
+    }
+  }
+
+  void _handleSoundPhase(AppPhase? previous) {
+    final generation = ++_soundGeneration;
+    final phase = demo.phase;
+    if (previous == AppPhase.result ||
+        phase == AppPhase.returning ||
+        phase == AppPhase.finale ||
+        phase == AppPhase.results ||
+        phase == AppPhase.entry) {
+      unawaited(_guardSound(_resultSoundPlayer.stop));
+    }
+    if (phase == AppPhase.game && _foreground) {
+      unawaited(_guardSound(_resultSoundPlayer.prepare));
+    }
+    final result = demo.lastResult;
+    if (phase != AppPhase.result ||
+        result == null ||
+        !_foreground ||
+        (result.outcome != Outcome.loss &&
+            result.outcome != Outcome.coopFailure)) {
+      return;
+    }
+    final encounter = encounterGeneration;
+    // The title is present after this frame. Do not attach audio to CanStage:
+    // its conveyor-editor preview may show the same result a second time.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _soundGeneration ||
+          encounter != encounterGeneration ||
+          demo.phase != AppPhase.result ||
+          !identical(demo.lastResult, result) ||
+          !_foreground) {
+        return;
+      }
+      unawaited(_guardSound(_resultSoundPlayer.playShobone));
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    if (_foreground == foreground) return;
+    _foreground = foreground;
+    if (!foreground) {
+      _soundGeneration++;
+      unawaited(_guardSound(_resultSoundPlayer.stop));
+    }
+    // Returning to the foreground never replays an already shown result.
+  }
+
+  Future<void> _disposeSound() async {
+    await _guardSound(_resultSoundPlayer.stop);
+    await _guardSound(_resultSoundPlayer.dispose);
   }
 
   void handlePhase() {
+    final previous = observedPhase;
     final changed = demo.phase != observedPhase;
     final reachedFinale =
         demo.phase == AppPhase.finale && observedPhase != AppPhase.finale;
@@ -53,6 +132,7 @@ class _DemoPageState extends State<DemoPage> {
     if (changed && demo.phase == AppPhase.game) encounterGeneration++;
     observedPhase = demo.phase;
     if (changed) {
+      _handleSoundPhase(previous);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !sceneScroll.hasClients) return;
         if (MediaQuery.disableAnimationsOf(context)) {
@@ -81,6 +161,9 @@ class _DemoPageState extends State<DemoPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _soundGeneration++;
+    unawaited(_disposeSound());
     demo.removeListener(handlePhase);
     nickname.dispose();
     hobby.dispose();

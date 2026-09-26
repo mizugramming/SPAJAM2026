@@ -12,10 +12,11 @@
 | 協力の魂 | `assets/characters/tamashii.png` | ユーザー提供。協力ゲームで運ぶ魂 |
 | 協力のツナ缶・空き缶 | `assets/characters/tunakanaka.png`・`hadakan.png` | ユーザー提供。魂を運ぶ缶と、最後に魂が入る空き缶 |
 | 「ショBONE」の見出し | `assets/characters/shobone.png` | ユーザー提供（受領時のファイル名は `ショBONE.png`）。負けたときの結果の見出しを書体ごと画像で出し、少し波打たせる |
+| 「ショボーン」の声 | `assets/audio/shobone.m4a` | ユーザー提供の `syoboon.m4a` を無加工でコピー。AAC-LC、48kHz、ステレオ、約2.37秒、43,385 bytes。対戦敗北・協力失敗の結果で一度だけ再生 |
 | 勝ったときの親方の踊り | `assets/characters/oyakata_dance.webp`・`oyakata_dance_still.png` | 勝ったとき煙の中から現れて7秒踊る（画面の幅いっぱい）。ユーザー提供の動画 `oyakatadance.mp4`（786×720、約10秒、黒背景）を、依存パッケージなしで再生できるよう背景透過のアニメーションWebP（幅400px・15fps・約1.9MB）へ変換。画面の縁につながる黒だけを透過し、キャラクターの線は残す。PNGは「アニメーションを減らす」設定用の1枚絵。元のMP4はアプリに同梱しない |
 | 手書きラフ・旧生成画像 | `docs/tsunagun/references/` | 設計の参照用。アプリへ全量同梱しない |
 
-提供資料の原本は [v2資料](tsunagun/README.md) と [出典一覧](tsunagun/references/SOURCE_INDEX.md) に保持し、変更しません。アプリは `assets/characters/` と `assets/home/` のファイルを使用します。
+提供資料の原本は [v2資料](tsunagun/README.md) と [出典一覧](tsunagun/references/SOURCE_INDEX.md) に保持し、変更しません。アプリは `assets/characters/`・`assets/home/` の画像と、`assets/audio/` の音声を使用します。
 
 2026-09-27、親分はユーザー指定の `tsunagun_design_v2/assets/characters/image.png` を加工せずアプリ用の配置へコピーしました。子分2種はユーザーの許可を受け、プログラムで外側につながる白背景を透過し、周囲の余白を整理しました。元のRGB値を保ち、白い腹や骨は残しています。生成AIによるキャラクターの描き直しは行っていません。
 
@@ -58,6 +59,16 @@
 ## ベルトコンベア
 
 ユーザー提供の `Belt.png` を `assets/home/conveyor_belt.png` へ無加工でコピーしました。SHA-256は `0d02e060b2b56239b1279fc2769d75f605c279602b596e55a2a0eb9ea43ed8f8` です。原本の3:1比率を保ち、缶の下端を画像内のベルト面（高さ44%）へ合わせます。脚が画面へ重ならないよう場面内へ高さを予約します。DEMOの配置編集ではこの接地を基準に拡大率・XY位置を調整し、素材の3:1比率を保ったまま端末へ保存できます。場面移動時に重ね描きする車輪線だけを短時間動かし、入力中・待機中には止めます。
+
+## ショBONEの音声
+
+`shobone.m4a` のSHA-256は `beacf6b742527d3908ffc862a6e7cb6208ed2635eb2bc4e5767f1488448255c1` です。原本の音量・尺・形式は変えていません。`pubspec.yaml` に `assets/audio/` を登録し、実行時の外部配信や元ファイルの絶対パスには依存しません。
+
+[audioplayers](https://pub.dev/packages/audioplayers/versions/6.7.1) 6.7.1を固定SDKと互換のある版として固定し、ゲーム開始時に読み込み、敗北・協力失敗の結果が描画されたフレームから一度だけ再生します。勝利・協力成功・結果予約だけの段階では鳴りません。時計更新・フォント変更・コンベア編集プレビューでも再生し直しません。帰還・最終場面・リセット・バックグラウンド・画面破棄で停止し、前景復帰では再開しません。読み込み中に離れても遅れて鳴らないよう、処理世代を照合します。
+
+この依存追加を既存のWeb作業コピーへ取り込む際は、`fvm flutter clean` → `fvm flutter pub get --enforce-lockfile` → ビルドで生成物を更新してください。固定Flutterでは古いWebプラグイン登録が増分ビルドに残ることがあるため、生成ファイルの手編集では回避しません。
+
+端末の出力先・音量設定を使い、ループ・背景再生・強制スピーカー出力は行いません。ブラウザーの自動再生制限や音声の読み込み失敗時も、画面と報酬処理は継続します。REDMI Note 15 5Gでの実際の音量・出力タイミングは実機で確認してください。
 
 ## 素材の追加
 

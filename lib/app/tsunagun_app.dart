@@ -7,6 +7,7 @@ import '../data/conveyor_settings.dart';
 import 'conveyor_settings_scope.dart';
 import '../features/demo/demo_page.dart';
 import '../features/demo/parent_character.dart';
+import '../features/demo/result_sound_player.dart';
 import 'tsunagun_theme.dart';
 import 'tsunagun_typography.dart';
 
@@ -15,12 +16,14 @@ class TsunagunApp extends StatefulWidget {
     super.key,
     this.controller,
     this.conveyorSettings,
+    this.resultSoundPlayer,
     this.animateCharacters = true,
     this.initialTypeface = TsunagunTypeface.kaiseiTokumin,
   });
 
   final DemoController? controller;
   final ConveyorSettings? conveyorSettings;
+  final ResultSoundPlayer? resultSoundPlayer;
   final bool animateCharacters;
   final TsunagunTypeface initialTypeface;
 
@@ -64,7 +67,10 @@ class _TsunagunAppState extends State<TsunagunApp> {
           // Avoid interpolating geometry between unrelated font metrics.
           themeAnimationDuration: Duration.zero,
           builder: (context, child) => PhoneViewport(child: child!),
-          home: DemoPage(controller: widget.controller),
+          home: DemoPage(
+            controller: widget.controller,
+            resultSoundPlayer: widget.resultSoundPlayer,
+          ),
         ),
       ),
     ),
