@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../domain/models.dart';
 import '../cooperative/cooperative_game.dart';
 import '../duel/duel_game.dart';
-import 'can_stage.dart';
 
 /// The game owns the full safe viewport. Status and demo tools are overlays,
 /// so a future minigame can replace the placeholder without losing play space.
@@ -49,13 +48,6 @@ class GameScene extends StatelessWidget {
                 result == DuelGameResult.win ? Outcome.win : Outcome.loss,
               ),
             ),
-          IgnorePointer(
-            child: CanStage(
-              phase: AppPhase.game,
-              profile: self.profile,
-              team: self.team,
-            ),
-          ),
           Positioned(
             top: 12,
             left: 16,
