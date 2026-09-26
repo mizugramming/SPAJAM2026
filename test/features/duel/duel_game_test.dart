@@ -122,16 +122,30 @@ void main() {
     await tester.pump();
     expect(find.textContaining('ぎりぎり度'), findsOneWidget);
 
-    // 相手が落ちて決着（約1秒）してから、結果の画面を1.8秒見せる。その間は通知しない。
-    await pumpTicks(tester, const Duration(seconds: 2));
+    // 相手が落ちて決着（約1秒）してから、勝ったときは % の結果を1秒だけ見せる。
+    await pumpTicks(tester, const Duration(milliseconds: 1500));
     expect(find.text('WIN'), findsOneWidget);
+    expect(find.byKey(const Key('win-dance')), findsNothing);
     expect(results, isEmpty);
-    // 勝ったら結果画面の前に、子分が親方に変わって踊る（約4秒）。その間も通知しない。
-    await pumpTicks(tester, const Duration(seconds: 1));
+    // そのあと、煙の中から親方が現れて踊る（2秒）。その間も通知しない。
+    // 文字（親方になった！）と、前に出てくる子分は出さない。
+    await pumpTicks(tester, const Duration(milliseconds: 500));
     expect(find.byKey(const Key('win-dance')), findsOneWidget);
     expect(find.byKey(const Key('oyakata-dance')), findsOneWidget);
+    expect(find.byKey(const Key('dance-smoke')), findsOneWidget);
+    expect(find.textContaining('親方'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('win-dance')),
+        matching: find.byType(Image),
+      ),
+      findsOneWidget,
+    );
     expect(results, isEmpty);
-    await pumpTicks(tester, const Duration(seconds: 4));
+    // 踊り始めて約1.2秒ではまだ通知せず、2秒を過ぎたら通知する。
+    await pumpTicks(tester, const Duration(seconds: 1));
+    expect(results, isEmpty);
+    await pumpTicks(tester, const Duration(seconds: 1));
     expect(results, [DuelGameResult.win]);
 
     // 決着後にさらに時間が進んでも、通知は一度だけ。
@@ -459,8 +473,8 @@ void main() {
     await startRace(tester);
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.byType(DuelGame));
-    // 相手が落ちて決着（約1秒）＋結果表示1.8秒のあと、踊りが始まる。
-    await pumpTicks(tester, const Duration(milliseconds: 2500));
+    // 相手が落ちて決着（約1秒）＋ % の表示1秒のあと、踊りが始まる。
+    await pumpTicks(tester, const Duration(milliseconds: 1700));
     expect(find.byKey(const Key('win-dance')), findsOneWidget);
     await tester.tap(find.byType(DuelGame));
     await tester.pump();

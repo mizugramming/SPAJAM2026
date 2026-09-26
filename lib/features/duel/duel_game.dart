@@ -50,8 +50,11 @@ class _DuelGameState extends State<DuelGame>
   /// 両者が決まってから結果を通知するまでの間（落ちる／止まる様子を見せる）。
   static const _settleDelay = Duration(milliseconds: 1800);
 
+  /// 勝ったときに、親方が出てくるまで % の結果を見せる時間。
+  static const _winResultDelay = Duration(milliseconds: 1000);
+
   /// 勝ったときの、親方が踊る場面の長さと、タップで飛ばせるようになるまで。
-  static const _danceDuration = Duration(seconds: 4);
+  static const _danceDuration = Duration(seconds: 2);
   static const _danceSkippableAfter = Duration(seconds: 1);
 
   /// 親方が踊り始めた時刻。勝って結果表示が終わるまでは null。
@@ -104,11 +107,14 @@ class _DuelGameState extends State<DuelGame>
     final selfDecision = _selfDecision;
     if (selfDecision != null && _peerSettled(raw)) {
       final settledAt = _bothSettledAt ??= elapsed;
-      if (!_reported && elapsed - settledAt >= _settleDelay) {
-        if (!selfWinsRace(selfDecision, _peerDecision)) {
+      final wins = selfWinsRace(selfDecision, _peerDecision);
+      // 勝ったときは % を少しだけ見せてから親方を出し、負けたときはそのまま結果へ。
+      final showResultFor = wins ? _winResultDelay : _settleDelay;
+      if (!_reported && elapsed - settledAt >= showResultFor) {
+        if (!wins) {
           _report(DuelGameResult.loss);
         } else {
-          // 勝ったら、結果画面の前に子分が親方に変わって踊る場面を見せる。
+          // 結果画面の前に、煙の中から親方が現れて踊る場面を見せる。
           final danceStartedAt = _danceStartedAt ??= elapsed;
           if (elapsed - danceStartedAt >= _danceDuration) {
             _report(DuelGameResult.win);
