@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spajam2026/domain/models.dart';
 import 'package:spajam2026/features/duel/duel_game.dart';
@@ -378,5 +379,49 @@ void main() {
     final body = tester.getRect(find.textContaining('赤い線のぎりぎり'));
     expect(body.height, greaterThanOrEqualTo(26 * 1.35 * 2 - 1));
     expect(body.bottom, lessThan(landingY(tester)));
+  });
+
+  testWidgets('自分の魚が線を越えて落ちたときだけ、スマホを強く一度震わせる', (tester) async {
+    final vibrations = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          vibrations.add(call.arguments);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    // 止めたとき（相手が落ちても）は震えない。
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.fell(),
+      ),
+    );
+    await startRace(tester);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byType(DuelGame));
+    await pumpTicks(tester, const Duration(seconds: 4));
+    expect(vibrations, isEmpty);
+
+    // 止める前に落ちたら、一度だけ強く震える。
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.stopped(0.5),
+      ),
+    );
+    await startRace(tester);
+    await pumpTicks(tester, const Duration(seconds: 4));
+    expect(vibrations, ['HapticFeedbackType.heavyImpact']);
   });
 }

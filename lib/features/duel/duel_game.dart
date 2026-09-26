@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../../domain/models.dart';
 import 'race_course.dart';
@@ -89,7 +90,7 @@ class _DuelGameState extends State<DuelGame>
     final raw = _course.depthAt(elapsed);
 
     if (_selfDecision == null && raw >= 1) {
-      _selfDecision = const RaceDecision.fell();
+      _decide(const RaceDecision.fell());
     }
 
     final selfDecision = _selfDecision;
@@ -117,10 +118,19 @@ class _DuelGameState extends State<DuelGame>
     if (_selfDecision != null) return;
     final raw = _course.depthAt(_elapsed);
     setState(
-      () => _selfDecision = raw >= 1
-          ? const RaceDecision.fell()
-          : RaceDecision.stopped(raw.clamp(0.0, 1.0)),
+      () => _decide(
+        raw >= 1
+            ? const RaceDecision.fell()
+            : RaceDecision.stopped(raw.clamp(0.0, 1.0)),
+      ),
     );
+  }
+
+  /// 自分の結果を一度だけ決める。線を越えて落ちたら、スマホを強く一度震わせる。
+  /// 端末の設定でタッチ時の振動が切られているときや、Webでは何も起きない。
+  void _decide(RaceDecision decision) {
+    _selfDecision = decision;
+    if (decision.fell) HapticFeedback.heavyImpact();
   }
 
   /// 描画用の深さ。決着済みなら止めた位置、または海へ向けて描き進める。
