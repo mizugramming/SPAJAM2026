@@ -1,0 +1,26 @@
+name: spajam2026
+description: "つなぐん — 出会いが仲間になる、一台用デモ"
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.11.3 <4.0.0"
+  flutter: ">=3.41.5"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  characters: ^1.4.1
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/characters/
