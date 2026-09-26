@@ -6,9 +6,12 @@
 | 普通の子分 | `assets/characters/kobun_normal.png` | ユーザー提供のv2原画から白背景を透過したもの |
 | 骨の子分 | `assets/characters/kobun_bone.png` | ユーザー提供のv2原画から白背景を透過したもの。「ショBONE」は骨子分の表現 |
 | 対戦の吊られた魚（赤・青） | `assets/characters/hikareruaka.png`・`hikareruao.png` | ユーザー提供。対戦ゲームで自分・相手のチーム色の魚として使用 |
-| ゲームの背景（海と砂地） | `assets/characters/tunaumi1.png`・`tunaumi2.png` | ユーザー提供。2枚を交互に重ねて砂地をゆらす。対戦・協力で共用 |
+| ゲームの背景（缶の内側と砂地） | `assets/characters/tunaumi1.png`・`tunaumi2.png` | ユーザー提供（2026-09-27に缶の内側の絵へ差し替え）。2枚を交互に重ねてゆらす。幅に合わせて下端をそろえ、対戦・協力とゲーム画面上部の帯で共用 |
 | 協力の魂 | `assets/characters/tamashii.png` | ユーザー提供。協力ゲームで運ぶ魂 |
 | 協力のツナ缶・空き缶 | `assets/characters/tunakanaka.png`・`hadakan.png` | ユーザー提供。魂を運ぶ缶と、最後に魂が入る空き缶 |
+| 「ショBONE」の見出し | `assets/characters/shobone.png` | ユーザー提供（受領時のファイル名は `ショBONE.png`）。負けたときの結果の見出しを書体ごと画像で出し、少し波打たせる |
+| 勝ったときの親方の踊り | `assets/characters/oyakata_dance.webp`・`oyakata_dance_still.png` | 勝ったとき煙の中から現れて7秒踊る（画面の幅いっぱい）。ユーザー提供の動画 `oyakatadance.mp4`（786×720、約10秒、黒背景）を、依存パッケージなしで再生できるよう背景透過のアニメーションWebP（幅400px・15fps・約1.9MB）へ変換。画面の縁につながる黒だけを透過し、キャラクターの線は残す。PNGは「アニメーションを減らす」設定用の1枚絵。元のMP4はアプリに同梱しない |
+| アプリ全体のフォント | `assets/fonts/KaiseiTokumin-Medium.ttf` | Kaisei Tokumin Medium（500）。[Google Fonts](https://fonts.google.com/specimen/Kaisei+Tokumin) の公開リポジトリ（google/fonts `ofl/kaiseitokumin`）から取得。SIL Open Font License 1.1、ライセンス全文は同じフォルダの `OFL.txt`。500 のみ同梱し、太字は合成で表示 |
 | 手書きラフ・旧生成画像 | `docs/tsunagun/references/` | 設計の参照用。アプリへ全量同梱しない |
 
 提供資料の原本は [v2資料](tsunagun/README.md) と [出典一覧](tsunagun/references/SOURCE_INDEX.md) に保持し、変更しません。アプリは `assets/characters/` のファイルを使用します。

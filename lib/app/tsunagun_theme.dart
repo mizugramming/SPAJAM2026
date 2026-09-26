@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 
 /// A small palette shared by the illustrated shell; viewport rules stay in
-/// TsunagunApp. No font or package download is required to render the UI.
+/// TsunagunApp. The bundled font is registered in pubspec.yaml, so nothing is
+/// downloaded at runtime.
 abstract final class TsunagunColors {
   static const ink = Color(0xFF392923);
   static const blue = Color(0xFF176DAD);
   static const red = Color(0xFFBB4843);
   static const paper = Color(0xFFFFF7DF);
   static const yellow = Color(0xFFFFD65B);
+}
+
+/// The app-wide font: Kaisei Tokumin Medium (SIL OFL 1.1, assets/fonts/).
+/// Only the 500 weight is bundled; heavier weights are synthesized from it.
+abstract final class TsunagunFonts {
+  static const family = 'KaiseiTokumin';
 }
 
 ThemeData tsunagunTheme() {
@@ -42,6 +49,7 @@ ThemeData tsunagunTheme() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: Colors.white,
+    fontFamily: TsunagunFonts.family,
   );
   return base.copyWith(
     textTheme: base.textTheme.apply(bodyColor: ink, displayColor: ink),
@@ -52,8 +60,16 @@ ThemeData tsunagunTheme() {
       focusedBorder: UnderlineInputBorder(
         borderSide: BorderSide(color: blue, width: 3),
       ),
-      labelStyle: TextStyle(color: ink, fontWeight: FontWeight.w700),
-      floatingLabelStyle: TextStyle(color: blue, fontWeight: FontWeight.w800),
+      labelStyle: TextStyle(
+        fontFamily: TsunagunFonts.family,
+        color: ink,
+        fontWeight: FontWeight.w700,
+      ),
+      floatingLabelStyle: TextStyle(
+        fontFamily: TsunagunFonts.family,
+        color: blue,
+        fontWeight: FontWeight.w800,
+      ),
       contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 6),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -62,7 +78,11 @@ ThemeData tsunagunTheme() {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         foregroundColor: Colors.white,
         backgroundColor: blue,
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        textStyle: const TextStyle(
+          fontFamily: TsunagunFonts.family,
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+        ),
         shape: shape,
         side: line,
         elevation: 0,
@@ -74,7 +94,11 @@ ThemeData tsunagunTheme() {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         foregroundColor: ink,
         backgroundColor: TsunagunColors.paper,
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        textStyle: const TextStyle(
+          fontFamily: TsunagunFonts.family,
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+        ),
         shape: shape,
         side: line,
       ),
@@ -83,7 +107,10 @@ ThemeData tsunagunTheme() {
       style: TextButton.styleFrom(
         foregroundColor: blue,
         minimumSize: const Size(48, 48),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(
+          fontFamily: TsunagunFonts.family,
+          fontWeight: FontWeight.w700,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: shape,
       ),
@@ -103,11 +130,16 @@ ThemeData tsunagunTheme() {
       iconColor: blue,
       textColor: ink,
       titleTextStyle: TextStyle(
+        fontFamily: TsunagunFonts.family,
         fontSize: 17,
         fontWeight: FontWeight.w800,
         color: ink,
       ),
-      subtitleTextStyle: TextStyle(fontSize: 14, color: Color(0xFF6B5A50)),
+      subtitleTextStyle: TextStyle(
+        fontFamily: TsunagunFonts.family,
+        fontSize: 14,
+        color: Color(0xFF6B5A50),
+      ),
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(
       color: blue,
