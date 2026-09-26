@@ -187,42 +187,65 @@ class _CooperativeGameState extends State<CooperativeGame>
   @override
   Widget build(BuildContext context) {
     final showFlash = _flashText != null && _elapsed < _flashUntil;
-    return LayoutBuilder(
-      builder: (context, constraints) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => _onTap(),
-        child: ColoredBox(
-          color: Colors.white,
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              Positioned.fill(
-                child: SoulStage(
-                  team: widget.self.team,
-                  selfName: 'あなた',
-                  peerName: widget.peer.profile.nickname,
-                  run: _run,
-                  runTime: _phase == _Phase.waiting || _phase == _Phase.intro
-                      ? Duration.zero
-                      : _runTime,
-                  elapsed: _elapsed,
-                  flashText: showFlash ? _flashText : null,
-                  flashHop: _flashHop,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => _onTap(),
+      child: ColoredBox(
+        color: Colors.white,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Keep the status within the available width, and let its wrapped
+                // height reserve space before the first soul/can instead of
+                // covering them when the system text size is enlarged.
+                Padding(
+                  key: const Key('coop-status'),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                  child: _Hud(
+                    level: _level.number,
+                    levelCount: SoulLevel.all.length,
+                    points: _points,
+                    carried: _run.carriedHops,
+                  ),
                 ),
-              ),
-              Positioned(
-                top: 66,
-                left: 16,
-                child: _Hud(
-                  level: _level.number,
-                  levelCount: SoulLevel.all.length,
-                  points: _points,
-                  carried: _run.carriedHops,
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => SizedBox.expand(
+                      key: const Key('coop-playfield'),
+                      child: Stack(
+                        clipBehavior: Clip.hardEdge,
+                        children: [
+                          Positioned.fill(
+                            child: SoulStage(
+                              team: widget.self.team,
+                              selfName: 'あなた',
+                              peerName: widget.peer.profile.nickname,
+                              run: _run,
+                              runTime:
+                                  _phase == _Phase.waiting ||
+                                      _phase == _Phase.intro
+                                  ? Duration.zero
+                                  : _runTime,
+                              elapsed: _elapsed,
+                              flashText: showFlash ? _flashText : null,
+                              flashHop: _flashHop,
+                            ),
+                          ),
+                          ..._overlays(constraints),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              ..._overlays(constraints),
-            ],
-          ),
+              ],
+            ),
+            // Brief feedback may cover the HUD, but never the shared header.
+            // This keeps enlarged result text out of the smaller playfield.
+            ..._feedback(),
+          ],
         ),
       ),
     );
@@ -247,26 +270,29 @@ class _CooperativeGameState extends State<CooperativeGame>
           ),
         ),
       ),
-      if (_phase == _Phase.intro)
-        _Banner(
-          key: const Key('coop-intro'),
-          title: 'レベル ${_level.number}',
-          body: 'クリアで ${_level.points}pt',
-        ),
-      if (_phase == _Phase.clearing && _runTime >= _run.holeArrival)
-        _Banner(
-          key: const Key('coop-cleared'),
-          title: 'レベルクリア！',
-          body: '魂ポイント +${_level.points}pt',
-        ),
-      if (_phase == _Phase.finished)
-        _Banner(
-          key: const Key('coop-final'),
-          title: _success ? 'ぜんぶ運べた！' : 'ざんねん…',
-          body: '魂ポイント +$_points pt\n（ポイントの保存は、デモではまだ動きません）',
-        ),
     ];
   }
+
+  List<Widget> _feedback() => [
+    if (_phase == _Phase.intro)
+      _Banner(
+        key: const Key('coop-intro'),
+        title: 'レベル ${_level.number}',
+        body: 'クリアで ${_level.points}pt',
+      ),
+    if (_phase == _Phase.clearing && _runTime >= _run.holeArrival)
+      _Banner(
+        key: const Key('coop-cleared'),
+        title: 'レベルクリア！',
+        body: '魂ポイント +${_level.points}pt',
+      ),
+    if (_phase == _Phase.finished)
+      _Banner(
+        key: const Key('coop-final'),
+        title: _success ? 'ぜんぶ運べた！' : 'ざんねん…',
+        body: '魂ポイント +$_points pt\n（ポイントの保存は、デモではまだ動きません）',
+      ),
+  ];
 }
 
 /// スタート前に中央へ大きく出す説明。

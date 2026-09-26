@@ -1,12 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app/tsunagun_theme.dart';
 import '../../data/demo_controller.dart';
 import '../../domain/models.dart';
 import 'can_stage.dart';
 import 'game_scene.dart';
+import 'illustrated_details.dart';
+import 'tug_of_war_finale.dart';
 
 class DemoPage extends StatefulWidget {
   const DemoPage({super.key, this.controller});
@@ -23,7 +24,6 @@ class _DemoPageState extends State<DemoPage> {
   final comment = TextEditingController();
   final roomCode = TextEditingController();
   final sceneScroll = ScrollController();
-  Timer? returnTimer;
   String? error;
   int durationMinutes = 3;
   int openSheets = 0;
@@ -73,7 +73,6 @@ class _DemoPageState extends State<DemoPage> {
 
   @override
   void dispose() {
-    returnTimer?.cancel();
     demo.removeListener(handlePhase);
     nickname.dispose();
     hobby.dispose();
@@ -93,12 +92,9 @@ class _DemoPageState extends State<DemoPage> {
 
   void returnHome() {
     demo.returnHome();
-    returnTimer?.cancel();
-    returnTimer = Timer(const Duration(milliseconds: 800), demo.finishReturn);
   }
 
   void reset() {
-    returnTimer?.cancel();
     nickname.clear();
     hobby.clear();
     comment.clear();
@@ -112,6 +108,7 @@ class _DemoPageState extends State<DemoPage> {
       listenable: demo,
       builder: (context, _) {
         final phase = demo.phase;
+        const scenePadding = EdgeInsets.fromLTRB(20, 14, 20, 24);
         final peerId = demo.activePeer?.id;
         final generation = encounterGeneration;
         final inEvent = {
@@ -147,98 +144,107 @@ class _DemoPageState extends State<DemoPage> {
                           controller: sceneScroll,
                           keyboardDismissBehavior:
                               ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Wrap(
-                                alignment: WrapAlignment.spaceBetween,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                spacing: 8,
-                                children: [
-                                  const Text(
-                                    'つなぐん',
-                                    style: TextStyle(
-                                      fontSize: 25,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 2,
-                                    ),
-                                  ),
-                                  TextButton.icon(
-                                    key: const Key('demo-info'),
-                                    onPressed: showDemoInfo,
-                                    icon: const Icon(
-                                      Icons.info_outline,
-                                      size: 16,
-                                    ),
-                                    label: const Text('1台用 DEMO'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              if (inEvent) ...[
+                          padding: scenePadding,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: phase == AppPhase.entry
+                                  ? (constraints.maxHeight -
+                                            scenePadding.vertical)
+                                        .clamp(0.0, double.infinity)
+                                  : 0,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: phase == AppPhase.entry
+                                  ? MainAxisAlignment.center
+                                  : MainAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
                                 Wrap(
-                                  spacing: 12,
-                                  runSpacing: 6,
                                   alignment: WrapAlignment.spaceBetween,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 8,
                                   children: [
-                                    Text(
-                                      '${demo.roomName} · ${demo.self.team.label}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
+                                    const TsunagunWordmark(),
+                                    TextButton.icon(
+                                      key: const Key('demo-info'),
+                                      onPressed: showDemoInfo,
+                                      icon: const Icon(
+                                        Icons.info_outline,
+                                        size: 16,
                                       ),
-                                    ),
-                                    Text(
-                                      demo.isClosing
-                                          ? '終了処理中'
-                                          : '残り ${formatTime(demo.remaining)}',
-                                      key: const Key('remaining-time'),
+                                      label: const Text('1台用 DEMO'),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
-                              ],
-                              if (phase != AppPhase.finale &&
-                                  phase != AppPhase.results)
-                                AnimatedSize(
-                                  duration: const Duration(milliseconds: 350),
-                                  curve: Curves.easeInOut,
-                                  child: CanStage(
-                                    phase: phase,
-                                    profile: demo.profileDraft,
-                                    result: demo.lastResult,
-                                    team: inEvent ? demo.self.team : null,
+                                const SizedBox(height: 8),
+                                if (inEvent) ...[
+                                  Wrap(
+                                    spacing: 12,
+                                    runSpacing: 6,
+                                    alignment: WrapAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        '${demo.roomName} · ${demo.self.team.label}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: demo.self.team == Team.red
+                                              ? TsunagunColors.red
+                                              : TsunagunColors.blue,
+                                        ),
+                                      ),
+                                      Text(
+                                        demo.isClosing
+                                            ? '終了処理中'
+                                            : '残り ${formatTime(demo.remaining)}',
+                                        key: const Key('remaining-time'),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                                if (phase != AppPhase.finale &&
+                                    phase != AppPhase.results)
+                                  AnimatedSize(
+                                    duration: const Duration(milliseconds: 350),
+                                    curve: Curves.easeInOut,
+                                    child: CanStage(
+                                      phase: phase,
+                                      profile: demo.profileDraft,
+                                      result: demo.lastResult,
+                                      team: inEvent ? demo.self.team : null,
+                                      onReturnComplete: demo.finishReturn,
+                                    ),
+                                  ),
+                                const SizedBox(height: 20),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 250),
+                                  switchInCurve: Curves.easeOut,
+                                  child: Column(
+                                    key: ValueKey(phase),
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: panel(phase),
                                   ),
                                 ),
-                              const SizedBox(height: 24),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 250),
-                                switchInCurve: Curves.easeOut,
-                                child: Column(
-                                  key: ValueKey(phase),
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: panel(phase),
-                                ),
-                              ),
-                              if (error != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Semantics(
-                                    liveRegion: true,
-                                    child: Text(
-                                      error!,
-                                      key: const Key('form-error'),
-                                      style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.error,
+                                if (error != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Semantics(
+                                      liveRegion: true,
+                                      child: Text(
+                                        error!,
+                                        key: const Key('form-error'),
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.error,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              const SizedBox(height: 20),
-                            ],
+                                const SizedBox(height: 20),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -350,13 +356,25 @@ class _DemoPageState extends State<DemoPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              TextButton(
+              TextButton.icon(
                 onPressed: () => showCollection(FollowerKind.normal),
-                child: Text('子分 ${demo.normalCount} 匹'),
+                icon: Image.asset(
+                  normalFollowerAsset,
+                  width: 28,
+                  height: 28,
+                  excludeFromSemantics: true,
+                ),
+                label: Text('子分 ${demo.normalCount} 匹'),
               ),
-              TextButton(
+              TextButton.icon(
                 onPressed: () => showCollection(FollowerKind.bone),
-                child: Text('骨 ${demo.boneCount} 匹'),
+                icon: Image.asset(
+                  boneFollowerAsset,
+                  width: 28,
+                  height: 28,
+                  excludeFromSemantics: true,
+                ),
+                label: Text('骨 ${demo.boneCount} 匹'),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(
@@ -374,7 +392,7 @@ class _DemoPageState extends State<DemoPage> {
           FilledButton.icon(
             key: const Key('meet-peer'),
             onPressed: () => runAction(demo.openPairing),
-            icon: const Icon(Icons.people_outline),
+            icon: const Icon(Icons.waving_hand_outlined),
             label: const Text('相手とつながる'),
           ),
           const SizedBox(height: 8),
@@ -444,24 +462,45 @@ class _DemoPageState extends State<DemoPage> {
         return const [];
       case AppPhase.result:
         final result = demo.lastResult!;
+        final isSetback =
+            result.outcome == Outcome.loss ||
+            result.outcome == Outcome.coopFailure;
         final title = switch (result.outcome) {
-          Outcome.win => 'やった！新しい仲間。',
-          Outcome.loss => '骨の子分も、大切な仲間。',
-          Outcome.coopSuccess => '協力、大成功！',
-          Outcome.coopFailure => '一緒に挑んだ、そのしるし。',
+          Outcome.win => '新しい仲間が、缶にやってきた！',
+          Outcome.loss || Outcome.coopFailure => '骨の子分も、大切な仲間。',
+          Outcome.coopSuccess => '力を合わせて、元気いっぱい！',
         };
         return [
-          heading(title),
           Text(
-            '${result.peer.profile.nickname}さんの${result.newFollower.kind == FollowerKind.bone ? '骨の子分' : '子分'}を獲得。',
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 20,
+              height: 1.4,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          if (result.promoted != null)
-            Text('${result.promoted!.profile.nickname}さんの骨が、元気な子分に成長しました。'),
-          if (result.outcome == Outcome.loss)
-            const Text('同じチームの人との協力で、骨の子分が元気になります。'),
+          const SizedBox(height: 10),
+          Text(
+            isSetback
+                ? '同じチームと協力ゲーム！\n力を合わせて、元気にしよう。'
+                : result.promoted != null
+                ? '${result.promoted!.profile.nickname}の子分が、元気に！'
+                : '${result.peer.profile.nickname}と、ツナがった！',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 15, height: 1.7),
+          ),
+          if (result.promoted != null &&
+              result.promoted!.id != result.newFollower.id)
+            Text(
+              '${result.peer.profile.nickname}の骨の子分も仲間入り！',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, height: 1.7),
+            ),
           const SizedBox(height: 12),
           Text(
             'ちから +${result.delta}',
+            textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 20),
@@ -472,27 +511,12 @@ class _DemoPageState extends State<DemoPage> {
           ),
         ];
       case AppPhase.returning:
-        return [heading('仲間が、あなたの缶へ。'), const LinearProgressIndicator()];
+        return [heading('仲間が、あなたの缶へ。')];
       case AppPhase.finale:
-        final snapshot = demo.finalSnapshot!;
         return [
-          heading('集まった仲間の、ちからくらべ。'),
-          const Text('交流の時間が終わりました。\n仲間のちからをチームで合わせて、いざ綱引き！'),
-          const SizedBox(height: 24),
-          _TugOfWar(snapshot: snapshot),
-          const SizedBox(height: 20),
-          Text(
-            snapshot.isDraw ? '引き分け！' : '${snapshot.winnerTeam!.label}の勝利！',
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          const Text('子分は3、骨は1のちから。交流で集めた仲間の合計が、そのまま結果になります。'),
-          const SizedBox(height: 20),
-          FilledButton(
-            key: const Key('show-results'),
-            onPressed: demo.showResults,
-            child: const Text('みんなの活躍を見る'),
+          TugOfWarFinale(
+            snapshot: demo.finalSnapshot!,
+            onShowResults: demo.showResults,
           ),
         ];
       case AppPhase.results:
@@ -580,8 +604,9 @@ class _DemoPageState extends State<DemoPage> {
       text,
       style: const TextStyle(
         fontSize: 23,
-        fontWeight: FontWeight.w800,
-        height: 1.35,
+        fontWeight: FontWeight.w900,
+        height: 1.4,
+        color: TsunagunColors.ink,
       ),
     ),
   );
@@ -708,7 +733,9 @@ class _DemoPageState extends State<DemoPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             heading('1台用の体験デモ'),
-            const Text('相手は仮想の参加者です。ミニゲームは結果を選んで体験できます。'),
+            const Text(
+              '相手は仮想の参加者です。タップ操作で対戦・協力ゲームを遊べます。DEMOメニューから結果を選んで、続きを確認することもできます。',
+            ),
             const SizedBox(height: 12),
             const Text('端末間通信・保存は行いません。アプリを閉じると、入力や仲間はリセットされます。'),
             const SizedBox(height: 16),
@@ -754,11 +781,20 @@ class _DemoPageState extends State<DemoPage> {
                         width: 60,
                       ),
                       title: Text(follower.profile.nickname),
-                      subtitle: Text(
-                        follower.kind == FollowerKind.bone
-                            ? '骨の子分 · ちから1'
-                            : '子分 · ちから3',
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(follower.profile.hobby),
+                          const SizedBox(height: 4),
+                          Text(
+                            follower.kind == FollowerKind.bone
+                                ? '骨の子分 · ちから1'
+                                : '子分 · ちから3',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
                       ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => showProfile(
                         follower.profile,
                         follower.kind == FollowerKind.bone ? '骨の子分' : '子分',
@@ -791,13 +827,35 @@ class _DemoPageState extends State<DemoPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(kind),
-            heading(profile.nickname),
-            const Text('趣味', style: TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Image.asset(
+                  kind == '骨の子分' ? boneFollowerAsset : normalFollowerAsset,
+                  width: 80,
+                  excludeFromSemantics: true,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(kind),
+                      const SizedBox(height: 4),
+                      heading(profile.nickname),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text('趣味', style: TextStyle(fontWeight: FontWeight.w800)),
             Text(profile.hobby),
-            const SizedBox(height: 16),
-            const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(profile.comment.isEmpty ? 'まだひとことはありません。' : profile.comment),
+            const SizedBox(height: 18),
+            const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w800)),
+            FollowerQuote(
+              text: profile.comment.isEmpty ? 'まだひとことはありません。' : profile.comment,
+            ),
             const SizedBox(height: 16),
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -813,70 +871,4 @@ class _DemoPageState extends State<DemoPage> {
 String formatTime(Duration time) {
   final seconds = time.inSeconds.clamp(0, 86400);
   return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
-}
-
-class _TugOfWar extends StatelessWidget {
-  const _TugOfWar({required this.snapshot});
-  final FinalSnapshot snapshot;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = snapshot.redPower + snapshot.bluePower;
-    final position = total == 0
-        ? 0.0
-        : (snapshot.bluePower - snapshot.redPower) / total * .7;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Column(
-        children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            spacing: 32,
-            children: [
-              Text(
-                '赤チーム\n${snapshot.redPower}',
-                style: const TextStyle(
-                  color: Color(0xFFB53A36),
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                '青チーム\n${snapshot.bluePower}',
-                style: const TextStyle(
-                  color: Color(0xFF215C9B),
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(
-            height: 90,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(height: 6, color: const Color(0xFFAC9679)),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: position),
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(seconds: 2),
-                  curve: Curves.easeInOutCubic,
-                  builder: (context, value, _) => Align(
-                    alignment: Alignment(value, 0),
-                    child: const Icon(
-                      Icons.flag_rounded,
-                      color: Color(0xFF186964),
-                      size: 48,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
