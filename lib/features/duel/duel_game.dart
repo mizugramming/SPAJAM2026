@@ -54,7 +54,7 @@ class _DuelGameState extends State<DuelGame>
   static const _winResultDelay = Duration(milliseconds: 1000);
 
   /// 勝ったときの、親方が踊る場面の長さと、タップで飛ばせるようになるまで。
-  static const _danceDuration = Duration(seconds: 5);
+  static const _danceDuration = Duration(seconds: 7);
   static const _danceSkippableAfter = Duration(seconds: 1);
 
   /// 親方が踊り始めた時刻。勝って結果表示が終わるまでは null。

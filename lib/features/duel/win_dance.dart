@@ -13,6 +13,9 @@ class WinDance extends StatelessWidget {
   static const danceAsset = 'assets/characters/oyakata_dance.webp';
   static const stillAsset = 'assets/characters/oyakata_dance_still.png';
 
+  /// 踊りの動画の縦横比（高さ÷幅）。変換した WebP は 400×366。
+  static const danceAspect = 366 / 400;
+
   /// 煙が広がり、親方が現れるまでの時間。
   static const appear = Duration(milliseconds: 600);
 
@@ -25,7 +28,9 @@ class WinDance extends StatelessWidget {
     final t = (elapsed.inMicroseconds / appear.inMicroseconds).clamp(0.0, 1.0);
     return LayoutBuilder(
       builder: (context, box) {
-        final size = box.biggest.shortestSide * .8;
+        // 踊りの動画（400×366）の左右の端を、画面の左右の端に合わせる。
+        final width = box.maxWidth;
+        final height = width * danceAspect;
         return Stack(
           key: const Key('win-dance'),
           alignment: Alignment.center,
@@ -34,25 +39,23 @@ class WinDance extends StatelessWidget {
             IgnorePointer(
               child: CustomPaint(
                 key: const Key('dance-smoke'),
-                size: Size.square(size * 1.3),
+                size: Size.square(width * 1.1),
                 painter: _SmokePainter(
                   spread: Curves.easeOutCubic.transform(t),
                   drift: reduceMotion ? 0 : elapsed.inMilliseconds / 1000,
                 ),
               ),
             ),
+            // 端を画面の端に合わせたまま、煙の中からフェードで現れる。
             Opacity(
               opacity: Curves.easeIn.transform(t),
-              child: Transform.scale(
-                scale: .85 + .15 * Curves.easeOutBack.transform(t),
-                child: Image.asset(
-                  reduceMotion ? stillAsset : danceAsset,
-                  key: const Key('oyakata-dance'),
-                  width: size,
-                  height: size,
-                  fit: BoxFit.contain,
-                  semanticLabel: '踊る親方',
-                ),
+              child: Image.asset(
+                reduceMotion ? stillAsset : danceAsset,
+                key: const Key('oyakata-dance'),
+                width: width,
+                height: height,
+                fit: BoxFit.contain,
+                semanticLabel: '踊る親方',
               ),
             ),
           ],

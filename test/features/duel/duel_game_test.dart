@@ -127,12 +127,16 @@ void main() {
     expect(find.text('WIN'), findsOneWidget);
     expect(find.byKey(const Key('win-dance')), findsNothing);
     expect(results, isEmpty);
-    // そのあと、煙の中から親方が現れて踊る（5秒）。その間も通知しない。
+    // そのあと、煙の中から親方が現れて踊る（7秒）。その間も通知しない。
     // 文字（親方になった！）と、前に出てくる子分は出さない。
     await pumpTicks(tester, const Duration(milliseconds: 500));
     expect(find.byKey(const Key('win-dance')), findsOneWidget);
     expect(find.byKey(const Key('oyakata-dance')), findsOneWidget);
     expect(find.byKey(const Key('dance-smoke')), findsOneWidget);
+    final danceRect = tester.getRect(find.byKey(const Key('oyakata-dance')));
+    final gameRect = tester.getRect(find.byType(DuelGame));
+    expect(danceRect.left, closeTo(gameRect.left, 1));
+    expect(danceRect.right, closeTo(gameRect.right, 1));
     expect(find.textContaining('親方'), findsNothing);
     expect(
       find.descendant(
@@ -142,8 +146,8 @@ void main() {
       findsOneWidget,
     );
     expect(results, isEmpty);
-    // 踊り始めて約4.7秒ではまだ通知せず、5秒を過ぎたら通知する。
-    await pumpTicks(tester, const Duration(milliseconds: 4500));
+    // 踊り始めて約6.7秒ではまだ通知せず、7秒を過ぎたら通知する。
+    await pumpTicks(tester, const Duration(milliseconds: 6500));
     expect(results, isEmpty);
     await pumpTicks(tester, const Duration(seconds: 1));
     expect(results, [DuelGameResult.win]);
@@ -211,7 +215,7 @@ void main() {
     await tester.pump();
     expect(find.text('81%'), findsOneWidget);
 
-    await pumpTicks(tester, const Duration(seconds: 9));
+    await pumpTicks(tester, const Duration(seconds: 11));
     expect(results, [DuelGameResult.win]);
   });
 
