@@ -4,7 +4,7 @@
 
 ## スマホサイズで確認する
 
-`flutter run -d chrome` で開くだけで、幅600論理ピクセルを超える画面ではアプリ全体が中央の最大430×932の枠内に表示されます。高さが足りない場合はブラウザの高さに合わせます。スマホなど幅600以下では端末の画面サイズを使います。
+`fvm flutter run -d chrome` で開くだけで、幅600論理ピクセルを超える画面ではアプリ全体が中央の最大430×932の枠内に表示されます。高さが足りない場合はブラウザの高さに合わせます。スマホなど幅600以下では端末の画面サイズを使います。
 
 `lib/app/mobile_viewport.dart` が画面遷移・下部ナビ・ダイアログをまとめて制御するため、担当画面ごとの幅固定や専用プレビューページは不要です。レイアウトには `LayoutBuilder` または `MediaQuery.sizeOf(context)` を使い、端末全体の物理ピクセル数を直接参照しないでください。
 
@@ -20,7 +20,7 @@
 | `category` | `CategoryType` | `challenge`, `relationships`, `future`, `workStudy`, `self`, `dailyLife` |
 | `note` | `String` | 任意メモ。前後の空白除去、200文字以内 |
 
-感情・テーマには `.id`, `.label`, `.color`, `.icon`、テーマには `.hint` があります。保存に使うIDは変更しないでください。表示色やラベルの共通変更はAに集約します。
+感情・テーマには `.id`, `.label`, `.color`, `.icon`、テーマには `.hint` があります。保存に使うIDは変更しないでください。表示色やラベルの共通変更は統合担当に集約します。
 
 ## 全画面で同じ記録を読む
 
@@ -114,11 +114,10 @@ context.go(AppRoutes.home);
 
 ## 変更する場所
 
-- A：`app/`, `core/`, `main.dart`, `pubspec.yaml`, `features/home/`
-- B：`features/space/` と対応する素材・テスト
-- C：`features/constellation/` と対応する素材・テスト
-- D：`features/universe/`, `features/history/` と対応する素材・テスト
+最新の担当と変更範囲は[READMEの担当表](../README.md#このアプリの変更範囲)を参照します。`app/`・`core/`・`main.dart`・`pubspec.yaml` は統合担当の共通管理です。ホーム担当であることだけでは共通部分の変更は許可されません。
+
+同じ画面を部品単位で分担するときは、[フォルダ構造と分担例](project_structure.md)と[開始プロンプト](ai_prompts.md)を使い、部品・親画面・関連テストの編集担当を明確にしてください。
 
 画面のUIを変更するときも、他Featureのファイルをimportする必要はありません。モデル・Provider・ルートの変更は共通基盤担当に集約してください。プレビュー画像や仮UIに合わせる必要はありません。
 
-接続の確認は `flutter analyze` と `flutter test` で行えます。特に `test/widget_test.dart` が、記録 → 星座 → 再読み込み → 惑星 → カレンダー → 削除を通して検証しています。文言やボタンを変更した場合は、対応する画面操作テストのFinderも更新してください。
+接続の確認は `fvm flutter analyze` と `fvm flutter test` で行えます。特に `test/widget_test.dart` が、記録 → 星座 → 再読み込み → 惑星 → カレンダー → 削除を通して検証しています。文言やボタンを変更した場合は、対応する画面操作テストのFinderも更新してください。

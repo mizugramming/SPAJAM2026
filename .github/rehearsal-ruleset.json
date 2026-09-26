@@ -2,7 +2,9 @@
   "name": "rehearsal-02-quality-gate",
   "target": "branch",
   "enforcement": "active",
-  "bypass_actors": [],
+  "bypass_actors": [
+    {"actor_id": 228197245, "actor_type": "User", "bypass_mode": "pull_request"}
+  ],
   "conditions": {"ref_name": {"include": ["refs/heads/rehearsal/02"], "exclude": []}},
   "rules": [
     {"type": "deletion"},
