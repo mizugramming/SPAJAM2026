@@ -8,23 +8,142 @@ const parentAsset = 'assets/characters/oyabun.png';
 const normalFollowerAsset = 'assets/characters/kobun_normal.png';
 const boneFollowerAsset = 'assets/characters/kobun_bone.png';
 
-/// One persistent stage; the can moves instead of replacing the whole screen.
-class CanStage extends StatelessWidget {
+enum _CanMotion { idle, emerge, returnInside, celebrate }
+
+/// A single scene keeps the mouth behind the actors and the can front above
+/// them, so entering characters disappear through the opening, not by fading.
+class CanStage extends StatefulWidget {
   const CanStage({
     super.key,
     required this.phase,
     required this.profile,
     this.result,
     this.team,
+    this.onReturnComplete,
   });
 
   final AppPhase phase;
   final Profile profile;
   final EncounterResult? result;
   final Team? team;
+  final VoidCallback? onReturnComplete;
+
+  @override
+  State<CanStage> createState() => _CanStageState();
+}
+
+class _CanStageState extends State<CanStage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _motion;
+  _CanMotion _kind = _CanMotion.idle;
+  bool _reduceMotion = false;
+  bool _initialized = false;
+  int _generation = 0;
+  int? _notifiedGeneration;
+
+  @override
+  void initState() {
+    super.initState();
+    _motion = AnimationController(vsync: this, value: 1)
+      ..addStatusListener(_onMotionStatus);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (!_initialized) {
+      _initialized = true;
+      _beginForPhase(null);
+    } else if (_reduceMotion && _motion.isAnimating) {
+      _motion.value = 1;
+      _notifyReturn();
+    }
+  }
+
+  @override
+  void didUpdateWidget(CanStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.phase != oldWidget.phase) _beginForPhase(oldWidget.phase);
+  }
+
+  void _beginForPhase(AppPhase? previous) {
+    if (widget.phase == AppPhase.returning) {
+      _start(_CanMotion.returnInside, const Duration(milliseconds: 1800));
+    } else if (widget.phase == AppPhase.home &&
+        (previous == null ||
+            previous == AppPhase.lobby ||
+            previous == AppPhase.returning)) {
+      _start(_CanMotion.emerge, const Duration(milliseconds: 1250));
+    } else if (widget.phase == AppPhase.result &&
+        widget.result?.outcome == Outcome.win) {
+      _start(_CanMotion.celebrate, const Duration(milliseconds: 1000));
+    } else if (!(previous == AppPhase.home &&
+        widget.phase == AppPhase.pairing &&
+        _kind == _CanMotion.emerge)) {
+      _generation++;
+      _kind = _CanMotion.idle;
+      _motion.stop();
+      _motion.value = 1;
+    }
+  }
+
+  void _start(_CanMotion kind, Duration duration) {
+    _generation++;
+    _kind = kind;
+    _motion.stop();
+    _motion.duration = duration;
+    if (_reduceMotion) {
+      _motion.value = 1;
+      _notifyReturn();
+    } else {
+      _motion.forward(from: 0);
+    }
+  }
+
+  void _onMotionStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _notifyReturn();
+  }
+
+  void _notifyReturn() {
+    if (_kind != _CanMotion.returnInside ||
+        widget.phase != AppPhase.returning ||
+        _notifiedGeneration == _generation) {
+      return;
+    }
+    final generation = _generation;
+    _notifiedGeneration = generation;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          generation == _generation &&
+          widget.phase == AppPhase.returning) {
+        widget.onReturnComplete?.call();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _motion.dispose();
+    super.dispose();
+  }
+
+  double _part(double start, double end) => Interval(
+    start,
+    end,
+    curve: Curves.easeInOutCubic,
+  ).transform(_motion.value);
+
+  double get _opening => switch (_kind) {
+    _CanMotion.returnInside => _part(0, .18) * (1 - _part(.82, 1)),
+    _CanMotion.emerge => _part(0, .2) * (1 - _part(.78, 1)),
+    _ => 0,
+  };
 
   @override
   Widget build(BuildContext context) {
+    final phase = widget.phase;
+    final result = widget.result;
     final playing = phase == AppPhase.game;
     final returning = phase == AppPhase.returning;
     final showingResult = phase == AppPhase.result;
@@ -38,9 +157,10 @@ class CanStage extends StatelessWidget {
     };
     final isLoss = result?.outcome == Outcome.loss;
     final separateNewBone =
-        result?.promoted != null &&
-        result!.promoted!.id != result!.newFollower.id;
-    final duration = MediaQuery.disableAnimationsOf(context)
+        result != null &&
+        result.promoted != null &&
+        result.promoted!.id != result.newFollower.id;
+    final duration = _reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 650);
     return Semantics(
@@ -54,7 +174,7 @@ class CanStage extends StatelessWidget {
           final canHeight = TunaCan.heightFor(
             context,
             canWidth,
-            profile: profile,
+            profile: widget.profile,
             compact: false,
             showLabel: phase != AppPhase.entry,
           );
@@ -63,10 +183,7 @@ class CanStage extends StatelessWidget {
               ? width - canWidth - 12
               : (width - canWidth) / 2;
           final parentWidth = playing ? 84.0 : canWidth * .62;
-          final parentImageHeight = parentWidth * 1199 / 1312;
-          // Crop only the bottom white margin in the layout so it cannot
-          // cover the can lid. The supplied bitmap remains unchanged.
-          final parentHeight = parentImageHeight * .92;
+          final parentHeight = parentWidth * 1122 / 1402;
           final followerWidth = math.min(104.0, width * .28);
           final followerLabel = isLoss
               ? 'ショBONE'
@@ -75,18 +192,37 @@ class CanStage extends StatelessWidget {
               : result?.promoted != null
               ? '元気になった！'
               : '新しい仲間';
+          final primaryIsBone =
+              (result?.promoted ?? result?.newFollower)?.kind ==
+              FollowerKind.bone;
+          final followerImageHeight =
+              followerWidth * (primaryIsBone ? 419 / 953 : 571 / 854);
+          final extraBoneImageHeight = followerWidth * 419 / 953;
           final followerHeight =
-              followerWidth * 1003 / 1568 +
+              followerImageHeight +
               _measureText(
                 context,
                 followerLabel,
                 _followerLabelStyle,
                 followerWidth,
               ).height;
+          final extraBoneHeight =
+              extraBoneImageHeight +
+              _measureText(
+                context,
+                '新しい仲間',
+                _followerLabelStyle,
+                followerWidth,
+              ).height;
           final actorHeight = parentVisible
               ? math.max(
                   parentHeight,
-                  showingResult || returning ? followerHeight : 0.0,
+                  showingResult || returning
+                      ? math.max(
+                          followerHeight,
+                          separateNewBone ? extraBoneHeight : 0.0,
+                        )
+                      : 0.0,
                 )
               : 0.0;
           final stageHeight = playing
@@ -94,149 +230,192 @@ class CanStage extends StatelessWidget {
                     ? constraints.maxHeight
                     : math.max(304.0, visibleCanHeight + parentHeight + 60)
               : canHeight + actorHeight + (parentVisible ? 36 : 40);
+          final canTop = stageHeight - 18 - visibleCanHeight;
+          final mouthY = canTop + 23 * canScale;
+          final canCenter = playing ? width - 12 - 48 : width / 2;
+          final parentLeft = canCenter - parentWidth / 2;
+          final parentTop = mouthY - parentHeight;
+
+          Widget canLayer(Widget child) => AnimatedPositioned(
+            duration: duration,
+            curve: Curves.easeInOutCubic,
+            left: canLeft,
+            bottom: 18,
+            // Text is always laid out at its final size, never squeezed while
+            // changing phases. Only the complete can is painted smaller.
+            child: AnimatedScale(
+              duration: duration,
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.bottomRight,
+              scale: canScale,
+              child: SizedBox(width: canWidth, height: canHeight, child: child),
+            ),
+          );
+
           return SizedBox(
             height: stageHeight,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                AnimatedPositioned(
-                  duration: duration,
-                  curve: Curves.easeInOutCubic,
-                  left: canLeft,
-                  bottom: 18,
-                  // Lay out the full label immediately. Only its painted
-                  // size changes for the game, so transition frames cannot
-                  // squeeze newly wrapped text into the old can dimensions.
-                  child: AnimatedScale(
-                    duration: duration,
-                    curve: Curves.easeInOutCubic,
-                    alignment: Alignment.bottomRight,
-                    scale: canScale,
-                    child: SizedBox(
-                      width: canWidth,
-                      height: canHeight,
-                      child: TunaCan(
-                        profile: profile,
-                        showLabel: phase != AppPhase.entry,
-                        team: team,
+            child: AnimatedBuilder(
+              animation: _motion,
+              builder: (context, _) {
+                final parentProgress = switch (_kind) {
+                  _CanMotion.returnInside => _part(.34, .79),
+                  _CanMotion.emerge => 1 - _part(.18, .76),
+                  _ => 0.0,
+                };
+                final parentTravel =
+                    mouthY +
+                    parentHeight * .55 -
+                    (parentTop + parentHeight / 2);
+                final parentOffset = Offset(
+                  math.sin(parentProgress * math.pi) * canWidth * .07,
+                  parentTravel * parentProgress -
+                      math.sin(parentProgress * math.pi) * canWidth * .20,
+                );
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    canLayer(
+                      CustomPaint(
+                        key: const Key('can-mouth'),
+                        painter: _CanPainter(
+                          labelColor: null,
+                          compact: false,
+                          opening: _opening,
+                          layer: _CanLayer.back,
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                AnimatedPositioned(
-                  duration: duration,
-                  curve: Curves.easeInOutCubic,
-                  left: playing
-                      ? width - 12 - (96 + parentWidth) / 2
-                      : (width - parentWidth) / 2,
-                  bottom: returning
-                      ? visibleCanHeight * .35
-                      : visibleCanHeight + 18 - 9 * canScale,
-                  width: parentWidth,
-                  height: parentHeight,
-                  child: AnimatedOpacity(
-                    duration: duration,
-                    opacity: parentVisible && !returning ? 1 : 0,
-                    child: AnimatedScale(
+                    AnimatedPositioned(
                       duration: duration,
-                      scale: returning ? .12 : 1,
-                      child: TweenAnimationBuilder<double>(
-                        key: ValueKey(
-                          showingResult && result?.outcome == Outcome.win,
-                        ),
-                        tween: Tween(begin: 0, end: 1),
-                        duration: duration * 2,
-                        builder: (context, value, child) => Transform.rotate(
-                          angle: showingResult && result?.outcome == Outcome.win
-                              ? math.sin(value * math.pi * 6) * .12
-                              : 0,
-                          child: child,
-                        ),
-                        // Losing changes the follower, never the parent.
-                        child: ClipRect(
-                          child: OverflowBox(
-                            alignment: Alignment.topCenter,
-                            minHeight: parentImageHeight,
-                            maxHeight: parentImageHeight,
-                            child: Image.asset(
-                              parentAsset,
-                              semanticLabel: '親分',
-                              fit: BoxFit.contain,
+                      curve: Curves.easeInOutCubic,
+                      left: parentLeft,
+                      top: parentTop,
+                      width: parentWidth,
+                      height: parentHeight,
+                      child: Opacity(
+                        opacity: parentVisible && parentProgress < 1 ? 1 : 0,
+                        child: Transform.translate(
+                          key: const Key('parent-motion'),
+                          offset: parentOffset,
+                          child: Transform.rotate(
+                            angle: _kind == _CanMotion.celebrate
+                                ? math.sin(_motion.value * math.pi * 6) * .10
+                                : math.sin(parentProgress * math.pi) * .16,
+                            child: Transform.scale(
+                              scale: 1 - parentProgress * .25,
+                              child: Image.asset(
+                                parentAsset,
+                                semanticLabel: '親分',
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                if (result != null && (showingResult || returning))
-                  AnimatedPositioned(
-                    duration: duration,
-                    curve: Curves.easeInOutCubic,
-                    left: returning ? (width - followerWidth) / 2 : 0,
-                    bottom: returning ? canHeight * .35 : canHeight + 8,
-                    width: followerWidth,
-                    child: AnimatedOpacity(
-                      duration: duration,
-                      opacity: returning ? 0 : 1,
-                      child: AnimatedScale(
-                        duration: duration,
-                        scale: returning ? .1 : 1,
-                        child: Column(
-                          children: [
-                            Text(
-                              followerLabel,
-                              textAlign: TextAlign.center,
-                              style: _followerLabelStyle,
-                            ),
-                            Image.asset(
-                              (result!.promoted ?? result!.newFollower).kind ==
-                                      FollowerKind.bone
-                                  ? boneFollowerAsset
-                                  : normalFollowerAsset,
-                              semanticLabel: isLoss ? '骨の子分' : '獲得・成長した子分',
-                            ),
-                          ],
-                        ),
+                    if (result != null && (showingResult || returning))
+                      _follower(
+                        left: 0,
+                        top: mouthY - followerHeight,
+                        width: followerWidth,
+                        height: followerHeight,
+                        imageHeight: followerImageHeight,
+                        target: Offset(canCenter, mouthY),
+                        progress: returning ? _part(.16, .62) : 0,
+                        label: followerLabel,
+                        image: primaryIsBone
+                            ? boneFollowerAsset
+                            : normalFollowerAsset,
+                        semanticLabel: isLoss ? '骨の子分' : '獲得・成長した子分',
+                        motionKey: const Key('follower-motion-primary'),
+                      ),
+                    if (separateNewBone && (showingResult || returning))
+                      _follower(
+                        left: width - followerWidth,
+                        top: mouthY - extraBoneHeight,
+                        width: followerWidth,
+                        height: extraBoneHeight,
+                        imageHeight: extraBoneImageHeight,
+                        target: Offset(canCenter, mouthY),
+                        progress: returning ? _part(.24, .7) : 0,
+                        label: '新しい仲間',
+                        image: boneFollowerAsset,
+                        semanticLabel: '新しく獲得した骨の子分',
+                        motionKey: const Key('follower-motion-new-bone'),
+                      ),
+                    canLayer(
+                      TunaCan(
+                        key: const Key('can-front'),
+                        profile: widget.profile,
+                        showLabel: phase != AppPhase.entry,
+                        team: widget.team,
+                        opening: _opening,
+                        foregroundOnly: true,
                       ),
                     ),
-                  ),
-                if (separateNewBone && (showingResult || returning))
-                  AnimatedPositioned(
-                    duration: duration,
-                    curve: Curves.easeInOutCubic,
-                    right: returning ? (width - followerWidth) / 2 : 0,
-                    bottom: returning ? canHeight * .35 : canHeight + 8,
-                    width: followerWidth,
-                    child: AnimatedOpacity(
-                      duration: duration,
-                      opacity: returning ? 0 : 1,
-                      child: AnimatedScale(
-                        duration: duration,
-                        scale: returning ? .1 : 1,
-                        child: Column(
-                          children: [
-                            const Text(
-                              '新しい仲間',
-                              textAlign: TextAlign.center,
-                              style: _followerLabelStyle,
-                            ),
-                            Image.asset(
-                              boneFollowerAsset,
-                              semanticLabel: '新しく獲得した骨の子分',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+                  ],
+                );
+              },
             ),
           );
         },
       ),
     );
   }
+
+  Widget _follower({
+    required double left,
+    required double top,
+    required double width,
+    required double height,
+    required double imageHeight,
+    required Offset target,
+    required double progress,
+    required String label,
+    required String image,
+    required String semanticLabel,
+    required Key motionKey,
+  }) => Positioned(
+    left: left,
+    top: top,
+    width: width,
+    child: Opacity(
+      opacity: progress < 1 ? 1 : 0,
+      child: Transform.translate(
+        key: motionKey,
+        offset: Offset(
+          (target.dx - left - width / 2) * progress,
+          (target.dy + height * .55 - top - height / 2) * progress -
+              math.sin(progress * math.pi) * 64,
+        ),
+        child: Transform.rotate(
+          angle: math.sin(progress * math.pi) * (left < target.dx ? .22 : -.22),
+          child: Transform.scale(
+            scale: 1 - progress * .22,
+            child: Column(
+              children: [
+                Opacity(
+                  opacity: (1 - progress * 4).clamp(0.0, 1.0),
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: _followerLabelStyle,
+                  ),
+                ),
+                Image.asset(
+                  image,
+                  width: width,
+                  height: imageHeight,
+                  fit: BoxFit.contain,
+                  semanticLabel: semanticLabel,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 const _canInk = Color(0xFF392923);
@@ -284,12 +463,18 @@ class TunaCan extends StatelessWidget {
     this.compact = false,
     this.showLabel = true,
     this.team,
+    this.opening = 0,
+    this.foregroundOnly = false,
   });
 
   final Profile profile;
   final bool compact;
   final bool showLabel;
   final Team? team;
+
+  /// Fraction of the lid opening. The stage coordinates the actor motion.
+  final double opening;
+  final bool foregroundOnly;
 
   static double heightFor(
     BuildContext context,
@@ -327,6 +512,8 @@ class TunaCan extends StatelessWidget {
       painter: _CanPainter(
         labelColor: showLabel ? labelColor : null,
         compact: compact,
+        opening: opening,
+        layer: foregroundOnly ? _CanLayer.front : _CanLayer.whole,
       ),
       child: Padding(
         padding: _CanGeometry.textPadding(compact),
@@ -470,6 +657,14 @@ class _CanGeometry {
       bottomSide,
     )
     ..quadraticBezierTo(right + .5, size.height * .57, right, lid.center.dy)
+    ..cubicTo(
+      size.width * .88,
+      lid.bottom + 3,
+      size.width * .12,
+      lid.bottom + 3,
+      left,
+      lid.center.dy,
+    )
     ..close();
 
   Path get label {
@@ -503,11 +698,20 @@ class _CanGeometry {
     );
 }
 
+enum _CanLayer { whole, back, front }
+
 class _CanPainter extends CustomPainter {
-  const _CanPainter({required this.labelColor, required this.compact});
+  const _CanPainter({
+    required this.labelColor,
+    required this.compact,
+    this.opening = 0,
+    this.layer = _CanLayer.whole,
+  });
 
   final Color? labelColor;
   final bool compact;
+  final double opening;
+  final _CanLayer layer;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -519,6 +723,8 @@ class _CanPainter extends CustomPainter {
       ..strokeWidth = shape.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
+    if (layer != _CanLayer.front) _paintBack(canvas, shape, ink);
+    if (layer == _CanLayer.back) return;
     final metal = Paint()
       ..shader = const LinearGradient(
         colors: [
@@ -603,30 +809,91 @@ class _CanPainter extends CustomPainter {
         ..strokeWidth = compact ? 1.3 : 2,
     );
     canvas.drawPath(shape.body, ink);
-    _paintLid(canvas, shape, ink);
+    // This front lip is painted after the actors, along with the opaque body.
+    // A diving character is therefore occluded by the can itself.
+    final frontLip = Path()
+      ..moveTo(shape.lid.left, shape.lid.center.dy)
+      ..cubicTo(
+        size.width * .12,
+        shape.lid.bottom + 3,
+        size.width * .88,
+        shape.lid.bottom + 3,
+        shape.lid.right,
+        shape.lid.center.dy,
+      );
+    canvas.drawPath(frontLip, ink);
   }
 
-  void _paintLid(Canvas canvas, _CanGeometry shape, Paint ink) {
-    final lid = shape.lid;
-    // Slightly unequal Bézier handles keep the outline close to the supplied
-    // brush-drawn characters without changing between animation frames.
+  void _paintBack(Canvas canvas, _CanGeometry shape, Paint ink) {
+    final mouth = shape.lid;
+    canvas.drawOval(
+      mouth,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF17232C), Color(0xFF586773)],
+        ).createShader(mouth),
+    );
+    canvas.drawOval(mouth, ink);
+    canvas.drawOval(
+      mouth.deflate(compact ? 3 : 5),
+      Paint()
+        ..color = const Color(0xFFCCD8DD)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = compact ? 1.4 : 2.4,
+    );
+    // The far rim is the hinge. Its projected depth flips as the lid rises;
+    // changing the drawing coordinates keeps outline strokes a steady width.
+    final depth =
+        mouth.height * (1 - opening) - shape.size.width * .34 * opening;
+    final lid = Rect.fromLTRB(
+      mouth.left,
+      mouth.top + math.min(0, depth),
+      mouth.right,
+      mouth.top + math.max(2, depth),
+    );
+    _paintLid(canvas, lid, ink);
+  }
+
+  void _paintLid(Canvas canvas, Rect lid, Paint ink) {
+    // Explicit top/bottom anchors keep the raised lid attached to the far
+    // rim. Two half-ellipse curves stop short of those anchors and leave a gap.
+    final horizontalHandle = lid.width * .5 * .5522848;
+    final verticalHandle = lid.height * .5 * .5522848;
     final outline = Path()
-      ..moveTo(lid.left, lid.center.dy)
+      ..moveTo(lid.center.dx, lid.top)
       ..cubicTo(
-        lid.left + 1,
-        lid.top - 3,
-        lid.right - 5,
-        lid.top - 1,
+        lid.center.dx + horizontalHandle,
+        lid.top,
+        lid.right,
+        lid.center.dy - verticalHandle,
         lid.right,
         lid.center.dy,
       )
       ..cubicTo(
-        lid.right + 1,
-        lid.bottom + 3,
-        lid.left - 3,
-        lid.bottom + 1,
+        lid.right,
+        lid.center.dy + verticalHandle,
+        lid.center.dx + horizontalHandle,
+        lid.bottom,
+        lid.center.dx,
+        lid.bottom,
+      )
+      ..cubicTo(
+        lid.center.dx - horizontalHandle,
+        lid.bottom,
+        lid.left,
+        lid.center.dy + verticalHandle,
         lid.left,
         lid.center.dy,
+      )
+      ..cubicTo(
+        lid.left,
+        lid.center.dy - verticalHandle,
+        lid.center.dx - horizontalHandle,
+        lid.top,
+        lid.center.dx,
+        lid.top,
       )
       ..close();
     canvas.drawPath(
@@ -643,6 +910,7 @@ class _CanPainter extends CustomPainter {
     _wash(canvas, lid, const Color(0xFF6E8A9C), .14);
     canvas.restore();
     canvas.drawPath(outline, ink);
+    if (lid.height < (compact ? 12 : 18)) return;
     final inner = lid.deflate(compact ? 4 : 6);
     canvas.drawOval(
       inner,
@@ -706,5 +974,8 @@ class _CanPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CanPainter oldDelegate) =>
-      oldDelegate.labelColor != labelColor || oldDelegate.compact != compact;
+      oldDelegate.labelColor != labelColor ||
+      oldDelegate.compact != compact ||
+      oldDelegate.opening != opening ||
+      oldDelegate.layer != layer;
 }

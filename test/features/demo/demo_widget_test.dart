@@ -72,8 +72,6 @@ Future<void> returnHome(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(button);
   await tester.pump();
-  // Finish the timed return before settling its indeterminate indicator.
-  await tester.pump(const Duration(milliseconds: 900));
   await tester.pumpAndSettle();
 }
 
@@ -126,6 +124,68 @@ void main() {
     expect(demo.phase, AppPhase.lobby);
     expect(find.text('チームは開始時に決まります。'), findsOneWidget);
     expect(demo.self.profile.nickname, '入力中の名前');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('開いた缶への帰還完了を待ち、時計更新でも演出や報酬を繰り返さない', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final peer = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    await meet(tester, peer);
+    await chooseOutcome(tester, 'negative-outcome');
+    final followerIds = demo.followers.map((f) => f.id).toList();
+    final returnButton = find.byKey(const Key('return-home'));
+    await tester.ensureVisible(returnButton);
+    await tester.pumpAndSettle();
+    await tester.tap(returnButton);
+    await tester.pump();
+    expect(demo.phase, AppPhase.returning);
+
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      tester.widget<TunaCan>(find.byType(TunaCan)).opening,
+      greaterThan(0),
+    );
+    // The normal event-clock rebuild must not restart the dive.
+    demo.advance(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(demo.phase, AppPhase.returning);
+    expect(demo.followers.map((f) => f.id), followerIds);
+
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(demo.phase, AppPhase.home);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TunaCan>(find.byType(TunaCan)).opening, 0);
+    expect(demo.followers.map((f) => f.id), followerIds);
+    expect(demo.boneCount, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('帰還演出中の期限で最終戦へ進み、遅れた完了でホームへ戻らない', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final peer = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    await meet(tester, peer);
+    await chooseOutcome(tester, 'negative-outcome');
+    final returnButton = find.byKey(const Key('return-home'));
+    await tester.ensureVisible(returnButton);
+    await tester.pumpAndSettle();
+    await tester.tap(returnButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(demo.phase, AppPhase.returning);
+
+    demo.advance(demo.remaining);
+    final snapshot = demo.finalSnapshot;
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 3));
+    expect(demo.phase, AppPhase.finale);
+    expect(demo.finalSnapshot, same(snapshot));
+    expect(snapshot!.redPower, 1);
+    expect(snapshot.bluePower, 3);
+    expect(demo.boneCount, 1);
+    expect(find.byKey(const Key('meet-peer')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

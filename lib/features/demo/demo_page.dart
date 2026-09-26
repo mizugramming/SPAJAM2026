@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -25,7 +23,6 @@ class _DemoPageState extends State<DemoPage> {
   final comment = TextEditingController();
   final roomCode = TextEditingController();
   final sceneScroll = ScrollController();
-  Timer? returnTimer;
   String? error;
   int durationMinutes = 3;
   int openSheets = 0;
@@ -75,7 +72,6 @@ class _DemoPageState extends State<DemoPage> {
 
   @override
   void dispose() {
-    returnTimer?.cancel();
     demo.removeListener(handlePhase);
     nickname.dispose();
     hobby.dispose();
@@ -95,12 +91,9 @@ class _DemoPageState extends State<DemoPage> {
 
   void returnHome() {
     demo.returnHome();
-    returnTimer?.cancel();
-    returnTimer = Timer(const Duration(milliseconds: 800), demo.finishReturn);
   }
 
   void reset() {
-    returnTimer?.cancel();
     nickname.clear();
     hobby.clear();
     comment.clear();
@@ -206,6 +199,7 @@ class _DemoPageState extends State<DemoPage> {
                                     profile: demo.profileDraft,
                                     result: demo.lastResult,
                                     team: inEvent ? demo.self.team : null,
+                                    onReturnComplete: demo.finishReturn,
                                   ),
                                 ),
                               const SizedBox(height: 20),
@@ -482,7 +476,7 @@ class _DemoPageState extends State<DemoPage> {
           ),
         ];
       case AppPhase.returning:
-        return [heading('仲間が、あなたの缶へ。'), const LinearProgressIndicator()];
+        return [heading('仲間が、あなたの缶へ。')];
       case AppPhase.finale:
         final snapshot = demo.finalSnapshot!;
         return [
