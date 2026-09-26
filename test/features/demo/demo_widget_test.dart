@@ -6,6 +6,7 @@ import 'package:spajam2026/data/demo_controller.dart';
 import 'package:spajam2026/domain/models.dart';
 import 'package:spajam2026/features/cooperative/cooperative_game.dart';
 import 'package:spajam2026/features/demo/can_stage.dart';
+import 'package:spajam2026/features/demo/parent_character.dart';
 import 'package:spajam2026/features/duel/duel_game.dart';
 
 Future<DemoController> launch(
@@ -21,7 +22,9 @@ Future<DemoController> launch(
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
   final demo = DemoController(autoTick: false);
   addTearDown(demo.dispose);
-  await tester.pumpWidget(TsunagunApp(controller: demo));
+  await tester.pumpWidget(
+    TsunagunApp(animateCharacters: false, controller: demo),
+  );
   await tester.pumpAndSettle();
   return demo;
 }
@@ -80,7 +83,7 @@ Future<void> returnHome(WidgetTester tester) async {
   final parent = tester.widget<Image>(
     find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '親分'),
   );
-  expect((parent.image as AssetImage).assetName, parentAsset);
+  expect((parent.image as AssetImage).assetName, parentIdlePosterAsset);
 }
 
 Future<void> checkProfile(

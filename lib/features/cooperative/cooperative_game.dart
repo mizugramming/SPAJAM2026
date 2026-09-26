@@ -317,7 +317,7 @@ class _StartGuide extends StatelessWidget {
             style: TextStyle(
               fontSize: 44,
               height: 1.15,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w500,
               color: _color,
             ),
           ),
@@ -328,7 +328,7 @@ class _StartGuide extends StatelessWidget {
             style: TextStyle(
               fontSize: 26,
               height: 1.3,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w500,
               color: _color,
             ),
           ),
@@ -367,7 +367,7 @@ class _Hud extends StatelessWidget {
           Text(
             'レベル $level/$levelCount　魂 $points pt',
             key: const Key('coop-hud'),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
           ),
           const SizedBox(height: 4),
           Row(
@@ -425,7 +425,7 @@ class _Banner extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 26,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w500,
                     color: Color(0xFF304D46),
                   ),
                 ),

@@ -211,7 +211,7 @@ class _StartGuide extends StatelessWidget {
                   'タップでスタート！',
                   style: TextStyle(
                     fontSize: 52,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w500,
                     color: _color,
                   ),
                 ),
@@ -223,7 +223,7 @@ class _StartGuide extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 26,
                   height: 1.35,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w500,
                   color: _color,
                 ),
               ),

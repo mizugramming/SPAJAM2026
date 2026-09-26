@@ -19,7 +19,7 @@ class FinalAwards extends StatelessWidget {
         const Text(
           '今日のMVP',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 14),
         ExcludeSemantics(
@@ -52,7 +52,7 @@ class FinalAwards extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 25,
                       height: 1.4,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w500,
                       color: entry.participant.team == Team.red
                           ? TsunagunColors.red
                           : TsunagunColors.blue,
@@ -62,7 +62,7 @@ class FinalAwards extends StatelessWidget {
                     'ちから ${entry.power}',
                     style: const TextStyle(
                       fontSize: 21,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -72,7 +72,7 @@ class FinalAwards extends StatelessWidget {
         const SizedBox(height: 24),
         const Text(
           'このルームのランキング',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 8),
         ...snapshot.rankings.map(
@@ -87,7 +87,7 @@ class FinalAwards extends StatelessWidget {
                     '${entry.rank}',
                     style: const TextStyle(
                       fontSize: 25,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
@@ -100,7 +100,7 @@ class FinalAwards extends StatelessWidget {
                         '${entry.participant.profile.nickname}${entry.participant.isSelf ? '（あなた）' : ''}',
                         style: const TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       Text(entry.participant.team.label),
@@ -117,7 +117,7 @@ class FinalAwards extends StatelessWidget {
                       ),
                       Text(
                         'ちから ${entry.power}',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),

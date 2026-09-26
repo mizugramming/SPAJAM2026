@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+const conveyorBeltAsset = 'assets/home/conveyor_belt.png';
+
 /// A quiet workshop wall. Belts move once when a scene changes, then stop so
 /// profile entry and reading never compete with a looping background.
 class FactoryBackdrop extends StatefulWidget {
@@ -92,14 +94,37 @@ class _BeltMotion extends InheritedWidget {
       progress != oldWidget.progress;
 }
 
-/// Painted beneath the can; no second card, hit target or label is added.
+/// The original 2172 × 724 illustration stays intact at its 3:1 aspect ratio.
+/// The front of the belt is 44% down the image; reserve the rest for its legs.
 class ConveyorPlatform extends StatelessWidget {
   const ConveyorPlatform({super.key});
+
+  static const aspectRatio = 3.0;
+  static double heightFor(double width) => width / aspectRatio;
+  static double canBottomOffsetFor(double width) => heightFor(width) * .56;
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
     child: ExcludeSemantics(
-      child: CustomPaint(painter: _ConveyorPainter(_BeltMotion.of(context))),
+      child: AspectRatio(
+        aspectRatio: aspectRatio,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              conveyorBeltAsset,
+              key: const Key('conveyor-belt-image'),
+              fit: BoxFit.contain,
+              excludeFromSemantics: true,
+            ),
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _ConveyorWheelPainter(_BeltMotion.of(context)),
+              ),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }
@@ -194,38 +219,28 @@ class _WorkshopPainter extends CustomPainter {
   bool shouldRepaint(_WorkshopPainter oldDelegate) => false;
 }
 
-class _ConveyorPainter extends CustomPainter {
-  const _ConveyorPainter(this.progress);
+class _ConveyorWheelPainter extends CustomPainter {
+  const _ConveyorWheelPainter(this.progress);
   final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final ink = Paint()
-      ..color = const Color(0xFF67594A)
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke;
-    final frame = RRect.fromRectAndRadius(
-      Rect.fromLTWH(1.5, 1.5, size.width - 3, size.height - 3),
-      Radius.circular(size.height / 2),
-    );
-    canvas.drawRRect(frame, Paint()..color = const Color(0xFFB8D4C8));
-    canvas.drawRRect(frame, ink);
-    canvas.save();
-    canvas.clipRRect(frame);
-    final r = size.height * .29;
-    final pitch = size.height * .9;
-    for (var x = pitch / 2; x < size.width; x += pitch) {
-      final c = Offset(x, size.height / 2);
-      canvas.drawCircle(c, r, Paint()..color = const Color(0xFFFFF4CD));
-      canvas.drawCircle(c, r, ink..strokeWidth = 1.7);
-      final a = progress * math.pi * 2;
-      final direction = Offset(math.cos(a), math.sin(a)) * (r * .6);
-      canvas.drawLine(c - direction, c + direction, ink);
+    final stroke = Paint()
+      ..color = const Color(0xFF807F79)
+      ..strokeWidth = math.max(.7, size.width / 380)
+      ..strokeCap = StrokeCap.round;
+    final angle = progress * math.pi * 2;
+    final radius = size.width * .006;
+    final direction = Offset(math.cos(angle), math.sin(angle)) * radius;
+    // Subtle spokes follow the two existing end rollers. The complete frame
+    // and its feet stay planted; only the rollers turn during scene changes.
+    for (final fraction in [.037, .96]) {
+      final center = Offset(size.width * fraction, size.height * .519);
+      canvas.drawLine(center - direction, center + direction, stroke);
     }
-    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_ConveyorPainter oldDelegate) =>
+  bool shouldRepaint(_ConveyorWheelPainter oldDelegate) =>
       progress != oldDelegate.progress;
 }

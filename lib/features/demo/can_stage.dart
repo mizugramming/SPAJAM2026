@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../domain/models.dart';
 import 'curved_label.dart';
 import 'factory_backdrop.dart';
+import 'parent_character.dart';
 
 const parentAsset = 'assets/characters/oyabun.png';
 const normalFollowerAsset = 'assets/characters/kobun_normal.png';
@@ -190,11 +191,16 @@ class _CanStageState extends State<CanStage>
             showLabel: phase != AppPhase.entry,
           );
           final visibleCanHeight = canHeight * canScale;
+          final conveyorWidth = canWidth + 24;
+          final conveyorHeight = ConveyorPlatform.heightFor(conveyorWidth);
+          final canBottom = playing
+              ? 18.0
+              : ConveyorPlatform.canBottomOffsetFor(conveyorWidth);
           final canLeft = playing
               ? width - canWidth - 12
               : (width - canWidth) / 2;
           final parentWidth = playing ? 84.0 : canWidth * .62;
-          final parentHeight = parentWidth * 1122 / 1402;
+          final parentHeight = parentWidth / ParentCharacter.aspectRatio;
           final followerWidth = followerInSpotlight
               ? canWidth * .72
               : math.min(104.0, width * .28);
@@ -231,8 +237,10 @@ class _CanStageState extends State<CanStage>
                     : math.max(304.0, visibleCanHeight + parentHeight + 60)
               : canHeight +
                     actorHeight +
-                    (parentVisible || followerInSpotlight ? 36 : 40);
-          final canTop = stageHeight - 18 - visibleCanHeight;
+                    (parentVisible || followerInSpotlight ? 36 : 40) +
+                    canBottom -
+                    18;
+          final canTop = stageHeight - canBottom - visibleCanHeight;
           final mouthY = canTop + 23 * canScale;
           // Rest the followers above the closed lid. Anchor their actual
           // layout from below so title wrapping cannot push the image down.
@@ -249,7 +257,7 @@ class _CanStageState extends State<CanStage>
             duration: duration,
             curve: Curves.easeInOutCubic,
             left: canLeft,
-            bottom: 18,
+            bottom: canBottom,
             // Text is always laid out at its final size, never squeezed while
             // changing phases. Only the complete can is painted smaller.
             child: AnimatedScale(
@@ -287,8 +295,8 @@ class _CanStageState extends State<CanStage>
                       Positioned(
                         left: canLeft - 12,
                         bottom: 0,
-                        width: canWidth + 24,
-                        height: 23,
+                        width: conveyorWidth,
+                        height: conveyorHeight,
                         child: const ConveyorPlatform(),
                       ),
                     canLayer(
@@ -321,10 +329,11 @@ class _CanStageState extends State<CanStage>
                                   : math.sin(parentProgress * math.pi) * .16,
                               child: Transform.scale(
                                 scale: 1 - parentProgress * .25,
-                                child: Image.asset(
-                                  parentAsset,
-                                  semanticLabel: '親分',
-                                  fit: BoxFit.contain,
+                                child: ParentCharacter(
+                                  idle:
+                                      (phase == AppPhase.home ||
+                                          phase == AppPhase.pairing) &&
+                                      !_motion.isAnimating,
                                 ),
                               ),
                             ),
@@ -524,30 +533,30 @@ const _canInk = Color(0xFF392923);
 const _followerLabelStyle = TextStyle(
   fontSize: 11,
   height: 1.35,
-  fontWeight: FontWeight.bold,
+  fontWeight: FontWeight.w500,
   color: _canInk,
 );
 const _resultTitleStyle = TextStyle(
   fontSize: 34,
   height: 1.15,
-  fontWeight: FontWeight.w900,
+  fontWeight: FontWeight.w500,
   letterSpacing: 1.2,
   color: _canInk,
 );
 const _prefixStyle = TextStyle(
-  fontSize: 11.5,
-  height: 1.4,
-  fontWeight: FontWeight.w600,
+  fontSize: 12,
+  height: 1.55,
+  fontWeight: FontWeight.w500,
 );
 const _valueStyle = TextStyle(
-  fontSize: 13.5,
-  height: 1.4,
-  fontWeight: FontWeight.w600,
+  fontSize: 14.5,
+  height: 1.55,
+  fontWeight: FontWeight.w500,
 );
 const _nicknameStyle = TextStyle(
-  fontSize: 16,
-  height: 1.4,
-  fontWeight: FontWeight.w800,
+  fontSize: 18,
+  height: 1.5,
+  fontWeight: FontWeight.w500,
 );
 const _prefixes = ['ニックネーム：', '趣味：', 'ひとこと：'];
 
@@ -655,7 +664,7 @@ class TunaCan extends StatelessWidget {
                   style: TextStyle(
                     fontSize: compact ? 10 : 22,
                     height: 1.4,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w500,
                     color: textColor,
                   ),
                 )

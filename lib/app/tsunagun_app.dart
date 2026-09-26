@@ -4,26 +4,49 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../data/demo_controller.dart';
 import '../features/demo/demo_page.dart';
+import '../features/demo/parent_character.dart';
 import 'tsunagun_theme.dart';
+import 'tsunagun_typography.dart';
 
-class TsunagunApp extends StatelessWidget {
-  const TsunagunApp({super.key, this.controller});
+class TsunagunApp extends StatefulWidget {
+  const TsunagunApp({
+    super.key,
+    this.controller,
+    this.animateCharacters = true,
+    this.initialTypeface = TsunagunTypeface.kaiseiTokumin,
+  });
 
   final DemoController? controller;
+  final bool animateCharacters;
+  final TsunagunTypeface initialTypeface;
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'つなぐん DEMO',
-      debugShowCheckedModeBanner: false,
-      locale: const Locale('ja'),
-      supportedLocales: const [Locale('ja')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: tsunagunTheme(),
-      builder: (context, child) => PhoneViewport(child: child!),
-      home: DemoPage(controller: controller),
-    );
-  }
+  State<TsunagunApp> createState() => _TsunagunAppState();
+}
+
+class _TsunagunAppState extends State<TsunagunApp> {
+  late TsunagunTypeface _typeface = widget.initialTypeface;
+
+  @override
+  Widget build(BuildContext context) => TypographyScope(
+    typeface: _typeface,
+    onChanged: (typeface) => setState(() => _typeface = typeface),
+    child: CharacterPlaybackScope(
+      enabled: widget.animateCharacters,
+      child: MaterialApp(
+        title: 'つなぐん DEMO',
+        debugShowCheckedModeBanner: false,
+        locale: const Locale('ja'),
+        supportedLocales: const [Locale('ja')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        theme: tsunagunTheme(typeface: _typeface),
+        // Avoid interpolating geometry between unrelated font metrics.
+        themeAnimationDuration: Duration.zero,
+        builder: (context, child) => PhoneViewport(child: child!),
+        home: DemoPage(controller: widget.controller),
+      ),
+    ),
+  );
 }
 
 /// All scenes and overlays share this viewport. 412 x 900 is a desktop

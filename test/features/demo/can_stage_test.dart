@@ -70,7 +70,12 @@ void main() {
         final canRect = tester.getRect(find.byType(TunaCan));
         final images = find.descendant(
           of: find.byType(CanStage),
-          matching: find.byType(Image),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Image &&
+                (widget.semanticLabel == '骨の子分' ||
+                    widget.semanticLabel == '獲得・成長した子分'),
+          ),
         );
         expect(images, findsOneWidget);
         for (final image in images.evaluate()) {
@@ -142,7 +147,12 @@ void main() {
         await tester.pumpWidget(scene(AppPhase.returning));
         final images = find.descendant(
           of: find.byType(CanStage),
-          matching: find.byType(Image),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Image &&
+                (widget.semanticLabel == '骨の子分' ||
+                    widget.semanticLabel == '獲得・成長した子分'),
+          ),
         );
         expect(images, findsOneWidget);
 

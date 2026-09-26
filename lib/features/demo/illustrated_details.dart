@@ -15,7 +15,7 @@ class TsunagunWordmark extends StatelessWidget {
         style: TextStyle(
           fontSize: 28,
           height: 1.2,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w500,
           letterSpacing: 1.5,
           color: TsunagunColors.blue,
         ),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'tsunagun_typography.dart';
+
 /// A small palette shared by the illustrated shell; viewport rules stay in
-/// TsunagunApp. No font or package download is required to render the UI.
+/// TsunagunApp. Both Medium fonts are bundled and available offline.
 abstract final class TsunagunColors {
   static const ink = Color(0xFF392923);
   static const blue = Color(0xFF176DAD);
@@ -10,7 +12,10 @@ abstract final class TsunagunColors {
   static const yellow = Color(0xFFFFD65B);
 }
 
-ThemeData tsunagunTheme() {
+ThemeData tsunagunTheme({
+  TsunagunTypeface typeface = TsunagunTypeface.kaiseiTokumin,
+}) {
+  final family = typeface.fontFamily;
   const ink = TsunagunColors.ink;
   const blue = TsunagunColors.blue;
   const shape = RoundedRectangleBorder(
@@ -42,19 +47,32 @@ ThemeData tsunagunTheme() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: Colors.white,
+    fontFamily: family,
   );
   return base.copyWith(
-    textTheme: base.textTheme.apply(bodyColor: ink, displayColor: ink),
-    inputDecorationTheme: const InputDecorationTheme(
+    textTheme: _mediumTheme(
+      base.textTheme,
+      family,
+    ).apply(bodyColor: ink, displayColor: ink),
+    primaryTextTheme: _mediumTheme(base.primaryTextTheme, family),
+    inputDecorationTheme: InputDecorationTheme(
       filled: false,
-      border: UnderlineInputBorder(borderSide: line),
-      enabledBorder: UnderlineInputBorder(borderSide: line),
-      focusedBorder: UnderlineInputBorder(
+      border: const UnderlineInputBorder(borderSide: line),
+      enabledBorder: const UnderlineInputBorder(borderSide: line),
+      focusedBorder: const UnderlineInputBorder(
         borderSide: BorderSide(color: blue, width: 3),
       ),
-      labelStyle: TextStyle(color: ink, fontWeight: FontWeight.w700),
-      floatingLabelStyle: TextStyle(color: blue, fontWeight: FontWeight.w800),
-      contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+      labelStyle: TextStyle(
+        fontFamily: family,
+        color: ink,
+        fontWeight: FontWeight.w500,
+      ),
+      floatingLabelStyle: TextStyle(
+        fontFamily: family,
+        color: blue,
+        fontWeight: FontWeight.w500,
+      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -62,7 +80,11 @@ ThemeData tsunagunTheme() {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         foregroundColor: Colors.white,
         backgroundColor: blue,
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        textStyle: TextStyle(
+          fontFamily: family,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+        ),
         shape: shape,
         side: line,
         elevation: 0,
@@ -74,7 +96,11 @@ ThemeData tsunagunTheme() {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         foregroundColor: ink,
         backgroundColor: TsunagunColors.paper,
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        textStyle: TextStyle(
+          fontFamily: family,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+        ),
         shape: shape,
         side: line,
       ),
@@ -83,7 +109,7 @@ ThemeData tsunagunTheme() {
       style: TextButton.styleFrom(
         foregroundColor: blue,
         minimumSize: const Size(48, 48),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        textStyle: TextStyle(fontFamily: family, fontWeight: FontWeight.w500),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         shape: shape,
       ),
@@ -99,19 +125,47 @@ ThemeData tsunagunTheme() {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
     ),
-    listTileTheme: const ListTileThemeData(
+    listTileTheme: ListTileThemeData(
       iconColor: blue,
       textColor: ink,
       titleTextStyle: TextStyle(
+        fontFamily: family,
         fontSize: 17,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w500,
         color: ink,
       ),
-      subtitleTextStyle: TextStyle(fontSize: 14, color: Color(0xFF6B5A50)),
+      subtitleTextStyle: TextStyle(
+        fontFamily: family,
+        fontWeight: FontWeight.w500,
+        fontSize: 14,
+        color: Color(0xFF6B5A50),
+      ),
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(
       color: blue,
       linearTrackColor: TsunagunColors.paper,
     ),
+  );
+}
+
+TextTheme _mediumTheme(TextTheme source, String family) {
+  TextStyle? medium(TextStyle? style) =>
+      style?.copyWith(fontFamily: family, fontWeight: FontWeight.w500);
+  return TextTheme(
+    displayLarge: medium(source.displayLarge),
+    displayMedium: medium(source.displayMedium),
+    displaySmall: medium(source.displaySmall),
+    headlineLarge: medium(source.headlineLarge),
+    headlineMedium: medium(source.headlineMedium),
+    headlineSmall: medium(source.headlineSmall),
+    titleLarge: medium(source.titleLarge),
+    titleMedium: medium(source.titleMedium),
+    titleSmall: medium(source.titleSmall),
+    bodyLarge: medium(source.bodyLarge),
+    bodyMedium: medium(source.bodyMedium),
+    bodySmall: medium(source.bodySmall),
+    labelLarge: medium(source.labelLarge),
+    labelMedium: medium(source.labelMedium),
+    labelSmall: medium(source.labelSmall),
   );
 }
