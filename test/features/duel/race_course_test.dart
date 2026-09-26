@@ -6,7 +6,7 @@ void main() {
     final a = RaceCourse.seeded(42);
     final b = RaceCourse.seeded(42);
     expect(a.fallDuration, b.fallDuration);
-    expect(a.fallDuration.inMilliseconds, inInclusiveRange(3500, 6000));
+    expect(a.fallDuration.inMilliseconds, inInclusiveRange(1100, 2000));
   });
 
   test('だんだん速くなり、fallDuration で缶の面に届く', () {

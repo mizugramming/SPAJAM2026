@@ -15,8 +15,8 @@ class RaceCourse {
   /// widget test can reproduce one run.
   factory RaceCourse.seeded(
     int seed, {
-    Duration min = const Duration(milliseconds: 3500),
-    Duration max = const Duration(milliseconds: 6000),
+    Duration min = const Duration(milliseconds: 1100),
+    Duration max = const Duration(milliseconds: 2000),
   }) {
     final span = max.inMilliseconds - min.inMilliseconds;
     final ms = min.inMilliseconds + Random(seed).nextInt(span + 1);
