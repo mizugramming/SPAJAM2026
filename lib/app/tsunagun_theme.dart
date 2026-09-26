@@ -12,6 +12,12 @@ abstract final class TsunagunColors {
   static const yellow = Color(0xFFFFD65B);
 }
 
+/// Default family retained for callers that need the app's initial font.
+/// Current UI styles use the selected [TsunagunTypeface] instead.
+abstract final class TsunagunFonts {
+  static const family = 'KaiseiTokumin';
+}
+
 ThemeData tsunagunTheme({
   TsunagunTypeface typeface = TsunagunTypeface.kaiseiTokumin,
 }) {

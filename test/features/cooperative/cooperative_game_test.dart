@@ -275,4 +275,44 @@ void main() {
       expect(body.overlaps(can), isFalse, reason: 'can $hop');
     }
   });
+
+  testWidgets('運べたときは短く、落ちたときは強く、スマホを震わせる', (tester) async {
+    final vibrations = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          vibrations.add(call.arguments);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.pumpWidget(game(onCompleted: (_) {}));
+
+    // スタートのタップでは震えない。
+    await start(tester);
+    expect(vibrations, isEmpty);
+
+    final level = SoulLevel.all.first;
+    await tester.pump(SoulTiming.intro);
+    await tester.pump(level.firstArrival);
+    await tapGame(tester);
+    expect(vibrations, ['HapticFeedbackType.mediumImpact']);
+
+    // 早すぎて魂が落ちたら、「ポン」より強く一度だけ震える。
+    await tester.pump(level.flight);
+    await tapGame(tester);
+    expect(vibrations, [
+      'HapticFeedbackType.mediumImpact',
+      'HapticFeedbackType.heavyImpact',
+    ]);
+    await tester.pump(const Duration(seconds: 3));
+    expect(vibrations, hasLength(2));
+  });
 }

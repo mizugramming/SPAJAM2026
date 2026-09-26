@@ -15,6 +15,7 @@ lib/features/demo/game_scene.dart   共通ヘッダーと残り領域を使う�
 lib/features/demo/can_stage.dart    缶・親分・子分・ショBONEの煙・帰還演出
 lib/features/demo/parent_character.dart  待機動画・静止画と停止条件
 lib/features/demo/font_comparison_controls.dart  DEMO内の書体切替
+lib/features/demo/wavy_title_image.dart  画像見出しの有限の揺れ・読み上げ
 lib/features/demo/factory_backdrop.dart  工場背景と場面移動時のコンベア
 lib/features/demo/conveyor_editor.dart  配置プレビュー・調整・保存
 lib/features/demo/curved_label.dart  実テキストを保った曲面ラベル描画
@@ -23,7 +24,8 @@ lib/features/demo/illustrated_details.dart  見出し・吹き出し・綱の描
 lib/features/duel/duel_game.dart     吊魚チキンレース・完了通知
 lib/features/duel/race_course.dart   落下・停止・勝敗の判定
 lib/features/duel/race_field.dart    魚・綱・海のゲーム表示
-lib/features/duel/sea_background.dart  海の背景描画
+lib/features/duel/sea_background.dart  缶の内側の背景描画
+lib/features/duel/win_dance.dart     対戦勝利の親方ダンス・静止画
 lib/features/cooperative/cooperative_game.dart  魂を運ぶ3レベル・完了通知
 lib/features/cooperative/soul_course.dart  魂の進行・タイミング判定・仮想相手
 lib/features/cooperative/soul_stage.dart   魂・缶・海のゲーム表示
@@ -64,7 +66,7 @@ docs/tsunagun/                     v2受領原本（画像・手書きPDFを含�
 - 保存形式は `schemaVersion:1`、`scale`（0.6〜1.8）、`offsetX`・`offsetY`（-100〜100）です。位置は缶幅286論理pxを基準に実表示の缶幅に比例させます。正のXは右、正のYは下。公開型は `ConveyorLayout`、保存キーは `tsunagun.conveyor.layout.v1`。読み込みでは形式・バージョン・有限値・範囲を検証します。
 - 親分の待機は `ParentCharacter` の透過WebPで、ホーム・相手確認かつ缶の登場演出後だけ再生します。動作軽減・バックグラウンド・無効な `TickerMode` では同寸法のPNGへ切り替えます。UIテストは `TsunagunApp(animateCharacters: false)` で無限ループだけを止め、缶やゲームの一度で終わる演出は検証します。
 - 書体の既定はKaisei Tokumin Medium 500です。`TypographyScope` でM PLUS Rounded 1c Medium 500へ切り替え、画面とControllerの状態を保持します。曲面ラベルは選択中の実フォントとOSの文字拡大・太字で計測します。
-- `CanStage` のショBONEは一度で消える煙を伴い、REBORNは復活した普通の子分1匹だけを表示します。帰還時の缶底を越えない位置制約を維持します。
+- `CanStage` のショBONEは提供された画像見出しを使い、有限の揺れと一度で消える煙を伴います。見出しの実際の描画幅から高さを確保し、読み上げは「ショBONE」を維持します。REBORNは復活した普通の子分1匹だけを表示します。帰還時の缶底を越えない位置制約を維持します。
 - `TugOfWarFinale` は手動開始後、構え3秒・引き合い6.5秒・決着1.5秒で確定結果を開示します。紙吹雪は開示から2秒で消えます。動作軽減設定・両チーム0ptの場合も開始を待ち、押した後は決着を直接表示します。背景の観客は固定配置で、所持子分数や得点を表しません。
 - チーム・個人の内訳は確定した `FinalSnapshot.rankings` の普通子分数・骨数から表示します。演出用の観客や親分を集計へ加えず、開始・スキップ・再描画でも結果を再計算しません。
 - MVPに親分と子分のイラストを置き、内訳を読みやすく表示します。同点の説明文を省いても、共同MVPと同順位の規則は維持します。
@@ -85,9 +87,9 @@ docs/tsunagun/                     v2受領原本（画像・手書きPDFを含�
 
 `game_scene.dart` が相手チームで差込口を選び、型付き結果を共通の `Outcome` へ変換します。`demo_page.dart` が現在のゲーム場面・相手ID・交流開始ごとの識別番号を照合して `DemoController` へ渡し、重複・古い通知を拒否します。ゲーム側の完了通知も一交流につき一度にします。ゲーム内で報酬計算・チーム分岐・再戦禁止・期限処理を複製したり、子分や戦力を直接変更したりしません。
 
-ゲームを修正・追加する際も、確定時に `onCompleted(DuelGameResult.win)` などを一度だけ呼ぶ契約を維持します。`Navigator` で結果画面へ直接移動せず、共通の結果処理へ戻します。毎秒の残り時間更新で親は再描画するため、タイマーやゲーム状態は `State` に保持して `build` で再初期化せず、終了時に `dispose` で解放します。共通ヘッダーはゲームの外で高さを確保するため、ゲーム側でヘッダー用の固定余白を二重に引きません。協力ゲームのレベル・魂ポイント表示もゲーム内で実高さを確保し、文字拡大時に残り時間や操作領域へ重ねません。
+対戦は判定が揃った時点で任意の `onResolved` へ一度通知し、既存の `onCompleted` は演出終了時に一度通知します。どちらも `GameScene` で `Outcome` へ変換し、`DemoPage` の交流識別番号・相手ID・場面のガードを通します。`DemoController.reserveOutcome` は受付可能な対戦結果を1件だけ保持し、通常完了または終了猶予の打切り時に共通の報酬処理で一度だけ適用します。確定後のDEMO操作で別の結果へ上書きせず、未確定のゲームには報酬を付けません。リセット・新しい交流・決済で予約を消します。協力ゲームの既存 `onCompleted` 契約は維持します。`Navigator` で結果画面へ直接移動せず、共通の結果処理へ戻します。毎秒の残り時間更新で親は再描画するため、タイマーやゲーム状態は `State` に保持して `build` で再初期化せず、終了時に `dispose` で解放します。対戦勝利は判定表示の後に親方が7秒踊り、1秒後からタップで省略できます。背景は缶の内側の画像を上部ヘッダーにも敷き、文字の後ろに薄い板を置きます。落下時の強い振動・協力で魂を運べた時の軽い振動は対応端末の設定に従います。共通ヘッダーはゲームの外で高さを確保するため、ゲーム側でヘッダー用の固定余白を二重に引きません。協力ゲームのレベル・魂ポイント表示もゲーム内で実高さを確保し、文字拡大時に残り時間や操作領域へ重ねません。
 
-今回の工場UI・共通報酬更新では、共同開発者の対戦・協力ゲーム本体と結果APIは変更しません。対戦と協力は別フォルダで並行開発できます。共通の親画面へ両担当が直接手を入れず、差込口の変更が必要なら統合担当へ調整します。対戦で両者落下・完全同点となる場合は現状 `loss` が返り、共通報酬では相手に普通の子分が付きます。協力の魂ポイントはゲーム内表示のみで、保存や10pt蓄積による復活へ接続されていません。これらの扱いと通信時の離脱・エラー・結果確定は、[残課題](decisions.md)に従って公開API・報酬・テストを合わせて決めます。
+PR #46のゲーム背景・振動・勝利ダンスを統合し、対戦の確定通知だけ任意APIとして追加しています。対戦と協力は別フォルダで並行開発できます。共通の親画面へ両担当が直接手を入れず、差込口の変更が必要なら統合担当へ調整します。対戦で両者落下・完全同点となる場合は現状 `loss` が返り、共通報酬では相手に普通の子分が付きます。協力の魂ポイントはゲーム内表示のみで、保存や10pt蓄積による復活へ接続されていません。これらの扱いと通信時の離脱・エラー・結果確定は、[残課題](decisions.md)に従って公開API・報酬・テストを合わせて決めます。
 
 ## 担当表
 
