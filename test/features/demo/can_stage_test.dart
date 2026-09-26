@@ -192,6 +192,7 @@ void main() {
 
   for (final reduced in [false, true]) {
     testWidgets('ショBONEの煙は一度だけ出て消え、動作軽減では表示しない ($reduced)', (tester) async {
+      final semantics = tester.ensureSemantics();
       Widget scene() => MaterialApp(
         home: MediaQuery(
           data: MediaQueryData(disableAnimations: reduced),
@@ -219,11 +220,13 @@ void main() {
       await tester.pumpWidget(scene());
       await tester.pump(const Duration(milliseconds: 700));
       expect(smoke, findsNothing);
-      expect(find.text('ショBONE'), findsOneWidget);
+      expect(find.byKey(const Key('shobone-title')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('ショBONE')), findsOneWidget);
       expect(
         find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '骨の子分'),
         findsOneWidget,
       );
+      semantics.dispose();
       expect(tester.takeException(), isNull);
     });
   }

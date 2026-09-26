@@ -9,6 +9,7 @@ import 'package:spajam2026/data/demo_controller.dart';
 import 'package:spajam2026/domain/models.dart';
 import 'package:spajam2026/features/demo/can_stage.dart';
 import 'package:spajam2026/features/demo/curved_label.dart';
+import 'package:spajam2026/features/demo/wavy_title_image.dart';
 
 const _longProfile = Profile(
   nickname: 'つながる仲間と一緒に歩くプロフィール',
@@ -214,6 +215,11 @@ void main() {
     final reward = demo.lastResult;
     final follower = demo.followers.single;
     final remaining = demo.remaining;
+    _expectTypeface(
+      tester,
+      find.text('骨の子分も、大切な仲間。'),
+      TsunagunTypeface.mPlusRounded,
+    );
     await _chooseFont(tester, 'font-kaisei');
     expect(demo.phase, AppPhase.result);
     expect(demo.self.team, team);
@@ -223,9 +229,22 @@ void main() {
     expect(demo.boneCount, 1);
     expect(demo.power, 1);
     expect(demo.remaining, remaining);
+    final title = find.byKey(const Key('shobone-title'));
+    expect(tester.widget<WavyTitleImage>(title).asset, shoboneTitleAsset);
+    final semantics = tester.ensureSemantics();
+    try {
+      await tester.ensureVisible(title);
+      await tester.pumpAndSettle();
+      // CanStage combines its illustration and label into spoken content.
+      final spokenNodes = find.semantics.byLabel(RegExp('ショBONE')).evaluate();
+      expect(spokenNodes, hasLength(1));
+      expect('ショBONE'.allMatches(spokenNodes.single.label), hasLength(1));
+    } finally {
+      semantics.dispose();
+    }
     _expectTypeface(
       tester,
-      find.text('ショBONE'),
+      find.text('骨の子分も、大切な仲間。'),
       TsunagunTypeface.kaiseiTokumin,
     );
     await _key(tester, 'return-home');

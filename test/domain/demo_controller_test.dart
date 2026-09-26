@@ -214,6 +214,90 @@ void main() {
     expect(controller.finalSnapshot!.bluePower, 1);
   });
 
+  test('猶予終了直前の確定勝利は演出中でも双方へ一度だけ決済する', () {
+    final controller = started(duration: const Duration(seconds: 1));
+    final peer = controller.peers.firstWhere(
+      (p) => p.team != controller.self.team,
+    );
+    enterGame(controller, peer.id);
+    controller.advance(const Duration(seconds: 30));
+    expect(controller.settlementRemaining, const Duration(seconds: 1));
+    expect(controller.reserveOutcome(Outcome.win), isTrue);
+    expect(controller.phase, AppPhase.game);
+    expect(controller.followers, isEmpty);
+    expect(controller.lastResult, isNull);
+    expect(controller.completedPeerIds, isEmpty);
+
+    controller.advance(const Duration(seconds: 1));
+    expect(controller.phase, AppPhase.finale);
+    expect(controller.normalCount, 1);
+    expect(controller.boneCount, 0);
+    expect(controller.completedPeerIds, {peer.id});
+    final snapshot = controller.finalSnapshot!;
+    expect(snapshot.redPower, 3);
+    expect(snapshot.bluePower, 1);
+    expect(controller.lastResult!.outcome, Outcome.win);
+
+    // 遅れて届くダンス完了や、同じ通知の再送で再付与しない。
+    expect(controller.injectOutcome(Outcome.win), isFalse);
+    expect(controller.reserveOutcome(Outcome.win), isFalse);
+    controller.advance(const Duration(seconds: 10));
+    expect(controller.followers, hasLength(1));
+    expect(controller.finalSnapshot, same(snapshot));
+  });
+
+  test('確定済み結果は同じ通知だけ受け付け、DEMOの逆結果で上書きしない', () {
+    final controller = started();
+    final opponent = controller.peers.firstWhere(
+      (p) => p.team != controller.self.team,
+    );
+    final partner = controller.peers.firstWhere(
+      (p) => p.team == controller.self.team,
+    );
+    expect(controller.reserveOutcome(Outcome.win), isFalse);
+    enterGame(controller, opponent.id);
+    expect(controller.reserveOutcome(Outcome.coopSuccess), isFalse);
+    expect(controller.reserveOutcome(Outcome.loss), isTrue);
+    expect(controller.reserveOutcome(Outcome.loss), isTrue);
+    expect(controller.reserveOutcome(Outcome.win), isFalse);
+    expect(controller.injectOutcome(Outcome.win), isFalse);
+    expect(controller.phase, AppPhase.game);
+    expect(controller.followers, isEmpty);
+    expect(controller.injectOutcome(Outcome.loss), isTrue);
+    expect(controller.injectOutcome(Outcome.loss), isFalse);
+    expect(controller.boneCount, 1);
+    expect(controller.normalCount, 0);
+
+    returnToCan(controller);
+    enterGame(controller, partner.id);
+    expect(controller.reserveOutcome(Outcome.coopSuccess), isFalse);
+    expect(controller.reserveOutcome(Outcome.win), isFalse);
+    expect(controller.injectOutcome(Outcome.coopSuccess), isTrue);
+    expect(controller.normalCount, 1);
+    expect(controller.boneCount, 0);
+  });
+
+  test('再開始は未決済の予約を破棄し、同じ相手との未完了ゲームへ引き継がない', () {
+    final controller = started();
+    final opponent = controller.peers.firstWhere(
+      (p) => p.team != controller.self.team,
+    );
+    enterGame(controller, opponent.id);
+    expect(controller.reserveOutcome(Outcome.win), isTrue);
+    controller.reset();
+    controller.createRoom(const Duration(seconds: 1));
+    controller.setProfile(nickname: '再開始', hobby: '散歩');
+    expect(controller.saveProfile(), isNull);
+    controller.startEvent();
+    enterGame(controller, opponent.id);
+    controller.advance(const Duration(minutes: 2));
+    expect(controller.phase, AppPhase.finale);
+    expect(controller.followers, isEmpty);
+    expect(controller.completedPeerIds, isEmpty);
+    expect(controller.finalSnapshot!.redPower, 0);
+    expect(controller.finalSnapshot!.bluePower, 0);
+  });
+
   test('猶予を超える大きな時間進行でも未完了結果を採用せず固定する', () {
     final controller = started(duration: const Duration(seconds: 1));
     enterGame(controller, controller.peers.first.id);
