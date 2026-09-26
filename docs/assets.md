@@ -35,8 +35,8 @@
 
 両フォントは **SIL Open Font License 1.1** です。著作権表示とライセンス本文を以下のファイルへ同梱し、アプリのライセンス登録にも使用します。素材の入れ替え時はフォントだけをコピーせず、対応する著作権表示・本文を保持してください。
 
-- `assets/fonts/OFL-KaiseiTokumin.txt`: [Google Fonts同梱のOFL本文](https://github.com/google/fonts/blob/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/kaiseitokumin/OFL.txt)をそのまま保存。著作権は `Copyright 2020 The Kaisei Project Authors (https://github.com/Font-Kai/Kaisei)`。
-- `assets/fonts/OFL-MPlusRounded1c.txt`: [Google Fonts公式配布マニフェスト](https://fonts.google.com/download/list?family=M%20PLUS%20Rounded%201c)の `manifest.files` 内 `OFL.txt` の本文を保存。配布本文に著作権行がないため、元TTFのnameテーブルと公式メタデータに一致する `Copyright 2016 The Rounded M+ Project Authors.` を先頭へ付記しました。ライセンス本文自体は変更していません。
+- `assets/fonts/OFL-KaiseiTokumin.txt`: [Google Fonts同梱のOFL本文](https://github.com/google/fonts/blob/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/kaiseitokumin/OFL.txt)を保存（行末の空白と改行コードのみ正規化）。著作権は `Copyright 2020 The Kaisei Project Authors (https://github.com/Font-Kai/Kaisei)`。
+- `assets/fonts/OFL-MPlusRounded1c.txt`: [Google Fonts公式配布マニフェスト](https://fonts.google.com/download/list?family=M%20PLUS%20Rounded%201c)の `manifest.files` 内 `OFL.txt` の本文を保存。配布本文に著作権行がないため、元TTFのnameテーブルと公式メタデータに一致する `Copyright 2016 The Rounded M+ Project Authors.` を先頭へ付記しました。ライセンスの文言は変更せず、行末の空白と改行コードだけを正規化しています。
 
 比較操作は[READMEの案内](../README.md#フォントを比べる)を参照してください。通常の比較は両方のMedium 500を使い、別の太さを比較したかのように説明しません。スマホの小さい日本語、曲面ラベル、長いプロフィール、文字拡大で読みやすさを確認し、フォント変更のために共通の画面幅・高さを変えません。
 
