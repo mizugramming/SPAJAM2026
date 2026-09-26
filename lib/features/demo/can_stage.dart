@@ -5,10 +5,17 @@ import 'package:flutter/material.dart';
 import '../../domain/models.dart';
 import 'curved_label.dart';
 import 'factory_backdrop.dart';
+import 'wavy_title_image.dart';
 
 const parentAsset = 'assets/characters/oyabun.png';
 const normalFollowerAsset = 'assets/characters/kobun_normal.png';
 const boneFollowerAsset = 'assets/characters/kobun_bone.png';
+
+/// 「ショBONE」の見出し。書体を合わせるため、文字ではなくユーザー提供の画像で出す。
+const shoboneTitleAsset = 'assets/characters/shobone.png';
+
+/// shobone.png（2172×724）のうち、文字と影がある部分。
+const _shoboneContent = Rect.fromLTRB(240, 200, 1960, 570);
 const _followerFinalScale = .78;
 
 enum _CanMotion { idle, emerge, returnInside, celebrate, poof }
@@ -215,12 +222,14 @@ class _CanStageState extends State<CanStage>
           final followerHeight =
               followerImageHeight +
               followerGap +
-              _measureText(
-                context,
-                followerLabel,
-                followerStyle,
-                titleWidth,
-              ).height;
+              (isSetback
+                  ? titleWidth * _shoboneContent.height / _shoboneContent.width
+                  : _measureText(
+                      context,
+                      followerLabel,
+                      followerStyle,
+                      titleWidth,
+                    ).height);
           final actorHeight = math.max(
             parentVisible ? parentHeight : 0.0,
             showingResult || returning ? followerHeight : 0.0,
@@ -353,6 +362,14 @@ class _CanStageState extends State<CanStage>
                         labelKey: isSetback
                             ? const Key('shobone-title')
                             : const Key('result-title'),
+                        titleImage: isSetback
+                            ? const WavyTitleImage(
+                                key: Key('shobone-title'),
+                                asset: shoboneTitleAsset,
+                                content: _shoboneContent,
+                                semanticLabel: 'ショBONE',
+                              )
+                            : null,
                         celebrate: showingResult && !isSetback,
                         image: primaryIsBone
                             ? boneFollowerAsset
@@ -414,6 +431,7 @@ class _CanStageState extends State<CanStage>
     TextStyle labelStyle = _followerLabelStyle,
     double labelGap = 0,
     Key? labelKey,
+    Widget? titleImage,
     bool celebrate = false,
   }) {
     final angle = math.sin(progress * math.pi) * (left < targetX ? .22 : -.22);
@@ -438,12 +456,15 @@ class _CanStageState extends State<CanStage>
         children: [
           Opacity(
             opacity: (1 - progress * 4).clamp(0.0, 1.0),
-            child: Text(
-              label,
-              key: labelKey,
-              textAlign: TextAlign.center,
-              style: labelStyle,
-            ),
+            // 画像の見出しがあれば文字の代わりに出す（ショBONE）。
+            child:
+                titleImage ??
+                Text(
+                  label,
+                  key: labelKey,
+                  textAlign: TextAlign.center,
+                  style: labelStyle,
+                ),
           ),
           if (labelGap > 0) SizedBox(height: labelGap),
           Opacity(

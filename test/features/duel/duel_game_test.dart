@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spajam2026/domain/models.dart';
 import 'package:spajam2026/features/duel/duel_game.dart';
 import 'package:spajam2026/features/duel/race_course.dart';
 import 'package:spajam2026/features/duel/race_field.dart';
 import 'package:spajam2026/features/duel/sea_background.dart';
+import 'package:spajam2026/features/duel/win_dance.dart';
 
 const selfProfile = Profile(nickname: 'わたし', hobby: '', comment: '');
 const peerProfile = Profile(nickname: 'あいて', hobby: '', comment: '');
@@ -76,11 +78,13 @@ Widget duel({
   required RaceCourse course,
   required RaceDecision peerDecision,
   ValueChanged<DuelGameResult>? onCompleted,
+  ValueChanged<DuelGameResult>? onResolved,
 }) => MaterialApp(
   home: DuelGame(
     self: self,
     peer: peer,
     onCompleted: onCompleted ?? (_) {},
+    onResolved: onResolved,
     debugCourse: course,
     debugPeerDecision: peerDecision,
   ),
@@ -120,9 +124,32 @@ void main() {
     await tester.pump();
     expect(find.textContaining('ぎりぎり度'), findsOneWidget);
 
-    // 相手が落ちて決着（約1秒）してから、結果の画面を1.8秒見せる。その間は通知しない。
-    await pumpTicks(tester, const Duration(seconds: 2));
+    // 相手が落ちて決着（約1秒）してから、勝ったときは % の結果を1秒だけ見せる。
+    await pumpTicks(tester, const Duration(milliseconds: 1500));
     expect(find.text('WIN'), findsOneWidget);
+    expect(find.byKey(const Key('win-dance')), findsNothing);
+    expect(results, isEmpty);
+    // そのあと、煙の中から親方が現れて踊る（7秒）。その間も通知しない。
+    // 文字（親方になった！）と、前に出てくる子分は出さない。
+    await pumpTicks(tester, const Duration(milliseconds: 500));
+    expect(find.byKey(const Key('win-dance')), findsOneWidget);
+    expect(find.byKey(const Key('oyakata-dance')), findsOneWidget);
+    expect(find.byKey(const Key('dance-smoke')), findsOneWidget);
+    final danceRect = tester.getRect(find.byKey(const Key('oyakata-dance')));
+    final gameRect = tester.getRect(find.byType(DuelGame));
+    expect(danceRect.left, closeTo(gameRect.left, 1));
+    expect(danceRect.right, closeTo(gameRect.right, 1));
+    expect(find.textContaining('親方'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('win-dance')),
+        matching: find.byType(Image),
+      ),
+      findsOneWidget,
+    );
+    expect(results, isEmpty);
+    // 踊り始めて約6.7秒ではまだ通知せず、7秒を過ぎたら通知する。
+    await pumpTicks(tester, const Duration(milliseconds: 6500));
     expect(results, isEmpty);
     await pumpTicks(tester, const Duration(seconds: 1));
     expect(results, [DuelGameResult.win]);
@@ -130,6 +157,122 @@ void main() {
     // 決着後にさらに時間が進んでも、通知は一度だけ。
     await pumpTicks(tester, const Duration(seconds: 1));
     expect(results, [DuelGameResult.win]);
+  });
+
+  testWidgets('勝敗は決着時に確定通知し、完了通知は結果1秒とダンス7秒の後に一度だけ行う', (tester) async {
+    final resolved = <DuelGameResult>[];
+    final completed = <DuelGameResult>[];
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.fell(),
+        onResolved: resolved.add,
+        onCompleted: completed.add,
+      ),
+    );
+
+    await startRace(tester);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byType(DuelGame));
+    await tester.pump(const Duration(milliseconds: 490));
+    // 自分だけ止まった時点では、まだ相手の落下が確定していない。
+    expect(resolved, isEmpty);
+    expect(completed, isEmpty);
+
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(resolved, [DuelGameResult.win]);
+    expect(completed, isEmpty);
+    expect(find.byKey(const Key('win-dance')), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 999));
+    expect(find.byKey(const Key('win-dance')), findsNothing);
+    expect(completed, isEmpty);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(find.byKey(const Key('win-dance')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 6999));
+    expect(completed, isEmpty);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(completed, [DuelGameResult.win]);
+
+    await tester.pump(const Duration(seconds: 2));
+    expect(resolved, [DuelGameResult.win]);
+    expect(completed, [DuelGameResult.win]);
+  });
+
+  testWidgets('相手が停止済みなら、自分の停止タップで次のフレームを待たずに勝敗を確定通知する', (tester) async {
+    final resolved = <DuelGameResult>[];
+    final completed = <DuelGameResult>[];
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.stopped(0.5),
+        onResolved: resolved.add,
+        onCompleted: completed.add,
+      ),
+    );
+
+    await startRace(tester);
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byKey(const Key('result-peer')), findsOneWidget);
+    expect(resolved, isEmpty);
+
+    await tester.tap(find.byType(DuelGame));
+    // pumpを挟まない。期限直前のタップでも、次のTickerより先に確定する。
+    expect(resolved, [DuelGameResult.win]);
+    expect(completed, isEmpty);
+    await tester.pump();
+    expect(find.text('81%'), findsOneWidget);
+    expect(resolved, [DuelGameResult.win]);
+  });
+
+  testWidgets('確定後の親の再描画・ダンス省略・自然終了時刻が重なっても各通知は一度だけ', (tester) async {
+    final harnessKey = GlobalKey<_RebuildingHarnessState>();
+    final resolved = <DuelGameResult>[];
+    final completed = <DuelGameResult>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _RebuildingHarness(
+          key: harnessKey,
+          builder: (context) => DuelGame(
+            self: self,
+            peer: peer,
+            onResolved: resolved.add,
+            onCompleted: completed.add,
+            debugCourse: const RaceCourse(fallDuration: Duration(seconds: 1)),
+            debugPeerDecision: const RaceDecision.fell(),
+          ),
+        ),
+      ),
+    );
+
+    await startRace(tester);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byType(DuelGame));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(resolved, [DuelGameResult.win]);
+    harnessKey.currentState!.rebuild();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const Key('win-dance')), findsOneWidget);
+
+    // ダンス開始直後は省略できず、再描画しても確定通知を繰り返さない。
+    await tester.tap(find.byType(DuelGame));
+    expect(completed, isEmpty);
+    harnessKey.currentState!.rebuild();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.byType(DuelGame));
+    expect(completed, [DuelGameResult.win]);
+
+    // 連打、再描画、自然終了の予定時刻まで進めても二重決済につながらない。
+    await tester.tap(find.byType(DuelGame));
+    harnessKey.currentState!.rebuild();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 8));
+    await tester.tap(find.byType(DuelGame));
+    expect(resolved, [DuelGameResult.win]);
+    expect(completed, [DuelGameResult.win]);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('タップしないまま落ちると、相手が止まっていれば負ける', (tester) async {
@@ -190,7 +333,7 @@ void main() {
     await tester.pump();
     expect(find.text('81%'), findsOneWidget);
 
-    await pumpTicks(tester, const Duration(seconds: 4));
+    await pumpTicks(tester, const Duration(seconds: 11));
     expect(results, [DuelGameResult.win]);
   });
 
@@ -356,7 +499,7 @@ void main() {
     }
   });
 
-  testWidgets('アウトの線は決めた位置（高さの89.4%）に固定され、説明は魚と線の間に大きく出る', (tester) async {
+  testWidgets('アウトの線は決めた位置（高さの91.3%）に固定され、説明は魚と線の間に大きく出る', (tester) async {
     tester.view.physicalSize = const Size(412, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -366,8 +509,8 @@ void main() {
         peerDecision: const RaceDecision.stopped(0.5),
       ),
     );
-    expect(RaceField.defaultLandingRatio, 0.894);
-    expect(landingY(tester), closeTo(900 * 0.894, 1e-6));
+    expect(RaceField.defaultLandingRatio, 0.913);
+    expect(landingY(tester), closeTo(900 * 0.913, 1e-6));
     // 説明は中央に大きく出し、吊られた魚ともアウトの線とも重ならない。
     final guide = tester.getRect(find.text('タップでスタート！'));
     expect(guide.top, greaterThan(mouthY(tester, redFish)));
@@ -378,5 +521,115 @@ void main() {
     final body = tester.getRect(find.textContaining('赤い線のぎりぎり'));
     expect(body.height, greaterThanOrEqualTo(26 * 1.35 * 2 - 1));
     expect(body.bottom, lessThan(landingY(tester)));
+  });
+
+  testWidgets('自分の魚が線を越えて落ちたときだけ、スマホを強く一度震わせる', (tester) async {
+    final vibrations = <Object?>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          vibrations.add(call.arguments);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    // 止めたとき（相手が落ちても）は震えない。
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.fell(),
+      ),
+    );
+    await startRace(tester);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byType(DuelGame));
+    await pumpTicks(tester, const Duration(seconds: 4));
+    expect(vibrations, isEmpty);
+
+    // 止める前に落ちたら、一度だけ強く震える。
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.stopped(0.5),
+      ),
+    );
+    await startRace(tester);
+    await pumpTicks(tester, const Duration(seconds: 4));
+    expect(vibrations, ['HapticFeedbackType.heavyImpact']);
+  });
+
+  testWidgets('負けたときは踊らずに結果へ進み、踊りは1秒見たらタップで飛ばせる', (tester) async {
+    // 負け：踊りの場面は出ない。
+    final lost = <DuelGameResult>[];
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.stopped(0.5),
+        onCompleted: lost.add,
+      ),
+    );
+    await startRace(tester);
+    await pumpTicks(tester, const Duration(seconds: 4));
+    expect(lost, [DuelGameResult.loss]);
+    expect(find.byKey(const Key('win-dance')), findsNothing);
+
+    // 勝ち：踊り始めてすぐのタップは無視し、1秒たったら飛ばせる。
+    final won = <DuelGameResult>[];
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.fell(),
+        onCompleted: won.add,
+      ),
+    );
+    await startRace(tester);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byType(DuelGame));
+    // 相手が落ちて決着（約1秒）＋ % の表示1秒のあと、踊りが始まる。
+    await pumpTicks(tester, const Duration(milliseconds: 1700));
+    expect(find.byKey(const Key('win-dance')), findsOneWidget);
+    await tester.tap(find.byType(DuelGame));
+    await tester.pump();
+    expect(won, isEmpty);
+    await pumpTicks(tester, const Duration(seconds: 1));
+    await tester.tap(find.byType(DuelGame));
+    await tester.pump();
+    expect(won, [DuelGameResult.win]);
+  });
+
+  testWidgets('踊りの素材は登録済みで、動きを減らす設定では開始直後から1枚絵が見える', (tester) async {
+    for (final asset in [WinDance.danceAsset, WinDance.stillAsset]) {
+      final data = await rootBundle.load(asset);
+      expect(data.lengthInBytes, greaterThan(0), reason: asset);
+    }
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: WinDance(elapsed: Duration.zero),
+        ),
+      ),
+    );
+    final image = tester.widget<Image>(find.byKey(const Key('oyakata-dance')));
+    expect((image.image as AssetImage).assetName, WinDance.stillAsset);
+    final characterOpacity = tester.widget<Opacity>(
+      find
+          .ancestor(
+            of: find.byKey(const Key('oyakata-dance')),
+            matching: find.byType(Opacity),
+          )
+          .first,
+    );
+    expect(characterOpacity.opacity, 1);
   });
 }

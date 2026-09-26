@@ -126,7 +126,10 @@ void expectFollowerResult(
   final childRect = tester.getRect(child);
   expect(childRect.center.dx, closeTo(canRect.center.dx, 1));
   expect(childRect.width, greaterThanOrEqualTo(canRect.width * .5));
-  final label = find.text(title);
+  // ショBONE は書体を合わせるため、文字ではなく画像の見出しで出す。
+  final label = title == 'ショBONE'
+      ? find.byKey(const Key('shobone-title'))
+      : find.text(title);
   expect(label, findsOneWidget);
   expect(tester.getSize(label).height, greaterThanOrEqualTo(32));
 }
@@ -510,6 +513,75 @@ void main() {
     expect(demo.finalSnapshot!.redPower, 0);
     expect(demo.finalSnapshot!.bluePower, 0);
     expect(demo.followers, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('対戦の早期確定を受付し、演出中の期限でも報酬を残して遅延完了を拒否する', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final opponent = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    await meet(tester, opponent);
+    final duel = tester.widget<DuelGame>(find.byType(DuelGame));
+    demo.advance(demo.remaining + const Duration(seconds: 29));
+    await tester.pumpAndSettle();
+    expect(demo.settlementRemaining, const Duration(seconds: 1));
+
+    duel.onResolved!(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.game);
+    expect(demo.followers, isEmpty);
+    // 確定後にDEMOで負けを選んでも、勝利の予約は変わらない。
+    await chooseOutcome(tester, 'negative-outcome');
+    expect(demo.phase, AppPhase.game);
+    expect(demo.followers, isEmpty);
+    demo.advance(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.finale);
+    expect(find.byType(DuelGame), findsNothing);
+    final snapshot = demo.finalSnapshot;
+    expect(snapshot!.redPower, 3);
+    expect(snapshot.bluePower, 1);
+
+    duel.onCompleted(DuelGameResult.win);
+    duel.onResolved!(DuelGameResult.loss);
+    await tester.pumpAndSettle();
+    expect(demo.normalCount, 1);
+    expect(demo.boneCount, 0);
+    expect(demo.finalSnapshot, same(snapshot));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('予約中に再開始して同じ相手と対戦しても旧世代の確定・完了通知を拒否する', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final opponent = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    await meet(tester, opponent);
+    final previousDuel = tester.widget<DuelGame>(find.byType(DuelGame));
+    previousDuel.onResolved!(DuelGameResult.win);
+    demo.reset();
+    await tester.pumpAndSettle();
+    // 管理側のresetでも旧ゲームを無効化する。新しい部屋も同じControllerで作る。
+    demo.createRoom(const Duration(minutes: 3));
+    demo.setProfile(nickname: '再開始', hobby: '散歩');
+    expect(demo.saveProfile(), isNull);
+    demo.startEvent();
+    await tester.pumpAndSettle();
+    await meet(tester, opponent);
+    final currentDuel = tester.widget<DuelGame>(find.byType(DuelGame));
+
+    previousDuel.onResolved!(DuelGameResult.win);
+    previousDuel.onCompleted(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.game);
+    expect(demo.followers, isEmpty);
+    currentDuel.onResolved!(DuelGameResult.loss);
+    currentDuel.onCompleted(DuelGameResult.loss);
+    previousDuel.onCompleted(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.result);
+    expect(demo.boneCount, 1);
+    expect(demo.normalCount, 0);
+    expect(demo.completedPeerIds, {opponent.id});
     expect(tester.takeException(), isNull);
   });
 

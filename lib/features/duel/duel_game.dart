@@ -2,10 +2,12 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../../domain/models.dart';
 import 'race_course.dart';
 import 'race_field.dart';
+import 'win_dance.dart';
 
 /// 自分（self）から見た対戦結果。
 enum DuelGameResult { win, loss }
@@ -25,13 +27,20 @@ class DuelGame extends StatefulWidget {
     required this.self,
     required this.peer,
     required this.onCompleted,
+    this.onResolved,
     @visibleForTesting this.debugCourse,
     @visibleForTesting this.debugPeerDecision,
   });
 
   final Participant self;
   final Participant peer;
+
+  /// Presentation completion; existing callers may continue to use this alone.
   final ValueChanged<DuelGameResult> onCompleted;
+
+  /// Reports the immutable race decision before the result/dance presentation.
+  /// The host can preserve an earned reward if its settlement deadline expires.
+  final ValueChanged<DuelGameResult>? onResolved;
 
   /// テストで落下時間を固定するための差し替え。本番では常に null。
   final RaceCourse? debugCourse;
@@ -48,6 +57,16 @@ class _DuelGameState extends State<DuelGame>
   /// 両者が決まってから結果を通知するまでの間（落ちる／止まる様子を見せる）。
   static const _settleDelay = Duration(milliseconds: 1800);
 
+  /// 勝ったときに、親方が出てくるまで % の結果を見せる時間。
+  static const _winResultDelay = Duration(milliseconds: 1000);
+
+  /// 勝ったときの、親方が踊る場面の長さと、タップで飛ばせるようになるまで。
+  static const _danceDuration = Duration(seconds: 7);
+  static const _danceSkippableAfter = Duration(seconds: 1);
+
+  /// 親方が踊り始めた時刻。勝って結果表示が終わるまでは null。
+  Duration? _danceStartedAt;
+
   late final Ticker _ticker;
   late final RaceCourse _course;
   late final RaceDecision _peerDecision;
@@ -57,6 +76,7 @@ class _DuelGameState extends State<DuelGame>
   RaceDecision? _selfDecision;
   Duration? _bothSettledAt;
   bool _reported = false;
+  DuelGameResult? _resolvedResult;
 
   @override
   void initState() {
@@ -89,22 +109,48 @@ class _DuelGameState extends State<DuelGame>
     final raw = _course.depthAt(elapsed);
 
     if (_selfDecision == null && raw >= 1) {
-      _selfDecision = const RaceDecision.fell();
+      _decide(const RaceDecision.fell());
     }
 
-    final selfDecision = _selfDecision;
-    if (selfDecision != null && _peerSettled(raw)) {
-      final settledAt = _bothSettledAt ??= elapsed;
-      if (!_reported && elapsed - settledAt >= _settleDelay) {
-        _reported = true;
-        widget.onCompleted(
-          selfWinsRace(selfDecision, _peerDecision)
-              ? DuelGameResult.win
-              : DuelGameResult.loss,
-        );
+    final resolved = _resolveIfSettled(raw);
+    if (resolved != null) {
+      final settledAt = _bothSettledAt!;
+      final wins = resolved == DuelGameResult.win;
+      // 勝ったときは % を少しだけ見せてから親方を出し、負けたときはそのまま結果へ。
+      final showResultFor = wins ? _winResultDelay : _settleDelay;
+      if (!_reported && elapsed - settledAt >= showResultFor) {
+        if (!wins) {
+          _report(DuelGameResult.loss);
+        } else {
+          // 結果画面の前に、煙の中から親方が現れて踊る場面を見せる。
+          final danceStartedAt = _danceStartedAt ??= elapsed;
+          if (elapsed - danceStartedAt >= _danceDuration) {
+            _report(DuelGameResult.win);
+          }
+        }
       }
     }
     setState(() {});
+  }
+
+  DuelGameResult? _resolveIfSettled(double raw) {
+    if (_resolvedResult != null) return _resolvedResult;
+    final selfDecision = _selfDecision;
+    if (selfDecision == null || !_peerSettled(raw)) return null;
+    final result = selfWinsRace(selfDecision, _peerDecision)
+        ? DuelGameResult.win
+        : DuelGameResult.loss;
+    _bothSettledAt = _elapsed;
+    _resolvedResult = result;
+    widget.onResolved?.call(result);
+    return result;
+  }
+
+  /// 演出の完了を一度だけ親へ知らせる。
+  void _report(DuelGameResult result) {
+    if (_reported) return;
+    _reported = true;
+    widget.onCompleted(result);
   }
 
   void _onTap() {
@@ -114,13 +160,33 @@ class _DuelGameState extends State<DuelGame>
       _ticker.start();
       return;
     }
+    // 親方の踊りは、少し見たらタップで飛ばして結果へ進める。
+    final danceStartedAt = _danceStartedAt;
+    if (danceStartedAt != null) {
+      if (_elapsed - danceStartedAt >= _danceSkippableAfter) {
+        _report(DuelGameResult.win);
+      }
+      return;
+    }
     if (_selfDecision != null) return;
     final raw = _course.depthAt(_elapsed);
     setState(
-      () => _selfDecision = raw >= 1
-          ? const RaceDecision.fell()
-          : RaceDecision.stopped(raw.clamp(0.0, 1.0)),
+      () => _decide(
+        raw >= 1
+            ? const RaceDecision.fell()
+            : RaceDecision.stopped(raw.clamp(0.0, 1.0)),
+      ),
     );
+    // A stop tap may settle both racers between ticker frames. Reserve that
+    // result immediately, rather than waiting for the next animation frame.
+    _resolveIfSettled(raw);
+  }
+
+  /// 自分の結果を一度だけ決める。線を越えて落ちたら、スマホを強く一度震わせる。
+  /// 端末の設定でタッチ時の振動が切られているときや、Webでは何も起きない。
+  void _decide(RaceDecision decision) {
+    _selfDecision = decision;
+    if (decision.fell) HapticFeedback.heavyImpact();
   }
 
   /// 描画用の深さ。決着済みなら止めた位置、または海へ向けて描き進める。
@@ -178,6 +244,8 @@ class _DuelGameState extends State<DuelGame>
                   ),
                 ),
               ),
+              if (_danceStartedAt case final startedAt?)
+                Positioned.fill(child: WinDance(elapsed: _elapsed - startedAt)),
             ],
           ),
         ),

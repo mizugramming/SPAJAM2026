@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../../domain/models.dart';
+import '../duel/sea_background.dart';
 import 'soul_course.dart';
 import 'soul_stage.dart';
 
@@ -150,6 +152,8 @@ class _CooperativeGameState extends State<CooperativeGame>
   /// 魂が落ちた／穴に着いたら、次の場面へ移る。魂ポイントはクリアしたレベルの分だけ増える。
   void _syncRunPhase() {
     if (_run.status == SoulStatus.fell) {
+      // 魂が海へ落ちたら、運べたときの「ポン」より強く一度だけ震わせる。
+      HapticFeedback.heavyImpact();
       _phase = _Phase.falling;
     } else if (_run.status == SoulStatus.cleared) {
       _points += _level.points;
@@ -170,6 +174,9 @@ class _CooperativeGameState extends State<CooperativeGame>
         final result = _run.tap(_runTime);
         setState(() {
           if (result.kind == SoulTapKind.carried) {
+            // 運べたときだけ、スマホを短く「ポン」と震わせる。端末の設定で
+            // タッチ時の振動が切られているときや、Webでは何も起きない。
+            HapticFeedback.mediumImpact();
             _flashText = result.just ? 'ジャスト！' : 'ナイス！';
             _flashHop = _run.carriedHops;
             _flashUntil = _elapsed + _flashTime;
@@ -195,6 +202,9 @@ class _CooperativeGameState extends State<CooperativeGame>
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // 背景は「レベル・魂」の行も含めて敷く。幅に合わせて下端をそろえるので、
+            // 上の共通の帯に敷いた同じ背景と、境目でずれずにつながる。
+            Positioned.fill(child: SeaBackground(elapsed: _elapsed)),
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -229,7 +239,6 @@ class _CooperativeGameState extends State<CooperativeGame>
                                       _phase == _Phase.intro
                                   ? Duration.zero
                                   : _runTime,
-                              elapsed: _elapsed,
                               flashText: showFlash ? _flashText : null,
                               flashHop: _flashHop,
                             ),
@@ -354,8 +363,9 @@ class _Hud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
+    // 背景の絵の上でも読めるよう、文字の後ろに薄い灰色を敷く。
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.85),
+      color: const Color(0xCCE6E8EB),
       borderRadius: BorderRadius.circular(12),
     ),
     child: Padding(
