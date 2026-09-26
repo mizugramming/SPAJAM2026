@@ -202,6 +202,7 @@ class _CanStageState extends State<CanStage>
               ? _resultTitleStyle
               : _followerLabelStyle;
           final followerGap = followerInSpotlight ? 12.0 : 0.0;
+          final titleWidth = followerInSpotlight ? width : followerWidth;
           final followerLabel = isSetback
               ? 'ショBONE'
               : result?.promoted != null
@@ -218,7 +219,7 @@ class _CanStageState extends State<CanStage>
                 context,
                 followerLabel,
                 followerStyle,
-                followerWidth,
+                titleWidth,
               ).height;
           final actorHeight = math.max(
             parentVisible ? parentHeight : 0.0,
@@ -342,6 +343,7 @@ class _CanStageState extends State<CanStage>
                             followerImageHeight * (1 + _followerFinalScale) / 2,
                         maxDescent: insideBottom - followerBaseline,
                         width: followerWidth,
+                        titleWidth: titleWidth,
                         imageHeight: followerImageHeight,
                         targetX: canCenter,
                         progress: returning ? _part(.34, .78) : 0,
@@ -401,6 +403,7 @@ class _CanStageState extends State<CanStage>
     required double diveDistance,
     required double maxDescent,
     required double width,
+    required double titleWidth,
     required double imageHeight,
     required double targetX,
     required double progress,
@@ -427,9 +430,9 @@ class _CanStageState extends State<CanStage>
       maxDescent - (rotatedHeight - imageHeight) / 2,
     );
     return Positioned(
-      left: left,
+      left: left - (titleWidth - width) / 2,
       bottom: bottom,
-      width: width,
+      width: titleWidth,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
