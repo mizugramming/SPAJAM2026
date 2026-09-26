@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models.dart';
 import 'curved_label.dart';
+import 'factory_backdrop.dart';
 
 const parentAsset = 'assets/characters/oyabun.png';
 const normalFollowerAsset = 'assets/characters/kobun_normal.png';
 const boneFollowerAsset = 'assets/characters/kobun_bone.png';
 const _followerFinalScale = .78;
 
-enum _CanMotion { idle, emerge, returnInside, celebrate }
+enum _CanMotion { idle, emerge, returnInside, celebrate, poof }
 
 /// A single scene keeps the mouth behind the actors and the can front above
 /// them, so entering characters disappear through the opening, not by fading.
@@ -81,6 +82,8 @@ class _CanStageState extends State<CanStage>
         (widget.result?.outcome == Outcome.win ||
             widget.result?.outcome == Outcome.coopSuccess)) {
       _start(_CanMotion.celebrate, const Duration(milliseconds: 1000));
+    } else if (widget.phase == AppPhase.result) {
+      _start(_CanMotion.poof, const Duration(milliseconds: 1300));
     } else if (!(previous == AppPhase.home &&
         widget.phase == AppPhase.pairing &&
         _kind == _CanMotion.emerge)) {
@@ -142,6 +145,8 @@ class _CanStageState extends State<CanStage>
       const Interval(0, .34).transform(_motion.value) * (1 - _part(.82, 1)),
     _CanMotion.emerge =>
       const Interval(0, .32).transform(_motion.value) * (1 - _part(.8, 1)),
+    _CanMotion.poof =>
+      const Interval(0, .18).transform(_motion.value) * (1 - _part(.3, .55)),
     _ => 0,
   };
 
@@ -166,10 +171,6 @@ class _CanStageState extends State<CanStage>
           AppPhase.returning => true,
           _ => false,
         };
-    final separateNewBone =
-        result != null &&
-        result.promoted != null &&
-        result.promoted!.id != result.newFollower.id;
     final duration = _reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 650);
@@ -203,18 +204,13 @@ class _CanStageState extends State<CanStage>
           final followerGap = followerInSpotlight ? 12.0 : 0.0;
           final followerLabel = isSetback
               ? 'ショBONE'
-              : result?.outcome == Outcome.win
-              ? 'やった！'
               : result?.promoted != null
               ? 'REBORN'
-              : '新しい仲間';
+              : 'ツナがった！';
           final primaryIsBone =
-              (result?.promoted ?? result?.newFollower)?.kind ==
-              FollowerKind.bone;
+              result?.rewardFollower.kind == FollowerKind.bone;
           final followerImageHeight =
               followerWidth * (primaryIsBone ? 419 / 953 : 571 / 854);
-          final extraBoneWidth = math.min(64.0, width * .18);
-          final extraBoneImageHeight = extraBoneWidth * 419 / 953;
           final followerHeight =
               followerImageHeight +
               followerGap +
@@ -224,22 +220,9 @@ class _CanStageState extends State<CanStage>
                 followerStyle,
                 followerWidth,
               ).height;
-          final extraBoneHeight =
-              extraBoneImageHeight +
-              _measureText(
-                context,
-                '新しい仲間',
-                _followerLabelStyle,
-                extraBoneWidth,
-              ).height;
           final actorHeight = math.max(
             parentVisible ? parentHeight : 0.0,
-            showingResult || returning
-                ? math.max(
-                    followerHeight,
-                    separateNewBone ? extraBoneHeight : 0.0,
-                  )
-                : 0.0,
+            showingResult || returning ? followerHeight : 0.0,
           );
           final stageHeight = playing
               ? constraints.hasBoundedHeight
@@ -299,6 +282,14 @@ class _CanStageState extends State<CanStage>
                 return Stack(
                   clipBehavior: Clip.none,
                   children: [
+                    if (!playing)
+                      Positioned(
+                        left: canLeft - 12,
+                        bottom: 0,
+                        width: canWidth + 24,
+                        height: 23,
+                        child: const ConveyorPlatform(),
+                      ),
                     canLayer(
                       CustomPaint(
                         key: const Key('can-mouth'),
@@ -367,26 +358,22 @@ class _CanStageState extends State<CanStage>
                         semanticLabel: primaryIsBone ? '骨の子分' : '獲得・成長した子分',
                         motionKey: const Key('follower-motion-primary'),
                       ),
-                    if (separateNewBone && (showingResult || returning))
-                      _follower(
-                        left: width - extraBoneWidth,
-                        bottom: followerBottom + 12,
-                        diveDistance:
-                            insideTop -
-                            followerBaseline +
-                            12 +
-                            extraBoneImageHeight *
-                                (1 + _followerFinalScale) /
-                                2,
-                        maxDescent: insideBottom - followerBaseline + 12,
-                        width: extraBoneWidth,
-                        imageHeight: extraBoneImageHeight,
-                        targetX: canCenter,
-                        progress: returning ? _part(.4, .8) : 0,
-                        label: '新しい仲間',
-                        image: boneFollowerAsset,
-                        semanticLabel: '新しく獲得した骨の子分',
-                        motionKey: const Key('follower-motion-new-bone'),
+                    if (showingResult &&
+                        _kind == _CanMotion.poof &&
+                        _motion.value < 1)
+                      Positioned(
+                        key: const Key('shobone-smoke'),
+                        left: canCenter - followerWidth * .72,
+                        bottom: followerBottom - 4,
+                        width: followerWidth * 1.44,
+                        height: followerImageHeight * 1.55,
+                        child: IgnorePointer(
+                          child: ExcludeSemantics(
+                            child: CustomPaint(
+                              painter: _SmokePainter(_motion.value),
+                            ),
+                          ),
+                        ),
                       ),
                     canLayer(
                       TunaCan(
@@ -457,7 +444,11 @@ class _CanStageState extends State<CanStage>
           ),
           if (labelGap > 0) SizedBox(height: labelGap),
           Opacity(
-            opacity: progress < 1 ? 1 : 0,
+            opacity: progress < 1
+                ? _kind == _CanMotion.poof
+                      ? _part(.2, .55)
+                      : 1
+                : 0,
             child: Transform.translate(
               key: motionKey,
               offset: Offset((targetX - left - width / 2) * progress, descent),
@@ -480,6 +471,50 @@ class _CanStageState extends State<CanStage>
       ),
     );
   }
+}
+
+class _SmokePainter extends CustomPainter {
+  const _SmokePainter(this.progress);
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final growth = Curves.easeOutCubic.transform(
+      (progress / .5).clamp(0.0, 1.0),
+    );
+    final fade = 1 - const Interval(.4, 1).transform(progress);
+    final opacity = (progress * 9).clamp(0.0, 1.0) * fade;
+    for (var i = 0; i < 7; i++) {
+      final angle = i * math.pi * 2 / 7;
+      final center = Offset(
+        size.width / 2 + math.cos(angle) * size.width * .23 * growth,
+        size.height * .64 +
+            math.sin(angle) * size.height * .2 * growth -
+            size.height * .22 * progress,
+      );
+      final radius = size.shortestSide * (.17 + .08 * growth);
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()..color = const Color(0xFFF4ECDE).withValues(alpha: opacity),
+      );
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        angle - .7,
+        2.3,
+        false,
+        Paint()
+          ..color = const Color(0xFFBCAF9B).withValues(alpha: opacity * .8)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SmokePainter oldDelegate) =>
+      progress != oldDelegate.progress;
 }
 
 const _canInk = Color(0xFF392923);

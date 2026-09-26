@@ -33,7 +33,11 @@ void main() {
         final result = EncounterResult(
           outcome: outcome,
           peer: peer,
-          newFollower: outcome == Outcome.win ? grownFollower : newBone,
+          newFollower: outcome == Outcome.coopSuccess
+              ? null
+              : outcome == Outcome.win
+              ? grownFollower
+              : newBone,
           promoted: outcome == Outcome.coopSuccess ? grownFollower : null,
           delta: 3,
         );
@@ -68,7 +72,7 @@ void main() {
           of: find.byType(CanStage),
           matching: find.byType(Image),
         );
-        expect(images, findsNWidgets(outcome == Outcome.win ? 1 : 2));
+        expect(images, findsOneWidget);
         for (final image in images.evaluate()) {
           final rect = tester.getRect(find.byWidget(image.widget));
           expect(rect.top, greaterThanOrEqualTo(stageRect.top));
@@ -77,7 +81,7 @@ void main() {
           expect(stageRect.inflate(.1).contains(rect.topLeft), isTrue);
           expect(stageRect.inflate(.1).contains(rect.bottomRight), isTrue);
         }
-        final title = find.text(outcome == Outcome.win ? 'やった！' : 'REBORN');
+        final title = find.text(outcome == Outcome.win ? 'ツナがった！' : 'REBORN');
         expect(title, findsOneWidget);
         final titleRect = tester.getRect(title);
         expect(stageRect.inflate(.1).contains(titleRect.topLeft), isTrue);
@@ -98,9 +102,17 @@ void main() {
         final result = EncounterResult(
           outcome: outcome,
           peer: peer,
-          newFollower: outcome == Outcome.win ? grownFollower : newBone,
+          newFollower: outcome == Outcome.coopSuccess
+              ? null
+              : outcome == Outcome.win
+              ? grownFollower
+              : newBone,
           promoted: outcome == Outcome.coopSuccess ? grownFollower : null,
-          delta: outcome == Outcome.loss ? 1 : 3,
+          delta: outcome == Outcome.loss
+              ? 1
+              : outcome == Outcome.coopSuccess
+              ? 2
+              : 3,
         );
         var completions = 0;
         Widget scene(AppPhase phase) => MaterialApp(
@@ -132,7 +144,7 @@ void main() {
           of: find.byType(CanStage),
           matching: find.byType(Image),
         );
-        expect(images, findsNWidgets(outcome == Outcome.coopSuccess ? 2 : 1));
+        expect(images, findsOneWidget);
 
         // Inspect the full motion, especially the late dive before the actors
         // become transparent. Clipping alone must not hide an overshooting path.
@@ -166,6 +178,44 @@ void main() {
         expect(completions, 1);
       });
     }
+  }
+
+  for (final reduced in [false, true]) {
+    testWidgets('ショBONEの煙は一度だけ出て消え、動作軽減では表示しない ($reduced)', (tester) async {
+      Widget scene() => MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: reduced),
+          child: const Scaffold(
+            body: SizedBox(
+              width: 360,
+              child: CanStage(
+                phase: AppPhase.result,
+                profile: profile,
+                result: EncounterResult(
+                  outcome: Outcome.loss,
+                  peer: peer,
+                  newFollower: newBone,
+                  delta: 1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(scene());
+      final smoke = find.byKey(const Key('shobone-smoke'));
+      expect(smoke, reduced ? findsNothing : findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpWidget(scene());
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(smoke, findsNothing);
+      expect(find.text('ショBONE'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '骨の子分'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
   }
 
   for (final reduceMotion in [false, true]) {

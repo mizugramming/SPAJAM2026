@@ -6,6 +6,8 @@ import '../../data/demo_controller.dart';
 import '../../domain/models.dart';
 import 'can_stage.dart';
 import 'game_scene.dart';
+import 'factory_backdrop.dart';
+import 'final_awards.dart';
 import 'illustrated_details.dart';
 import 'tug_of_war_finale.dart';
 
@@ -139,111 +141,117 @@ class _DemoPageState extends State<DemoPage> {
                         onCompleted: (outcome) =>
                             completeGame(generation, peerId!, outcome),
                       )
-                    : LayoutBuilder(
-                        builder: (context, constraints) => SingleChildScrollView(
-                          controller: sceneScroll,
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: scenePadding,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: phase == AppPhase.entry
-                                  ? (constraints.maxHeight -
-                                            scenePadding.vertical)
-                                        .clamp(0.0, double.infinity)
-                                  : 0,
-                            ),
-                            child: Column(
-                              mainAxisAlignment: phase == AppPhase.entry
-                                  ? MainAxisAlignment.center
-                                  : MainAxisAlignment.start,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Wrap(
-                                  alignment: WrapAlignment.spaceBetween,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  spacing: 8,
-                                  children: [
-                                    const TsunagunWordmark(),
-                                    TextButton.icon(
-                                      key: const Key('demo-info'),
-                                      onPressed: showDemoInfo,
-                                      icon: const Icon(
-                                        Icons.info_outline,
-                                        size: 16,
-                                      ),
-                                      label: const Text('1台用 DEMO'),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                if (inEvent) ...[
+                    : FactoryBackdrop(
+                        transitionKey: phase,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) => SingleChildScrollView(
+                            controller: sceneScroll,
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: scenePadding,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: phase == AppPhase.entry
+                                    ? (constraints.maxHeight -
+                                              scenePadding.vertical)
+                                          .clamp(0.0, double.infinity)
+                                    : 0,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: phase == AppPhase.entry
+                                    ? MainAxisAlignment.center
+                                    : MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
                                   Wrap(
-                                    spacing: 12,
-                                    runSpacing: 6,
                                     alignment: WrapAlignment.spaceBetween,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    spacing: 8,
                                     children: [
-                                      Text(
-                                        '${demo.roomName} · ${demo.self.team.label}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          color: demo.self.team == Team.red
-                                              ? TsunagunColors.red
-                                              : TsunagunColors.blue,
+                                      const TsunagunWordmark(),
+                                      TextButton.icon(
+                                        key: const Key('demo-info'),
+                                        onPressed: showDemoInfo,
+                                        icon: const Icon(
+                                          Icons.info_outline,
+                                          size: 16,
                                         ),
-                                      ),
-                                      Text(
-                                        demo.isClosing
-                                            ? '終了処理中'
-                                            : '残り ${formatTime(demo.remaining)}',
-                                        key: const Key('remaining-time'),
+                                        label: const Text('1台用 DEMO'),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
-                                ],
-                                if (phase != AppPhase.finale &&
-                                    phase != AppPhase.results)
-                                  AnimatedSize(
-                                    duration: const Duration(milliseconds: 350),
-                                    curve: Curves.easeInOut,
-                                    child: CanStage(
-                                      phase: phase,
-                                      profile: demo.profileDraft,
-                                      result: demo.lastResult,
-                                      team: inEvent ? demo.self.team : null,
-                                      onReturnComplete: demo.finishReturn,
+                                  const SizedBox(height: 8),
+                                  if (inEvent) ...[
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 6,
+                                      alignment: WrapAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '${demo.roomName} · ${demo.self.team.label}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            color: demo.self.team == Team.red
+                                                ? TsunagunColors.red
+                                                : TsunagunColors.blue,
+                                          ),
+                                        ),
+                                        Text(
+                                          demo.isClosing
+                                              ? '終了処理中'
+                                              : '残り ${formatTime(demo.remaining)}',
+                                          key: const Key('remaining-time'),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                  if (phase != AppPhase.finale &&
+                                      phase != AppPhase.results)
+                                    AnimatedSize(
+                                      duration: const Duration(
+                                        milliseconds: 350,
+                                      ),
+                                      curve: Curves.easeInOut,
+                                      child: CanStage(
+                                        phase: phase,
+                                        profile: demo.profileDraft,
+                                        result: demo.lastResult,
+                                        team: inEvent ? demo.self.team : null,
+                                        onReturnComplete: demo.finishReturn,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 20),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 250),
+                                    switchInCurve: Curves.easeOut,
+                                    child: Column(
+                                      key: ValueKey(phase),
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: panel(phase),
                                     ),
                                   ),
-                                const SizedBox(height: 20),
-                                AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 250),
-                                  switchInCurve: Curves.easeOut,
-                                  child: Column(
-                                    key: ValueKey(phase),
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: panel(phase),
-                                  ),
-                                ),
-                                if (error != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 12),
-                                    child: Semantics(
-                                      liveRegion: true,
-                                      child: Text(
-                                        error!,
-                                        key: const Key('form-error'),
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.error,
+                                  if (error != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: Semantics(
+                                        liveRegion: true,
+                                        child: Text(
+                                          error!,
+                                          key: const Key('form-error'),
+                                          style: TextStyle(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.error,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                const SizedBox(height: 20),
-                              ],
+                                  const SizedBox(height: 20),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -393,7 +401,7 @@ class _DemoPageState extends State<DemoPage> {
             key: const Key('meet-peer'),
             onPressed: () => runAction(demo.openPairing),
             icon: const Icon(Icons.waving_hand_outlined),
-            label: const Text('相手とつながる'),
+            label: const Text('ツナがる'),
           ),
           const SizedBox(height: 8),
           const Text('同じチームなら協力。違うチームなら対戦。'),
@@ -465,11 +473,11 @@ class _DemoPageState extends State<DemoPage> {
         final isSetback =
             result.outcome == Outcome.loss ||
             result.outcome == Outcome.coopFailure;
-        final title = switch (result.outcome) {
-          Outcome.win => '新しい仲間が、缶にやってきた！',
-          Outcome.loss || Outcome.coopFailure => '骨の子分も、大切な仲間。',
-          Outcome.coopSuccess => '力を合わせて、元気いっぱい！',
-        };
+        final title = isSetback
+            ? '骨の子分も、大切な仲間。'
+            : result.promoted != null
+            ? '${result.promoted!.profile.nickname}の子分が元気になった！'
+            : '${result.peer.profile.nickname}の子分が仲間入り！';
         return [
           Text(
             title,
@@ -480,23 +488,16 @@ class _DemoPageState extends State<DemoPage> {
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            isSetback
-                ? '同じチームと協力ゲーム！\n力を合わせて、元気にしよう。'
-                : result.promoted != null
-                ? '${result.promoted!.profile.nickname}の子分が、元気に！'
-                : '${result.peer.profile.nickname}と、ツナがった！',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15, height: 1.7),
-          ),
-          if (result.promoted != null &&
-              result.promoted!.id != result.newFollower.id)
+          if (isSetback || result.promoted != null) ...[
+            const SizedBox(height: 10),
             Text(
-              '${result.peer.profile.nickname}の骨の子分も仲間入り！',
+              isSetback
+                  ? '同じチームと協力して、元気にしよう！'
+                  : '${result.peer.profile.nickname}と力を合わせて復活！',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 15, height: 1.7),
             ),
+          ],
           const SizedBox(height: 12),
           Text(
             'ちから +${result.delta}',
@@ -521,69 +522,9 @@ class _DemoPageState extends State<DemoPage> {
         ];
       case AppPhase.results:
         final snapshot = demo.finalSnapshot!;
-        final mvps = snapshot.rankings.where(
-          (entry) => snapshot.mvpIds.contains(entry.participant.id),
-        );
         return [
           heading('今日、つながった仲間。'),
-          Padding(
-            padding: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.emoji_events_outlined, size: 36),
-                  const Text(
-                    '今日のMVP',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    mvps.isEmpty
-                        ? '今回は該当者なし'
-                        : mvps
-                              .map(
-                                (entry) => entry.participant.profile.nickname,
-                              )
-                              .join(' ・ '),
-                    style: const TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    mvps.isEmpty
-                        ? 'まだ交流結果がないため、MVPはいません。'
-                        : 'いちばん多くのちからを集めた人。\n同点のときは、みんながMVP。',
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'このルームのランキング',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          ...snapshot.rankings.map(
-            (entry) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Text(
-                '${entry.rank}',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              title: Text(
-                '${entry.participant.profile.nickname}${entry.participant.isSelf ? '（あなた）' : ''}',
-              ),
-              subtitle: Text(
-                '${entry.participant.team.label} · 子分${entry.normalCount} / 骨${entry.boneCount} · ちから${entry.power}',
-              ),
-            ),
-          ),
+          FinalAwards(snapshot: snapshot),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: () => showCollection(null),
@@ -798,6 +739,7 @@ class _DemoPageState extends State<DemoPage> {
                       onTap: () => showProfile(
                         follower.profile,
                         follower.kind == FollowerKind.bone ? '骨の子分' : '子分',
+                        revivedWith: follower.revivedWith,
                       ),
                     );
                   },
@@ -814,7 +756,7 @@ class _DemoPageState extends State<DemoPage> {
     ).whenComplete(() => openSheets--);
   }
 
-  void showProfile(Profile profile, String kind) {
+  void showProfile(Profile profile, String kind, {Participant? revivedWith}) {
     openSheets++;
     showModalBottomSheet<void>(
       context: context,
@@ -856,6 +798,26 @@ class _DemoPageState extends State<DemoPage> {
             FollowerQuote(
               text: profile.comment.isEmpty ? 'まだひとことはありません。' : profile.comment,
             ),
+            if (revivedWith != null) ...[
+              const SizedBox(height: 22),
+              const Divider(),
+              const SizedBox(height: 10),
+              const Text(
+                '復活を手伝った仲間',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              heading(revivedWith.profile.nickname),
+              const Text('趣味', style: TextStyle(fontWeight: FontWeight.w800)),
+              Text(revivedWith.profile.hobby),
+              const SizedBox(height: 12),
+              const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w800)),
+              FollowerQuote(
+                text: revivedWith.profile.comment.isEmpty
+                    ? 'まだひとことはありません。'
+                    : revivedWith.profile.comment,
+              ),
+            ],
             const SizedBox(height: 16),
             TextButton(
               onPressed: () => Navigator.pop(context),
