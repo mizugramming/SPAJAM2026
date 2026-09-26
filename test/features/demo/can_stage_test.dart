@@ -87,6 +87,87 @@ void main() {
     });
   }
 
+  for (final settings in [
+    (name: '通常文字', scale: 1.0, width: 372.0),
+    (name: '文字2倍・360幅', scale: 2.0, width: 320.0),
+  ]) {
+    for (final outcome in [Outcome.win, Outcome.loss, Outcome.coopSuccess]) {
+      testWidgets('帰還中の子分は缶底を越えない（${settings.name}・${outcome.name}）', (
+        tester,
+      ) async {
+        final result = EncounterResult(
+          outcome: outcome,
+          peer: peer,
+          newFollower: outcome == Outcome.win ? grownFollower : newBone,
+          promoted: outcome == Outcome.coopSuccess ? grownFollower : null,
+          delta: outcome == Outcome.loss ? 1 : 3,
+        );
+        var completions = 0;
+        Widget scene(AppPhase phase) => MaterialApp(
+          home: Scaffold(
+            body: MediaQuery(
+              data: MediaQueryData(
+                textScaler: TextScaler.linear(settings.scale),
+              ),
+              child: SingleChildScrollView(
+                child: SizedBox(
+                  width: settings.width,
+                  child: CanStage(
+                    phase: phase,
+                    profile: profile,
+                    result: result,
+                    team: Team.red,
+                    onReturnComplete: () => completions++,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpWidget(scene(AppPhase.result));
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(scene(AppPhase.returning));
+        final images = find.descendant(
+          of: find.byType(CanStage),
+          matching: find.byType(Image),
+        );
+        expect(images, findsNWidgets(outcome == Outcome.coopSuccess ? 2 : 1));
+
+        // Inspect the full motion, especially the late dive before the actors
+        // become transparent. Clipping alone must not hide an overshooting path.
+        for (var elapsed = 0; elapsed <= 1800; elapsed += 100) {
+          if (elapsed > 0) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          final canBottom = tester.getRect(find.byType(TunaCan)).bottom;
+          for (final image in images.evaluate()) {
+            final box = image.renderObject! as RenderBox;
+            final paintedCorners = [
+              Offset.zero,
+              Offset(box.size.width, 0),
+              Offset(0, box.size.height),
+              Offset(box.size.width, box.size.height),
+            ].map(box.localToGlobal);
+            final bottom = paintedCorners
+                .map((point) => point.dy)
+                .reduce((a, b) => a > b ? a : b);
+            expect(
+              bottom,
+              lessThanOrEqualTo(canBottom + .1),
+              reason:
+                  '${outcome.name}, ${settings.name}, ${elapsed}ms: '
+                  '${(image.widget as Image).semanticLabel}の下端が缶底を越えた',
+            );
+          }
+          expect(tester.takeException(), isNull);
+        }
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(completions, 1);
+      });
+    }
+  }
+
   for (final reduceMotion in [false, true]) {
     testWidgets('帰還完了は再描画されても一度だけ通知する（動作軽減: $reduceMotion）', (tester) async {
       var completions = 0;

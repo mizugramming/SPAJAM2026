@@ -8,6 +8,7 @@ import 'curved_label.dart';
 const parentAsset = 'assets/characters/oyabun.png';
 const normalFollowerAsset = 'assets/characters/kobun_normal.png';
 const boneFollowerAsset = 'assets/characters/kobun_bone.png';
+const _followerFinalScale = .78;
 
 enum _CanMotion { idle, emerge, returnInside, celebrate }
 
@@ -251,8 +252,11 @@ class _CanStageState extends State<CanStage>
           final mouthY = canTop + 23 * canScale;
           // Rest the followers above the closed lid. Anchor their actual
           // layout from below so title wrapping cannot push the image down.
-          final followerBaseline = canTop + 2;
+          final canGeometry = _CanGeometry(Size(canWidth, canHeight), false);
+          final followerBaseline = canTop + canGeometry.lid.top - 2;
           final followerBottom = stageHeight - followerBaseline;
+          final insideTop = canTop + canGeometry.lid.bottom + 4;
+          final insideBottom = canTop + canGeometry.bottomSide - 2;
           final canCenter = playing ? width - 12 - 48 : width / 2;
           final parentLeft = canCenter - parentWidth / 2;
           final parentTop = mouthY - parentHeight;
@@ -342,7 +346,10 @@ class _CanStageState extends State<CanStage>
                             : 0,
                         bottom: followerBottom,
                         diveDistance:
-                            followerHeight * 1.05 + mouthY - followerBaseline,
+                            insideTop -
+                            followerBaseline +
+                            followerImageHeight * (1 + _followerFinalScale) / 2,
+                        maxDescent: insideBottom - followerBaseline,
                         width: followerWidth,
                         imageHeight: followerImageHeight,
                         targetX: canCenter,
@@ -365,10 +372,13 @@ class _CanStageState extends State<CanStage>
                         left: width - extraBoneWidth,
                         bottom: followerBottom + 12,
                         diveDistance:
-                            extraBoneHeight * 1.05 +
-                            mouthY -
+                            insideTop -
                             followerBaseline +
-                            12,
+                            12 +
+                            extraBoneImageHeight *
+                                (1 + _followerFinalScale) /
+                                2,
+                        maxDescent: insideBottom - followerBaseline + 12,
                         width: extraBoneWidth,
                         imageHeight: extraBoneImageHeight,
                         targetX: canCenter,
@@ -402,6 +412,7 @@ class _CanStageState extends State<CanStage>
     required double left,
     required double bottom,
     required double diveDistance,
+    required double maxDescent,
     required double width,
     required double imageHeight,
     required double targetX,
@@ -414,51 +425,61 @@ class _CanStageState extends State<CanStage>
     double labelGap = 0,
     Key? labelKey,
     bool celebrate = false,
-  }) => Positioned(
-    left: left,
-    bottom: bottom,
-    width: width,
-    child: Opacity(
-      opacity: progress < 1 ? 1 : 0,
-      child: Transform.translate(
-        key: motionKey,
-        offset: Offset(
-          (targetX - left - width / 2) * progress,
-          diveDistance * progress -
-              math.sin(progress * math.pi) * 64 -
-              (celebrate ? math.sin(_motion.value * math.pi) * 12 : 0),
-        ),
-        child: Transform.rotate(
-          angle: math.sin(progress * math.pi) * (left < targetX ? .22 : -.22),
-          child: Transform.scale(
-            scale: 1 - progress * .22,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Opacity(
-                  opacity: (1 - progress * 4).clamp(0.0, 1.0),
-                  child: Text(
-                    label,
-                    key: labelKey,
-                    textAlign: TextAlign.center,
-                    style: labelStyle,
-                  ),
-                ),
-                if (labelGap > 0) SizedBox(height: labelGap),
-                Image.asset(
-                  image,
-                  width: width,
-                  height: imageHeight,
-                  fit: BoxFit.contain,
-                  semanticLabel: semanticLabel,
-                ),
-              ],
+  }) {
+    final angle = math.sin(progress * math.pi) * (left < targetX ? .22 : -.22);
+    final scale = 1 - progress * (1 - _followerFinalScale);
+    // Only the image dives. The fading heading must not lengthen its path or
+    // shift its rotation pivot. Account for every rotated corner at the floor.
+    final rotatedHeight =
+        scale *
+        (imageHeight * math.cos(angle).abs() + width * math.sin(angle).abs());
+    final descent = math.min(
+      diveDistance * progress -
+          math.sin(progress * math.pi) * 64 -
+          (celebrate ? math.sin(_motion.value * math.pi) * 12 : 0),
+      maxDescent - (rotatedHeight - imageHeight) / 2,
+    );
+    return Positioned(
+      left: left,
+      bottom: bottom,
+      width: width,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Opacity(
+            opacity: (1 - progress * 4).clamp(0.0, 1.0),
+            child: Text(
+              label,
+              key: labelKey,
+              textAlign: TextAlign.center,
+              style: labelStyle,
             ),
           ),
-        ),
+          if (labelGap > 0) SizedBox(height: labelGap),
+          Opacity(
+            opacity: progress < 1 ? 1 : 0,
+            child: Transform.translate(
+              key: motionKey,
+              offset: Offset((targetX - left - width / 2) * progress, descent),
+              child: Transform.rotate(
+                angle: angle,
+                child: Transform.scale(
+                  scale: scale,
+                  child: Image.asset(
+                    image,
+                    width: width,
+                    height: imageHeight,
+                    fit: BoxFit.contain,
+                    semanticLabel: semanticLabel,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 const _canInk = Color(0xFF392923);
