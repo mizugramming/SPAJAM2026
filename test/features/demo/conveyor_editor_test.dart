@@ -173,6 +173,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('スライダーで300%まで広げて保存し、再読込しても最大値を復元する', (tester) async {
+    final store = MemoryConveyorLayoutStore();
+    final app = await _launch(tester, store);
+    await _open(tester);
+    final slider = find.byKey(const Key('conveyor-scale-slider'));
+    await tester.ensureVisible(slider);
+    await tester.pumpAndSettle();
+    await tester.drag(slider, const Offset(500, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('300%'), findsOneWidget);
+    expect(_draft(tester).scale, 3);
+    expect(app.settings.value.scale, 1);
+    await _tap(tester, 'save-conveyor-layout');
+    expect(_actualStage(tester).conveyorLayout.scale, 3);
+    final restored = ConveyorSettings(store: store);
+    addTearDown(restored.dispose);
+    await restored.load();
+    expect(restored.value.scale, 3);
+    expect(restored.loadError, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('保存失敗では実画面と保存値を保ち、同じdraftを再試行できる', (tester) async {
     const saved = ConveyorLayout(offsetX: 5);
     final store = _FailOnceStore(initialValue: saved);

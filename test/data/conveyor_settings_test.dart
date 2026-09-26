@@ -94,6 +94,7 @@ void main() {
     for (final layout in [
       const ConveyorLayout(scale: .6, offsetX: -100, offsetY: 100),
       const ConveyorLayout(scale: 1.8, offsetX: 100, offsetY: -100),
+      const ConveyorLayout(scale: 3, offsetX: 100, offsetY: -100),
     ]) {
       expect(ConveyorLayout.decode(layout.encode()), layout);
     }
@@ -120,7 +121,7 @@ void main() {
       {...valid, 'scale': true},
       {...valid, 'scale': null},
       {...valid, 'scale': .5999},
-      {...valid, 'scale': 1.8001},
+      {...valid, 'scale': 3.0001},
       {...valid, 'offsetX': -100.1},
       {...valid, 'offsetY': 100.1},
       {...valid, 'offsetY': 'NaN'},

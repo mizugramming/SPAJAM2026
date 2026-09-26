@@ -88,7 +88,7 @@ void main() {
         closeTo(originalBelt.top + originalBelt.height * .44, .1),
       );
 
-      for (final zoom in [.6, 1.8]) {
+      for (final zoom in [.6, 3.0]) {
         for (final x in [-100.0, 100.0]) {
           for (final y in [-100.0, 100.0]) {
             final layout = ConveyorLayout(scale: zoom, offsetX: x, offsetY: y);
@@ -196,7 +196,7 @@ void main() {
         delta: follower.power,
       );
       var completions = 0;
-      var layout = const ConveyorLayout(scale: 1.8, offsetX: 100, offsetY: 100);
+      var layout = const ConveyorLayout(scale: 3, offsetX: 100, offsetY: 100);
       Widget current(AppPhase phase) => _scene(
         phase: phase,
         layout: layout,

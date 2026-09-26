@@ -234,7 +234,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
                   const Positioned.fill(
                     child: CustomPaint(painter: _FactoryArenaPainter()),
                   ),
-                  _audience(constraints.maxWidth),
+                  _audience(constraints.maxWidth, seconds),
                   for (final team in Team.values)
                     Positioned(
                       left:
@@ -410,7 +410,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
     ],
   );
 
-  Widget _audience(double width) => Positioned.fill(
+  Widget _audience(double width, double seconds) => Positioned.fill(
     child: ExcludeSemantics(
       child: Stack(
         key: const Key('tug-decorative-audience'),
@@ -420,8 +420,11 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
             for (var row = 0; row < 2; row++)
               for (var seat = 0; seat < 3; seat++)
                 Positioned(
+                  key: Key('tug-spectator-${red ? 'red' : 'blue'}-$row-$seat'),
                   left: width * ((red ? .065 : .565) + seat * .13),
-                  top: width * (.07 + row * .12),
+                  top:
+                      width * (.07 + row * .12) -
+                      _spectatorLift(width, seconds, red, row, seat),
                   width: width * .11,
                   height: width * .095,
                   child: _actor(
@@ -436,6 +439,32 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
       ),
     ),
   );
+
+  double _spectatorLift(
+    double width,
+    double seconds,
+    bool red,
+    int row,
+    int seat,
+  ) {
+    if (!_started ||
+        _reduceMotion ||
+        _hasNoPower ||
+        seconds < _countdownSeconds ||
+        seconds >= _totalSeconds) {
+      return 0;
+    }
+    // Deterministic seat offsets make both teams cheer independently of score.
+    // Every hop includes time on the bench; the final envelope lands everyone.
+    final elapsed =
+        seconds - _countdownSeconds - row * .16 - seat * .09 - (red ? 0 : .12);
+    if (elapsed <= 0) return 0;
+    final hop = ((elapsed % 1.08) / .62).clamp(0.0, 1.0);
+    final landing = ((_totalSeconds - seconds) / .9).clamp(0.0, 1.0);
+    // This maximum leaves space between the two rows, even when only the
+    // lower spectator is airborne. Captains and the rope remain the focus.
+    return math.sin(hop * math.pi) * width * .018 * landing;
+  }
 
   Widget _captain(
     Team team,

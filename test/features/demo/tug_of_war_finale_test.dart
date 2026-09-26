@@ -77,6 +77,26 @@ void expectHiddenScore() {
   expect(find.byKey(const Key('show-results')), findsNothing);
 }
 
+Map<String, Rect> spectatorRects(WidgetTester tester) {
+  final origin = tester.getTopLeft(find.byKey(const Key('tug-arena')));
+  return {
+    for (final team in Team.values)
+      for (var row = 0; row < 2; row++)
+        for (var seat = 0; seat < 3; seat++)
+          '${team.name}-$row-$seat': tester
+              .getRect(find.byKey(Key('tug-spectator-${team.name}-$row-$seat')))
+              .shift(-origin),
+  };
+}
+
+void expectSpectatorsSeated(Map<String, Rect> actual, Map<String, Rect> seats) {
+  for (final seat in seats.entries) {
+    expect(actual[seat.key]!.left, closeTo(seat.value.left, .01));
+    expect(actual[seat.key]!.top, closeTo(seat.value.top, .01));
+    expect(actual[seat.key]!.size, seat.value.size);
+  }
+}
+
 void main() {
   testWidgets('開始ボタンまでは静止し、カウント・途中の点数・勝敗を先に出さない', (tester) async {
     narrowScreen(tester);
@@ -396,6 +416,123 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 20));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('観客は開始とカウントを待ち、引き合い中に席ごとに跳ねて重ならず着地する', (tester) async {
+    narrowScreen(tester);
+    final result = snapshot(7, 3);
+    await tester.pumpWidget(scene(result, scale: 2));
+    await tester.pumpAndSettle();
+    final seats = spectatorRects(tester);
+    await tester.pump(const Duration(seconds: 5));
+    expectSpectatorsSeated(spectatorRects(tester), seats);
+    await start(tester);
+    await tester.pump(const Duration(seconds: 2));
+    expectSpectatorsSeated(spectatorRects(tester), seats);
+    await tester.pump(const Duration(milliseconds: 1250));
+    final firstHop = spectatorRects(tester);
+    final firstLift = seats['red-0-0']!.top - firstHop['red-0-0']!.top;
+    final nextLift = seats['blue-0-0']!.top - firstHop['blue-0-0']!.top;
+    expect(firstLift, greaterThan(4));
+    expect(nextLift, greaterThan(0));
+    expect(firstLift, isNot(closeTo(nextLift, .1)));
+    expect(firstHop['red-1-2']!.top, closeTo(seats['red-1-2']!.top, .01));
+
+    final arenaSize = tester.getSize(find.byKey(const Key('tug-arena')));
+    final jumped = <String>{};
+    for (var elapsed = 3250; elapsed < 13000; elapsed += 150) {
+      if (elapsed > 3250) await tester.pump(const Duration(milliseconds: 150));
+      final positions = spectatorRects(tester);
+      expect(positions, hasLength(12));
+      for (final seat in positions.entries) {
+        final lift = seats[seat.key]!.top - seat.value.top;
+        if (lift > .5) jumped.add(seat.key);
+        expect(lift, greaterThanOrEqualTo(-.01));
+        expect(lift, lessThanOrEqualTo(arenaSize.width * .018 + .01));
+        expect(seat.value.left, closeTo(seats[seat.key]!.left, .01));
+        expect(seat.value.top, greaterThanOrEqualTo(0));
+        expect(seat.value.right, lessThanOrEqualTo(arenaSize.width));
+      }
+      final rects = positions.values.toList();
+      for (var i = 0; i < rects.length; i++) {
+        for (var j = i + 1; j < rects.length; j++) {
+          expect(
+            rects[i].overlaps(rects[j]),
+            isFalse,
+            reason: '$elapsed ms: seats $i / $j',
+          );
+        }
+      }
+    }
+    expect(jumped, seats.keys.toSet());
+    await tester.pumpAndSettle();
+    expectSpectatorsSeated(spectatorRects(tester), seats);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    await tester.pumpWidget(scene(result, scale: 2));
+    await tester.pump(const Duration(seconds: 2));
+    expectSpectatorsSeated(spectatorRects(tester), seats);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('両チームの観客の応援は勝敗や所持数に依存せず、同点でも同じタイミングで動く', (tester) async {
+    narrowScreen(tester);
+    Map<String, Rect>? reference;
+    for (final result in [snapshot(18, 1), snapshot(1, 18), snapshot(3, 3)]) {
+      await tester.pumpWidget(scene(result));
+      await start(tester);
+      await tester.pump(const Duration(milliseconds: 6370));
+      final positions = spectatorRects(tester);
+      if (reference == null) {
+        reference = positions;
+      } else {
+        expectSpectatorsSeated(positions, reference);
+      }
+      expectHiddenScore();
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('スキップ・動作軽減・0対0では観客が席に戻り、追加のループを残さない', (tester) async {
+    narrowScreen(tester);
+    final result = snapshot(7, 3);
+    await tester.pumpWidget(scene(result));
+    final seats = spectatorRects(tester);
+    await start(tester);
+    await tester.pump(const Duration(milliseconds: 3250));
+    expect(
+      spectatorRects(tester)['red-0-0']!.top,
+      lessThan(seats['red-0-0']!.top),
+    );
+    await skip(tester);
+    expectSpectatorsSeated(spectatorRects(tester), seats);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+
+    final next = snapshot(3, 7);
+    await tester.pumpWidget(scene(next));
+    await start(tester);
+    await tester.pump(const Duration(milliseconds: 3250));
+    await tester.pumpWidget(scene(next, reduceMotion: true));
+    expectSpectatorsSeated(spectatorRects(tester), seats);
+    await tester.pumpAndSettle();
+    expect(tester.binding.hasScheduledFrame, isFalse);
+
+    for (final setting in [
+      (reduce: true, result: snapshot(7, 3)),
+      (reduce: false, result: snapshot(0, 0)),
+    ]) {
+      await tester.pumpWidget(
+        scene(setting.result, reduceMotion: setting.reduce),
+      );
+      expectSpectatorsSeated(spectatorRects(tester), seats);
+      await start(tester);
+      await tester.pumpAndSettle();
+      expectSpectatorsSeated(spectatorRects(tester), seats);
+      await tester.pump(const Duration(seconds: 3));
+      expectSpectatorsSeated(spectatorRects(tester), seats);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    }
     expect(tester.takeException(), isNull);
   });
 }

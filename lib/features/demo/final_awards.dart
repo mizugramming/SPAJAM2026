@@ -13,6 +13,10 @@ class FinalAwards extends StatelessWidget {
     final mvps = snapshot.rankings.where(
       (entry) => snapshot.mvpIds.contains(entry.participant.id),
     );
+    final topRankings = snapshot.rankings.where((entry) => entry.rank <= 3);
+    final selfBelowTop = snapshot.rankings.where(
+      (entry) => entry.participant.isSelf && entry.rank > 3,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -75,60 +79,81 @@ class FinalAwards extends StatelessWidget {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 8),
-        ...snapshot.rankings.map(
-          (entry) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 32,
-                  child: Text(
-                    '${entry.rank}',
-                    style: const TextStyle(
-                      fontSize: 25,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${entry.participant.profile.nickname}${entry.participant.isSelf ? '（あなた）' : ''}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(entry.participant.team.label),
-                      const SizedBox(height: 6),
-                      _CountLine(
-                        asset: normalFollowerAsset,
-                        text:
-                            '子分 ${entry.normalCount}匹 × 3pt = ${entry.normalCount * 3}pt',
-                      ),
-                      _CountLine(
-                        asset: boneFollowerAsset,
-                        text:
-                            '骨 ${entry.boneCount}匹 × 1pt = ${entry.boneCount}pt',
-                      ),
-                      Text(
-                        'ちから ${entry.power}',
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+        ...topRankings.map(
+          (entry) => _RankingRow(
+            key: ValueKey('ranking-${entry.participant.id}'),
+            entry: entry,
           ),
         ),
+        if (selfBelowTop.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Text(
+            'あなたの順位',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          ...selfBelowTop.map(
+            (entry) => _RankingRow(
+              key: ValueKey('ranking-${entry.participant.id}'),
+              entry: entry,
+            ),
+          ),
+        ],
       ],
     );
   }
+}
+
+class _RankingRow extends StatelessWidget {
+  const _RankingRow({super.key, required this.entry});
+  final RankEntry entry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 32),
+          child: Text(
+            '${entry.rank}',
+            style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w500),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${entry.participant.profile.nickname}${entry.participant.isSelf ? '（あなた）' : ''}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(entry.participant.team.label),
+              const SizedBox(height: 6),
+              _CountLine(
+                asset: normalFollowerAsset,
+                text:
+                    '子分 ${entry.normalCount}匹 × 3pt = ${entry.normalCount * 3}pt',
+              ),
+              _CountLine(
+                asset: boneFollowerAsset,
+                text: '骨 ${entry.boneCount}匹 × 1pt = ${entry.boneCount}pt',
+              ),
+              Text(
+                'ちから ${entry.power}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _CountLine extends StatelessWidget {

@@ -14,7 +14,7 @@ class ConveyorLayout {
   static const schemaVersion = 1;
   static const baseCanWidth = 286.0;
   static const minScale = .6;
-  static const maxScale = 1.8;
+  static const maxScale = 3.0;
   static const minOffset = -100.0;
   static const maxOffset = 100.0;
 
