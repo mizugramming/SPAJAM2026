@@ -41,7 +41,7 @@ class GameScene extends StatelessWidget {
                     Expanded(
                       child: Text(
                         '${peer.profile.nickname}さんと${cooperative ? '協力' : '対戦'}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ),
                     const SizedBox(width: 8),

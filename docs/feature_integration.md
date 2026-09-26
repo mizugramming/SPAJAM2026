@@ -8,9 +8,12 @@
 lib/main.dart                       起動
 lib/app/tsunagun_app.dart            アプリ設定・共通PhoneViewport
 lib/app/tsunagun_theme.dart          イラストに合わせた共通色・入力・ボタン
+lib/app/tsunagun_typography.dart     同梱Medium 500フォントと選択共有
 lib/features/demo/demo_page.dart    一台デモの場面・操作UI
 lib/features/demo/game_scene.dart   共通ヘッダーと残り領域を使うゲーム表示枠
 lib/features/demo/can_stage.dart    缶・親分・子分・ショBONEの煙・帰還演出
+lib/features/demo/parent_character.dart  待機動画・静止画と停止条件
+lib/features/demo/font_comparison_controls.dart  DEMO内の書体切替
 lib/features/demo/factory_backdrop.dart  工場背景と場面移動時のコンベア
 lib/features/demo/curved_label.dart  実テキストを保った曲面ラベル描画
 lib/features/demo/tug_of_war_finale.dart  確定結果を使う最終綱引きの演出
@@ -27,6 +30,8 @@ lib/domain/models.dart              プロフィール・参加者・子分・�
 lib/domain/reward_rules.dart        報酬・成長・戦力・最終集計
 lib/data/demo_controller.dart       デモの単一状態・進行管理
 assets/characters/                  アプリが読むユーザー提供キャラクター
+assets/home/                        ユーザー提供のコンベア
+assets/fonts/                       比較フォントとOFLライセンス
 test/                              モデル・ルール・進行とUIの検証
 docs/ui_copy.md                    承認済み画面文言と適用場面
 docs/tsunagun/                     v2受領原本（画像・手書きPDFを含む）
@@ -49,6 +54,9 @@ docs/tsunagun/                     v2受領原本（画像・手書きPDFを含�
 ## ゲーム以外の表示と最終演出
 
 - 工場の壁・窓・配管と缶下のコンベアは `factory_backdrop.dart` が担当します。場面移動時だけ短時間動かし、入力・待機中は静止します。ゲーム本体には背景を重ねず、`PhoneViewport` やゲームへ渡す制約を変更しません。
+- `ConveyorPlatform` は提供画像を3:1で表示し、缶底をベルト面に合わせます。脚を収める高さをステージ内へ予約し、共通のスマホ枠は広げません。
+- 親分の待機は `ParentCharacter` の透過WebPで、ホーム・相手確認かつ缶の登場演出後だけ再生します。動作軽減・バックグラウンド・無効な `TickerMode` では同寸法のPNGへ切り替えます。UIテストは `TsunagunApp(animateCharacters: false)` で無限ループだけを止め、缶やゲームの一度で終わる演出は検証します。
+- 書体の既定はKaisei Tokumin Medium 500です。`TypographyScope` でM PLUS Rounded 1c Medium 500へ切り替え、画面とControllerの状態を保持します。曲面ラベルは選択中の実フォントとOSの文字拡大・太字で計測します。
 - `CanStage` のショBONEは一度で消える煙を伴い、REBORNは復活した普通の子分1匹だけを表示します。帰還時の缶底を越えない位置制約を維持します。
 - `TugOfWarFinale` は手動開始後、構え3秒・引き合い6.5秒・決着1.5秒で確定結果を開示します。紙吹雪は開示から2秒で消えます。動作軽減設定・両チーム0ptの場合も開始を待ち、押した後は決着を直接表示します。背景の観客は固定配置で、所持子分数や得点を表しません。
 - チーム・個人の内訳は確定した `FinalSnapshot.rankings` の普通子分数・骨数から表示します。演出用の観客や親分を集計へ加えず、開始・スキップ・再描画でも結果を再計算しません。

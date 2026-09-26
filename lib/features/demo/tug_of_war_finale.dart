@@ -160,7 +160,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
             style: TextStyle(
               fontSize: 30,
               height: 1.3,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 12),
@@ -175,7 +175,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
                   color: finished ? winnerColor : TsunagunColors.ink,
                   fontSize: 26,
                   height: 1.3,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -211,7 +211,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
                           style: const TextStyle(
                             fontSize: 56,
                             height: 1,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w500,
                           ),
                         )
                       : const Text(
@@ -219,7 +219,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 22,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                 ),
@@ -339,7 +339,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
     style: TextStyle(
       color: team == Team.red ? TsunagunColors.red : TsunagunColors.blue,
       fontSize: 19,
-      fontWeight: FontWeight.w900,
+      fontWeight: FontWeight.w500,
     ),
   );
 
@@ -363,14 +363,14 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
               children: [
                 const Text(
                   'ちから ',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                  style: TextStyle(fontWeight: FontWeight.w500),
                 ),
                 Text(
                   '${team == Team.red ? widget.snapshot.redPower : widget.snapshot.bluePower}',
                   key: Key('tug-${team.name}-power'),
                   style: const TextStyle(
                     fontSize: 34,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],

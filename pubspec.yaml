@@ -24,3 +24,15 @@ flutter:
   uses-material-design: true
   assets:
     - assets/characters/
+    - assets/home/
+    - assets/fonts/OFL-KaiseiTokumin.txt
+    - assets/fonts/OFL-MPlusRounded1c.txt
+  fonts:
+    - family: KaiseiTokumin
+      fonts:
+        - asset: assets/fonts/KaiseiTokumin-Medium.ttf
+          weight: 500
+    - family: MPlusRounded1c
+      fonts:
+        - asset: assets/fonts/MPLUSRounded1c-Medium.ttf
+          weight: 500

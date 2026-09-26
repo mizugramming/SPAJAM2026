@@ -8,6 +8,7 @@ import 'can_stage.dart';
 import 'game_scene.dart';
 import 'factory_backdrop.dart';
 import 'final_awards.dart';
+import 'font_comparison_controls.dart';
 import 'illustrated_details.dart';
 import 'tug_of_war_finale.dart';
 
@@ -191,7 +192,7 @@ class _DemoPageState extends State<DemoPage> {
                                         Text(
                                           '${demo.roomName} · ${demo.self.team.label}',
                                           style: TextStyle(
-                                            fontWeight: FontWeight.w800,
+                                            fontWeight: FontWeight.w500,
                                             color: demo.self.team == Team.red
                                                 ? TsunagunColors.red
                                                 : TsunagunColors.blue,
@@ -391,7 +392,7 @@ class _DemoPageState extends State<DemoPage> {
                 ),
                 child: Text(
                   'ちから ${demo.power}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
               ),
             ],
@@ -451,7 +452,7 @@ class _DemoPageState extends State<DemoPage> {
             const SizedBox(height: 8),
             Text(
               '${peer.profile.nickname}さんと${peer.team == demo.self.team ? '協力' : '対戦'}します',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 8),
             FilledButton(
@@ -485,7 +486,7 @@ class _DemoPageState extends State<DemoPage> {
             style: const TextStyle(
               fontSize: 20,
               height: 1.4,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w500,
             ),
           ),
           if (isSetback || result.promoted != null) ...[
@@ -502,7 +503,7 @@ class _DemoPageState extends State<DemoPage> {
           Text(
             'ちから +${result.delta}',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 20),
           FilledButton(
@@ -545,7 +546,7 @@ class _DemoPageState extends State<DemoPage> {
       text,
       style: const TextStyle(
         fontSize: 23,
-        fontWeight: FontWeight.w900,
+        fontWeight: FontWeight.w500,
         height: 1.4,
         color: TsunagunColors.ink,
       ),
@@ -646,6 +647,7 @@ class _DemoPageState extends State<DemoPage> {
                 child: Text(cooperative ? '協力に失敗' : '対戦に負ける'),
               ),
               demoTimeControls(),
+              const FontComparisonControls(),
               TextButton(
                 onPressed: () => Navigator.pop(sheetContext),
                 child: const Text('ゲームへ戻る'),
@@ -680,6 +682,7 @@ class _DemoPageState extends State<DemoPage> {
             const SizedBox(height: 12),
             const Text('端末間通信・保存は行いません。アプリを閉じると、入力や仲間はリセットされます。'),
             const SizedBox(height: 16),
+            const FontComparisonControls(),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('閉じる'),
@@ -791,10 +794,10 @@ class _DemoPageState extends State<DemoPage> {
               ],
             ),
             const SizedBox(height: 12),
-            const Text('趣味', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text('趣味', style: TextStyle(fontWeight: FontWeight.w500)),
             Text(profile.hobby),
             const SizedBox(height: 18),
-            const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w500)),
             FollowerQuote(
               text: profile.comment.isEmpty ? 'まだひとことはありません。' : profile.comment,
             ),
@@ -804,14 +807,14 @@ class _DemoPageState extends State<DemoPage> {
               const SizedBox(height: 10),
               const Text(
                 '復活を手伝った仲間',
-                style: TextStyle(fontWeight: FontWeight.w800),
+                style: TextStyle(fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 8),
               heading(revivedWith.profile.nickname),
-              const Text('趣味', style: TextStyle(fontWeight: FontWeight.w800)),
+              const Text('趣味', style: TextStyle(fontWeight: FontWeight.w500)),
               Text(revivedWith.profile.hobby),
               const SizedBox(height: 12),
-              const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w800)),
+              const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w500)),
               FollowerQuote(
                 text: revivedWith.profile.comment.isEmpty
                     ? 'まだひとことはありません。'

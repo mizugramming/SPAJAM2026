@@ -322,7 +322,7 @@ class _ResultPanel extends StatelessWidget {
                       wins ? 'WIN' : 'LOSE',
                       style: TextStyle(
                         fontSize: 30,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w500,
                         letterSpacing: 2,
                         color: wins ? _win : _lose,
                       ),
@@ -332,7 +332,7 @@ class _ResultPanel extends StatelessWidget {
                     style: TextStyle(
                       fontSize: decision.fell ? 30 : 52,
                       height: 1.1,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w500,
                       color: decision.fell ? _fell : const Color(0xFF304D46),
                     ),
                   ),
@@ -373,7 +373,7 @@ class _NameTag extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           color: Colors.white,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w500,
           fontSize: 12,
         ),
       ),

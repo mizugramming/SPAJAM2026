@@ -9,7 +9,9 @@ void main() {
     (tester) async {
       final controller = DemoController(autoTick: false);
       addTearDown(controller.dispose);
-      await tester.pumpWidget(TsunagunApp(controller: controller));
+      await tester.pumpWidget(
+        TsunagunApp(animateCharacters: false, controller: controller),
+      );
       await tester.pumpAndSettle();
       expect(find.text('はだ缶'), findsOneWidget);
       expect(find.text('1台用 DEMO'), findsOneWidget);
