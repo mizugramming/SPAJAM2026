@@ -249,6 +249,10 @@ class _CanStageState extends State<CanStage>
                     (parentVisible || followerInSpotlight ? 36 : 40);
           final canTop = stageHeight - 18 - visibleCanHeight;
           final mouthY = canTop + 23 * canScale;
+          // Rest the followers above the closed lid. Anchor their actual
+          // layout from below so title wrapping cannot push the image down.
+          final followerBaseline = canTop + 2;
+          final followerBottom = stageHeight - followerBaseline;
           final canCenter = playing ? width - 12 - 48 : width / 2;
           final parentLeft = canCenter - parentWidth / 2;
           final parentTop = mouthY - parentHeight;
@@ -336,11 +340,12 @@ class _CanStageState extends State<CanStage>
                         left: followerInSpotlight
                             ? canCenter - followerWidth / 2
                             : 0,
-                        top: mouthY - followerHeight,
+                        bottom: followerBottom,
+                        diveDistance:
+                            followerHeight * 1.05 + mouthY - followerBaseline,
                         width: followerWidth,
-                        height: followerHeight,
                         imageHeight: followerImageHeight,
-                        target: Offset(canCenter, mouthY),
+                        targetX: canCenter,
                         progress: returning ? _part(.34, .78) : 0,
                         label: followerLabel,
                         labelStyle: followerStyle,
@@ -358,11 +363,15 @@ class _CanStageState extends State<CanStage>
                     if (separateNewBone && (showingResult || returning))
                       _follower(
                         left: width - extraBoneWidth,
-                        top: mouthY - extraBoneHeight - 12,
+                        bottom: followerBottom + 12,
+                        diveDistance:
+                            extraBoneHeight * 1.05 +
+                            mouthY -
+                            followerBaseline +
+                            12,
                         width: extraBoneWidth,
-                        height: extraBoneHeight,
                         imageHeight: extraBoneImageHeight,
-                        target: Offset(canCenter, mouthY),
+                        targetX: canCenter,
                         progress: returning ? _part(.4, .8) : 0,
                         label: '新しい仲間',
                         image: boneFollowerAsset,
@@ -391,11 +400,11 @@ class _CanStageState extends State<CanStage>
 
   Widget _follower({
     required double left,
-    required double top,
+    required double bottom,
+    required double diveDistance,
     required double width,
-    required double height,
     required double imageHeight,
-    required Offset target,
+    required double targetX,
     required double progress,
     required String label,
     required String image,
@@ -407,23 +416,24 @@ class _CanStageState extends State<CanStage>
     bool celebrate = false,
   }) => Positioned(
     left: left,
-    top: top,
+    bottom: bottom,
     width: width,
     child: Opacity(
       opacity: progress < 1 ? 1 : 0,
       child: Transform.translate(
         key: motionKey,
         offset: Offset(
-          (target.dx - left - width / 2) * progress,
-          (target.dy + height * .55 - top - height / 2) * progress -
+          (targetX - left - width / 2) * progress,
+          diveDistance * progress -
               math.sin(progress * math.pi) * 64 -
               (celebrate ? math.sin(_motion.value * math.pi) * 12 : 0),
         ),
         child: Transform.rotate(
-          angle: math.sin(progress * math.pi) * (left < target.dx ? .22 : -.22),
+          angle: math.sin(progress * math.pi) * (left < targetX ? .22 : -.22),
           child: Transform.scale(
             scale: 1 - progress * .22,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Opacity(
                   opacity: (1 - progress * 4).clamp(0.0, 1.0),
@@ -487,14 +497,30 @@ TextPainter _measureText(
   String text,
   TextStyle style,
   double width,
-) => TextPainter(
-  text: TextSpan(
-    text: text.isEmpty ? ' ' : text,
-    style: DefaultTextStyle.of(context).style.merge(style),
-  ),
-  textDirection: Directionality.of(context),
-  textScaler: MediaQuery.textScalerOf(context),
-)..layout(maxWidth: width);
+) {
+  final defaults = DefaultTextStyle.of(context);
+  final media = MediaQuery.of(context);
+  // Match Text's accessibility settings as well as its scale. Otherwise a
+  // taller result heading (or can label) can exceed the reserved scene space.
+  final effectiveStyle = defaults.style
+      .merge(style)
+      .copyWith(
+        fontWeight: media.boldText ? FontWeight.bold : null,
+        height: media.lineHeightScaleFactorOverride,
+        letterSpacing: media.letterSpacingOverride,
+        wordSpacing: media.wordSpacingOverride,
+      );
+  return TextPainter(
+    text: TextSpan(text: text.isEmpty ? ' ' : text, style: effectiveStyle),
+    textDirection: Directionality.of(context),
+    textScaler: media.textScaler,
+    locale: Localizations.maybeLocaleOf(context),
+    textWidthBasis: defaults.textWidthBasis,
+    textHeightBehavior:
+        defaults.textHeightBehavior ??
+        DefaultTextHeightBehavior.maybeOf(context),
+  )..layout(maxWidth: width);
+}
 
 class TunaCan extends StatelessWidget {
   const TunaCan({
