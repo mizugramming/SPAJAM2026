@@ -9,6 +9,7 @@
 | ゲームの背景（缶の内側と砂地） | `assets/characters/tunaumi1.png`・`tunaumi2.png` | ユーザー提供（2026-09-27に缶の内側の絵へ差し替え）。2枚を交互に重ねてゆらす。幅に合わせて下端をそろえ、対戦・協力とゲーム画面上部の帯で共用 |
 | 協力の魂 | `assets/characters/tamashii.png` | ユーザー提供。協力ゲームで運ぶ魂 |
 | 協力のツナ缶・空き缶 | `assets/characters/tunakanaka.png`・`hadakan.png` | ユーザー提供。魂を運ぶ缶と、最後に魂が入る空き缶 |
+| 「ショBONE」の見出し | `assets/characters/shobone.png` | ユーザー提供（受領時のファイル名は `ショBONE.png`）。負けたときの結果の見出しを書体ごと画像で出し、少し波打たせる |
 | 手書きラフ・旧生成画像 | `docs/tsunagun/references/` | 設計の参照用。アプリへ全量同梱しない |
 
 提供資料の原本は [v2資料](tsunagun/README.md) と [出典一覧](tsunagun/references/SOURCE_INDEX.md) に保持し、変更しません。アプリは `assets/characters/` のファイルを使用します。

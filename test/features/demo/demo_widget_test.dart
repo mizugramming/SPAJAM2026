@@ -126,7 +126,10 @@ void expectFollowerResult(
   final childRect = tester.getRect(child);
   expect(childRect.center.dx, closeTo(canRect.center.dx, 1));
   expect(childRect.width, greaterThanOrEqualTo(canRect.width * .5));
-  final label = find.text(title);
+  // ショBONE は書体を合わせるため、文字ではなく画像の見出しで出す。
+  final label = title == 'ショBONE'
+      ? find.byKey(const Key('shobone-title'))
+      : find.text(title);
   expect(label, findsOneWidget);
   expect(tester.getSize(label).height, greaterThanOrEqualTo(32));
 }
