@@ -356,7 +356,7 @@ void main() {
     }
   });
 
-  testWidgets('アウトの線は決めた位置（高さの89.4%）に固定され、説明は魚と線の間に大きく出る', (tester) async {
+  testWidgets('アウトの線は決めた位置（高さの91.3%）に固定され、説明は魚と線の間に大きく出る', (tester) async {
     tester.view.physicalSize = const Size(412, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -366,8 +366,8 @@ void main() {
         peerDecision: const RaceDecision.stopped(0.5),
       ),
     );
-    expect(RaceField.defaultLandingRatio, 0.894);
-    expect(landingY(tester), closeTo(900 * 0.894, 1e-6));
+    expect(RaceField.defaultLandingRatio, 0.913);
+    expect(landingY(tester), closeTo(900 * 0.913, 1e-6));
     // 説明は中央に大きく出し、吊られた魚ともアウトの線とも重ならない。
     final guide = tester.getRect(find.text('タップでスタート！'));
     expect(guide.top, greaterThan(mouthY(tester, redFish)));
