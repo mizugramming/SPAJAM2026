@@ -108,6 +108,7 @@ class _DemoPageState extends State<DemoPage> {
       listenable: demo,
       builder: (context, _) {
         final phase = demo.phase;
+        const scenePadding = EdgeInsets.fromLTRB(20, 14, 20, 24);
         final peerId = demo.activePeer?.id;
         final generation = encounterGeneration;
         final inEvent = {
@@ -143,95 +144,107 @@ class _DemoPageState extends State<DemoPage> {
                           controller: sceneScroll,
                           keyboardDismissBehavior:
                               ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Wrap(
-                                alignment: WrapAlignment.spaceBetween,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                spacing: 8,
-                                children: [
-                                  const TsunagunWordmark(),
-                                  TextButton.icon(
-                                    key: const Key('demo-info'),
-                                    onPressed: showDemoInfo,
-                                    icon: const Icon(
-                                      Icons.info_outline,
-                                      size: 16,
-                                    ),
-                                    label: const Text('1台用 DEMO'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              if (inEvent) ...[
+                          padding: scenePadding,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: phase == AppPhase.entry
+                                  ? (constraints.maxHeight -
+                                            scenePadding.vertical)
+                                        .clamp(0.0, double.infinity)
+                                  : 0,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: phase == AppPhase.entry
+                                  ? MainAxisAlignment.center
+                                  : MainAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
                                 Wrap(
-                                  spacing: 12,
-                                  runSpacing: 6,
                                   alignment: WrapAlignment.spaceBetween,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 8,
                                   children: [
-                                    Text(
-                                      '${demo.roomName} · ${demo.self.team.label}',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        color: demo.self.team == Team.red
-                                            ? TsunagunColors.red
-                                            : TsunagunColors.blue,
+                                    const TsunagunWordmark(),
+                                    TextButton.icon(
+                                      key: const Key('demo-info'),
+                                      onPressed: showDemoInfo,
+                                      icon: const Icon(
+                                        Icons.info_outline,
+                                        size: 16,
                                       ),
-                                    ),
-                                    Text(
-                                      demo.isClosing
-                                          ? '終了処理中'
-                                          : '残り ${formatTime(demo.remaining)}',
-                                      key: const Key('remaining-time'),
+                                      label: const Text('1台用 DEMO'),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
-                              ],
-                              if (phase != AppPhase.finale &&
-                                  phase != AppPhase.results)
-                                AnimatedSize(
-                                  duration: const Duration(milliseconds: 350),
-                                  curve: Curves.easeInOut,
-                                  child: CanStage(
-                                    phase: phase,
-                                    profile: demo.profileDraft,
-                                    result: demo.lastResult,
-                                    team: inEvent ? demo.self.team : null,
-                                    onReturnComplete: demo.finishReturn,
+                                const SizedBox(height: 8),
+                                if (inEvent) ...[
+                                  Wrap(
+                                    spacing: 12,
+                                    runSpacing: 6,
+                                    alignment: WrapAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        '${demo.roomName} · ${demo.self.team.label}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: demo.self.team == Team.red
+                                              ? TsunagunColors.red
+                                              : TsunagunColors.blue,
+                                        ),
+                                      ),
+                                      Text(
+                                        demo.isClosing
+                                            ? '終了処理中'
+                                            : '残り ${formatTime(demo.remaining)}',
+                                        key: const Key('remaining-time'),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                                if (phase != AppPhase.finale &&
+                                    phase != AppPhase.results)
+                                  AnimatedSize(
+                                    duration: const Duration(milliseconds: 350),
+                                    curve: Curves.easeInOut,
+                                    child: CanStage(
+                                      phase: phase,
+                                      profile: demo.profileDraft,
+                                      result: demo.lastResult,
+                                      team: inEvent ? demo.self.team : null,
+                                      onReturnComplete: demo.finishReturn,
+                                    ),
+                                  ),
+                                const SizedBox(height: 20),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 250),
+                                  switchInCurve: Curves.easeOut,
+                                  child: Column(
+                                    key: ValueKey(phase),
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: panel(phase),
                                   ),
                                 ),
-                              const SizedBox(height: 20),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 250),
-                                switchInCurve: Curves.easeOut,
-                                child: Column(
-                                  key: ValueKey(phase),
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: panel(phase),
-                                ),
-                              ),
-                              if (error != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Semantics(
-                                    liveRegion: true,
-                                    child: Text(
-                                      error!,
-                                      key: const Key('form-error'),
-                                      style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.error,
+                                if (error != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Semantics(
+                                      liveRegion: true,
+                                      child: Text(
+                                        error!,
+                                        key: const Key('form-error'),
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.error,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              const SizedBox(height: 20),
-                            ],
+                                const SizedBox(height: 20),
+                              ],
+                            ),
                           ),
                         ),
                       ),

@@ -138,6 +138,27 @@ void expectBoneResult(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets('入口は縦中央に置き、小画面・文字2倍・キーボード表示でも参加できる', (tester) async {
+    final demo = await launch(tester, size: const Size(412, 900));
+    final top = tester.getRect(find.byKey(const Key('demo-info'))).top;
+    final bottom = tester.getRect(find.byKey(const Key('join-room'))).bottom;
+    expect((top + bottom) / 2, closeTo(450, 20));
+
+    tester.view.physicalSize = const Size(360, 640);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    await type(tester, 'room-code', 'NG');
+    await key(tester, 'join-room');
+    expect(demo.phase, AppPhase.entry);
+    expect(find.text('デモの参加コードは TSUNA です。'), findsOneWidget);
+    await type(tester, 'room-code', 'TSUNA');
+    await key(tester, 'join-room');
+    expect(demo.phase, AppPhase.profile);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('空の缶へ入力を即時反映し、必須項目のエラーでも入力を保つ', (tester) async {
     final demo = await launch(tester);
     expect(find.text('はだ缶'), findsOneWidget);
@@ -248,7 +269,7 @@ void main() {
     await checkProfile(tester, '骨 1 匹', opponent.profile);
     await meet(tester, partner);
     await chooseOutcome(tester, 'positive-outcome');
-    expectFollowerResult(tester, asset: normalFollowerAsset, title: '大成功！');
+    expectFollowerResult(tester, asset: normalFollowerAsset, title: 'REBORN');
     expect(find.text('${opponent.profile.nickname}の子分が、元気に！'), findsOneWidget);
     final newBone = find.byWidgetPredicate(
       (w) =>

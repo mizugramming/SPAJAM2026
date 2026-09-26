@@ -21,6 +21,11 @@ class TugOfWarFinale extends StatefulWidget {
   State<TugOfWarFinale> createState() => _TugOfWarFinaleState();
 }
 
+const _ropeY = .52;
+const _groundY = .64;
+const _goalOffset = .145;
+const _flagTravel = .23;
+
 class _TugOfWarFinaleState extends State<TugOfWarFinale>
     with SingleTickerProviderStateMixin {
   late final AnimationController _motion;
@@ -59,8 +64,11 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
     }
   }
 
+  bool get _hasNoPower =>
+      widget.snapshot.redPower + widget.snapshot.bluePower == 0;
+
   void _start() {
-    if (_reduceMotion) {
+    if (_reduceMotion || _hasNoPower) {
       _motion.value = 1;
     } else {
       _motion.forward(from: 0);
@@ -95,6 +103,8 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
           ? 'よーい…'
           : seconds < 4.5
           ? 'オーエス！ オーエス！'
+          : snapshot.isDraw
+          ? 'どちらも、ゆずらない！'
           : 'あと、ひと引き！';
       final progress = ((seconds - 1.5) / 3).clamp(0.0, 1.0);
       final finish = Curves.easeInOutCubic.transform(
@@ -105,10 +115,21 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
           : winner == Team.blue
           ? 1.0
           : 0.0;
-      // Return to the centre before the final pull; this avoids a discontinuity.
+      final total = snapshot.redPower + snapshot.bluePower;
+      final margin = total == 0
+          ? 0.0
+          : (snapshot.redPower - snapshot.bluePower).abs() / total;
+      // A close score can trade small leads; a decisive score steadily pulls
+      // toward its actual winner. Animation never invents a comeback or score.
+      final advantage = direction * (.08 + margin * .47);
       final tussle =
-          math.sin(progress * math.pi * 6) * math.sin(progress * math.pi) * .3;
-      final pull = tussle * (1 - finish) + direction * .7 * finish;
+          math.sin(progress * math.pi * 4.5) *
+          math.sin(progress * math.pi) *
+          .24 *
+          (1 - margin);
+      final contest =
+          advantage * Curves.easeOutCubic.transform(progress) + tussle;
+      final pull = contest * (1 - finish) + direction * .82 * finish;
       final beat = pulling ? math.sin(seconds * math.pi * 5) : 0.0;
       final celebration = ((seconds - 5.4) / 1).clamp(0.0, 1.0);
       return Column(
@@ -142,7 +163,9 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
           Text(
             finished
                 ? snapshot.isDraw
-                      ? 'いい勝負！ みんなに拍手。'
+                      ? _hasNoPower
+                            ? '次は仲間をつなげて、いざ勝負！'
+                            : 'いい勝負！ みんなに拍手。'
                       : 'つながった仲間が、勝利のちから！'
                 : '仲間のちからを、ひとつに。',
             textAlign: TextAlign.center,
@@ -159,7 +182,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
               );
               return SizedBox(
                 key: const Key('tug-arena'),
-                height: constraints.maxWidth * .73 + extraTop,
+                height: constraints.maxWidth * .82 + extraTop,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -175,11 +198,28 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
                                 beat: beat,
                                 pulling: pulling,
                                 celebration: celebration,
-                                celebrate: finished && !_reduceMotion,
+                                celebrate:
+                                    finished && !_reduceMotion && !_hasNoPower,
                                 winner: winner,
                               ),
                             ),
                           ),
+                          for (final team in Team.values)
+                            Positioned(
+                              left:
+                                  constraints.maxWidth *
+                                      (.5 +
+                                          (team == Team.red ? -1 : 1) *
+                                              _goalOffset) -
+                                  2,
+                              top: constraints.maxWidth * (_ropeY - .055),
+                              width: 4,
+                              height: constraints.maxWidth * .25,
+                              child: CustomPaint(
+                                key: Key('tug-${team.name}-goal'),
+                                painter: _GoalPainter(team),
+                              ),
+                            ),
                           for (final team in Team.values)
                             _crew(
                               team,
@@ -189,6 +229,19 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
                               finish,
                               celebration,
                             ),
+                          Positioned(
+                            left:
+                                constraints.maxWidth *
+                                    (.5 + pull * _flagTravel) -
+                                10,
+                            top: constraints.maxWidth * _ropeY - 4,
+                            width: 20,
+                            height: 38,
+                            child: CustomPaint(
+                              key: const Key('tug-rope-flag'),
+                              painter: _RibbonPainter(beat),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -318,11 +371,11 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
             for (var i = 0; i < followers.length; i++)
               Positioned(
                 left: red
-                    ? width * (.025 + i * .14) + pull * width * .065
-                    : width * (.825 - i * .14) + pull * width * .065,
-                top: width * .385 + beat * (i.isEven ? 2 : -2) - jump * .6,
-                width: width * .15,
-                height: width * .145,
+                    ? width * (.08 + i * .14) + pull * width * .065
+                    : width * (.74 - i * .14) + pull * width * .065,
+                top: width * .475 + beat * (i.isEven ? 2 : -2) - jump * .6,
+                width: width * .18,
+                height: width * .17,
                 child: _actor(
                   followers[i],
                   red,
@@ -330,10 +383,10 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
                 ),
               ),
             Positioned(
-              left: width * (red ? .18 : .55) + pull * width * .09,
-              top: width * .30 + beat * 2 - jump,
-              width: width * .27,
-              height: width * .24,
+              left: width * (red ? .105 : .565) + pull * width * .09,
+              top: width * .32 + beat * 2 - jump,
+              width: width * .33,
+              height: width * .29,
               child: _actor(
                 parentAsset,
                 red,
@@ -376,9 +429,8 @@ class _ArenaPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
-    final ground = w * .55;
-    final ropeY = w * .465;
-    final flagX = w * (.5 + pull * .23);
+    final ground = w * _groundY;
+    final ropeY = w * _ropeY;
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -431,13 +483,13 @@ class _ArenaPainter extends CustomPainter {
       rope,
       stroke
         ..color = TsunagunColors.ink
-        ..strokeWidth = 7,
+        ..strokeWidth = 9,
     );
     canvas.drawPath(
       rope,
       stroke
         ..color = const Color(0xFFD9B471)
-        ..strokeWidth = 4,
+        ..strokeWidth = 5,
     );
     for (var x = w * .045; x < w * .96; x += 11) {
       final local = (x + pull * 12).clamp(w * .03, w * .97);
@@ -449,21 +501,6 @@ class _ArenaPainter extends CustomPainter {
           ..strokeWidth = 1.3,
       );
     }
-    final ribbon = Path()
-      ..moveTo(flagX - 7, ropeY - 4)
-      ..lineTo(flagX + 7, ropeY - 4)
-      ..lineTo(flagX + 10 + beat * 2, ropeY + 32)
-      ..lineTo(flagX, ropeY + 26)
-      ..lineTo(flagX - 9 + beat * 2, ropeY + 33)
-      ..close();
-    canvas.drawPath(ribbon, Paint()..color = TsunagunColors.yellow);
-    canvas.drawPath(
-      ribbon,
-      stroke
-        ..color = TsunagunColors.ink
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = 2,
-    );
     if (celebrate) {
       final alpha = (1 - celebration * .4).clamp(0.0, 1.0);
       for (var i = 0; i < 28; i++) {
@@ -500,4 +537,66 @@ class _ArenaPainter extends CustomPainter {
       celebration != oldDelegate.celebration ||
       celebrate != oldDelegate.celebrate ||
       winner != oldDelegate.winner;
+}
+
+class _GoalPainter extends CustomPainter {
+  const _GoalPainter(this.team);
+
+  final Team team;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final color = team == Team.red ? TsunagunColors.red : TsunagunColors.blue;
+    final paint = Paint()
+      ..color = color.withValues(alpha: .72)
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 3;
+    for (var y = 0.0; y < size.height; y += 10) {
+      canvas.drawLine(Offset(2, y), Offset(2, y + 5), paint);
+    }
+    // Small triangular ground markers keep both victory lines visible without
+    // adding another label over the enlarged crews.
+    for (final y in [0.0, size.height]) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(-5, y)
+          ..lineTo(9, y)
+          ..lineTo(2, y + (y == 0 ? 7 : -7))
+          ..close(),
+        Paint()..color = color,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GoalPainter oldDelegate) => team != oldDelegate.team;
+}
+
+class _RibbonPainter extends CustomPainter {
+  const _RibbonPainter(this.beat);
+
+  final double beat;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final ribbon = Path()
+      ..moveTo(3, 0)
+      ..lineTo(17, 0)
+      ..lineTo(20 + beat * 2, 36)
+      ..lineTo(10, 30)
+      ..lineTo(1 + beat * 2, 37)
+      ..close();
+    canvas.drawPath(ribbon, Paint()..color = TsunagunColors.yellow);
+    canvas.drawPath(
+      ribbon,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..color = TsunagunColors.ink
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = 2,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RibbonPainter oldDelegate) => beat != oldDelegate.beat;
 }

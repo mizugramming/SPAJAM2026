@@ -167,6 +167,68 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('接戦は中央で競り、大差は実際の優勢チーム側へ寄ってから勝利ラインを越える', (tester) async {
+    narrowScreen(tester);
+    double flagX() =>
+        tester.getCenter(find.byKey(const Key('tug-rope-flag'))).dx;
+    double centreX() => tester.getCenter(find.byKey(const Key('tug-arena'))).dx;
+    double goalX(Team team) =>
+        tester.getCenter(find.byKey(Key('tug-${team.name}-goal'))).dx;
+
+    await tester.pumpWidget(scene(snapshot(11, 10)));
+    await tester.pump(const Duration(milliseconds: 2800));
+    final closeDisplacement = (flagX() - centreX()).abs();
+    expect(flagX(), greaterThan(goalX(Team.red)));
+    expect(flagX(), lessThan(goalX(Team.blue)));
+
+    await tester.pumpWidget(scene(snapshot(18, 2)));
+    await tester.pump(const Duration(milliseconds: 2800));
+    expect(flagX(), lessThan(centreX()));
+    expect((flagX() - centreX()).abs(), greaterThan(closeDisplacement * 2));
+    expect(flagX(), greaterThan(goalX(Team.red)));
+    await tester.pumpAndSettle();
+    expect(flagX(), lessThan(goalX(Team.red)));
+    expect(find.text('赤チームの勝利！'), findsOneWidget);
+
+    await tester.pumpWidget(scene(snapshot(2, 18)));
+    await tester.pump(const Duration(milliseconds: 2800));
+    expect(flagX(), greaterThan(centreX()));
+    expect((flagX() - centreX()).abs(), greaterThan(closeDisplacement * 2));
+    expect(flagX(), lessThan(goalX(Team.blue)));
+    await tester.pumpAndSettle();
+    expect(flagX(), greaterThan(goalX(Team.blue)));
+    expect(find.text('青チームの勝利！'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('同点の旗は中央で決着し、0対0は通常設定でも演出を待たせない', (tester) async {
+    narrowScreen(tester);
+    void expectCentredFlag() {
+      expect(
+        tester.getCenter(find.byKey(const Key('tug-rope-flag'))).dx,
+        closeTo(tester.getCenter(find.byKey(const Key('tug-arena'))).dx, .01),
+      );
+    }
+
+    await tester.pumpWidget(scene(snapshot(4, 4)));
+    await tester.pump(const Duration(milliseconds: 4800));
+    expect(find.text('どちらも、ゆずらない！'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('引き分け！'), findsOneWidget);
+    expectCentredFlag();
+
+    await tester.pumpWidget(scene(snapshot(0, 0)));
+    expect(find.text('引き分け！'), findsOneWidget);
+    expect(find.text('次は仲間をつなげて、いざ勝負！'), findsOneWidget);
+    expect(find.byKey(const Key('show-results')), findsOneWidget);
+    expect(find.byKey(const Key('tug-countdown')), findsNothing);
+    expect(find.byKey(const Key('skip-tug-animation')), findsNothing);
+    expectCentredFlag();
+    await tester.pumpAndSettle();
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('進行中に動作軽減へ切替・画面破棄してもタイマーや演出を残さない', (tester) async {
     narrowScreen(tester);
     final result = snapshot(3, 1);

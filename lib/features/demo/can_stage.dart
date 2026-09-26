@@ -137,8 +137,10 @@ class _CanStageState extends State<CanStage>
   ).transform(_motion.value);
 
   double get _opening => switch (_kind) {
-    _CanMotion.returnInside => _part(0, .18) * (1 - _part(.82, 1)),
-    _CanMotion.emerge => _part(0, .2) * (1 - _part(.78, 1)),
+    _CanMotion.returnInside =>
+      const Interval(0, .34).transform(_motion.value) * (1 - _part(.82, 1)),
+    _CanMotion.emerge =>
+      const Interval(0, .32).transform(_motion.value) * (1 - _part(.8, 1)),
     _ => 0,
   };
 
@@ -203,7 +205,7 @@ class _CanStageState extends State<CanStage>
               : result?.outcome == Outcome.win
               ? 'やった！'
               : result?.promoted != null
-              ? '大成功！'
+              ? 'REBORN'
               : '新しい仲間';
           final primaryIsBone =
               (result?.promoted ?? result?.newFollower)?.kind ==
@@ -274,7 +276,7 @@ class _CanStageState extends State<CanStage>
               builder: (context, _) {
                 final parentProgress = switch (_kind) {
                   _CanMotion.returnInside => _part(.34, .79),
-                  _CanMotion.emerge => 1 - _part(.18, .76),
+                  _CanMotion.emerge => 1 - _part(.34, .8),
                   _ => 0.0,
                 };
                 final parentTravel =
@@ -339,7 +341,7 @@ class _CanStageState extends State<CanStage>
                         height: followerHeight,
                         imageHeight: followerImageHeight,
                         target: Offset(canCenter, mouthY),
-                        progress: returning ? _part(.16, .62) : 0,
+                        progress: returning ? _part(.34, .78) : 0,
                         label: followerLabel,
                         labelStyle: followerStyle,
                         labelGap: followerGap,
@@ -361,7 +363,7 @@ class _CanStageState extends State<CanStage>
                         height: extraBoneHeight,
                         imageHeight: extraBoneImageHeight,
                         target: Offset(canCenter, mouthY),
-                        progress: returning ? _part(.24, .7) : 0,
+                        progress: returning ? _part(.4, .8) : 0,
                         label: '新しい仲間',
                         image: boneFollowerAsset,
                         semanticLabel: '新しく獲得した骨の子分',
@@ -741,6 +743,77 @@ class _CanGeometry {
     );
 }
 
+/// The unpeeled rear strip stays on the rim. A rounded fold travels backwards
+/// as the tab pulls the front of the same metal sheet upwards and over it.
+class _PeelingLidGeometry {
+  _PeelingLidGeometry(this.lid, this.peel);
+
+  final Rect lid;
+  final double peel;
+
+  double get foldDepth => 1 - peel * .93;
+
+  double projectedY(double depth) {
+    if (peel == 0 || depth <= foldDepth) return lid.top + lid.height * depth;
+    final angle = 1.9 * (peel / .32).clamp(0.0, 1.0);
+    final foldLength = math.min(.28, 1 - foldDepth);
+    final distance = depth - foldDepth;
+    final curved = math.min(distance, foldLength);
+    final curvature = angle / foldLength;
+    final flat = math.max(0.0, distance - foldLength);
+    // Integrating the tangent keeps the sheet continuous at the moving fold.
+    final horizontal =
+        math.sin(curved * curvature) / curvature + flat * math.cos(angle);
+    final vertical =
+        (1 - math.cos(curved * curvature)) / curvature + flat * math.sin(angle);
+    return lid.top +
+        lid.height * (foldDepth + horizontal) -
+        lid.width * .36 * vertical;
+  }
+
+  Offset edge(double depth, {required bool right}) {
+    final halfWidth = lid.width * math.sqrt(math.max(0, depth * (1 - depth)));
+    return Offset(
+      lid.center.dx + (right ? halfWidth : -halfWidth),
+      projectedY(depth),
+    );
+  }
+
+  Path strip(double from, double to) {
+    final path = Path();
+    final first = edge(from, right: false);
+    path.moveTo(first.dx, first.dy);
+    for (var i = 1; i <= 48; i++) {
+      final point = edge(from + (to - from) * i / 48, right: false);
+      path.lineTo(point.dx, point.dy);
+    }
+    for (var i = 48; i >= 0; i--) {
+      final point = edge(from + (to - from) * i / 48, right: true);
+      path.lineTo(point.dx, point.dy);
+    }
+    return path..close();
+  }
+
+  Path embossedOval(double inset) {
+    final oval = lid.deflate(inset);
+    final path = Path();
+    for (var i = 0; i <= 80; i++) {
+      final angle = i * math.pi * 2 / 80;
+      final x = oval.center.dx + oval.width * .5 * math.cos(angle);
+      final depth =
+          (oval.center.dy + oval.height * .5 * math.sin(angle) - lid.top) /
+          lid.height;
+      final y = projectedY(depth);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    return path..close();
+  }
+}
+
 enum _CanLayer { whole, back, front }
 
 class _CanPainter extends CustomPainter {
@@ -886,108 +959,207 @@ class _CanPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = compact ? 1.4 : 2.4,
     );
-    // The far rim is the hinge. Its projected depth flips as the lid rises;
-    // changing the drawing coordinates keeps outline strokes a steady width.
-    final depth =
-        mouth.height * (1 - opening) - shape.size.width * .34 * opening;
-    final lid = Rect.fromLTRB(
-      mouth.left,
-      mouth.top + math.min(0, depth),
-      mouth.right,
-      mouth.top + math.max(2, depth),
-    );
-    _paintLid(canvas, lid, ink);
+    final tabLift = const Interval(
+      0,
+      .25,
+      curve: Curves.easeOutCubic,
+    ).transform(opening);
+    final peel = const Interval(
+      .2,
+      1,
+      curve: Curves.easeInOutSine,
+    ).transform(opening);
+    _paintLid(canvas, _PeelingLidGeometry(mouth, peel), ink, tabLift);
   }
 
-  void _paintLid(Canvas canvas, Rect lid, Paint ink) {
-    // Explicit top/bottom anchors keep the raised lid attached to the far
-    // rim. Two half-ellipse curves stop short of those anchors and leave a gap.
-    final horizontalHandle = lid.width * .5 * .5522848;
-    final verticalHandle = lid.height * .5 * .5522848;
-    final outline = Path()
-      ..moveTo(lid.center.dx, lid.top)
-      ..cubicTo(
-        lid.center.dx + horizontalHandle,
-        lid.top,
-        lid.right,
-        lid.center.dy - verticalHandle,
-        lid.right,
-        lid.center.dy,
-      )
-      ..cubicTo(
-        lid.right,
-        lid.center.dy + verticalHandle,
-        lid.center.dx + horizontalHandle,
-        lid.bottom,
-        lid.center.dx,
-        lid.bottom,
-      )
-      ..cubicTo(
-        lid.center.dx - horizontalHandle,
-        lid.bottom,
-        lid.left,
-        lid.center.dy + verticalHandle,
-        lid.left,
-        lid.center.dy,
-      )
-      ..cubicTo(
-        lid.left,
-        lid.center.dy - verticalHandle,
-        lid.center.dx - horizontalHandle,
-        lid.top,
-        lid.center.dx,
-        lid.top,
-      )
-      ..close();
-    canvas.drawPath(
-      outline,
-      Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFB7C7D2), Color(0xFFECF0F0), Color(0xFFA5B4BE)],
-        ).createShader(lid),
-    );
+  void _paintLid(
+    Canvas canvas,
+    _PeelingLidGeometry sheet,
+    Paint ink,
+    double tabLift,
+  ) {
+    final outline = sheet.strip(0, 1);
+    final stillSealed = sheet.strip(0, sheet.foldDepth);
+    final peeled = sheet.strip(sheet.foldDepth, 1);
+    final lid = sheet.lid;
+    final metal = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFB7C7D2), Color(0xFFECF0F0), Color(0xFFA5B4BE)],
+      ).createShader(lid);
+    canvas.drawPath(stillSealed, metal);
+    if (sheet.peel > 0) {
+      // The lifted front edge casts a small shadow into the opening, while
+      // the rear silver strip remains visibly attached to the rolled rim.
+      canvas.save();
+      canvas.clipPath(Path()..addOval(lid));
+      canvas.drawPath(
+        peeled.shift(const Offset(0, 3)),
+        Paint()..color = _canInk.withValues(alpha: .23),
+      );
+      canvas.restore();
+      canvas.drawPath(
+        peeled,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFEBF0F2), Color(0xFFFFFFFF), Color(0xFF8599A8)],
+            stops: [0, .62, 1],
+          ).createShader(peeled.getBounds()),
+      );
+    }
     canvas.save();
     canvas.clipPath(outline);
-    _wash(canvas, lid, const Color(0xFF6E8A9C), .14);
+    _wash(canvas, outline.getBounds(), const Color(0xFF6E8A9C), .14);
     canvas.restore();
     canvas.drawPath(outline, ink);
-    if (lid.height < (compact ? 12 : 18)) return;
-    final inner = lid.deflate(compact ? 4 : 6);
-    canvas.drawOval(
-      inner,
+    // The stamped rings belong to the sheet and bend with it, instead of
+    // staying behind as a second lid on the mouth.
+    canvas.drawPath(
+      sheet.embossedOval(compact ? 4 : 6),
       Paint()
         ..color = Colors.white.withValues(alpha: .9)
         ..style = PaintingStyle.stroke
         ..strokeWidth = compact ? 1.6 : 2.8,
     );
-    canvas.drawOval(
-      inner.deflate(compact ? 2 : 3),
+    canvas.drawPath(
+      sheet.embossedOval(compact ? 6 : 9),
       Paint()
         ..color = const Color(0xFF647681)
         ..style = PaintingStyle.stroke
         ..strokeWidth = compact ? 1.1 : 1.8,
     );
-    final tab = Rect.fromCenter(
-      center: Offset(lid.left + lid.width * .32, lid.center.dy + 1),
-      width: lid.width * .19,
-      height: lid.height * .36,
+    _paintAttachedFold(canvas, sheet);
+    _paintPullTab(canvas, sheet, ink, tabLift);
+  }
+
+  void _paintAttachedFold(Canvas canvas, _PeelingLidGeometry sheet) {
+    final visible = const Interval(.4, .85).transform(sheet.peel);
+    if (visible == 0) return;
+    final lid = sheet.lid;
+    final halfWidth = lid.width * .085;
+    final top = lid.top - lid.height * .23 * visible;
+    final bottom = lid.top + lid.height * .34 * visible;
+    final middle = lid.center.dx;
+    // The projected sheet is almost edge-on at its attachment. This short
+    // curved return makes the remaining metal connection visibly continuous.
+    final fold = Path()
+      ..moveTo(middle - halfWidth, top)
+      ..quadraticBezierTo(middle, top + 3, middle + halfWidth, top)
+      ..quadraticBezierTo(
+        middle + halfWidth * .68,
+        lid.top + 3,
+        middle + halfWidth * .82,
+        bottom,
+      )
+      ..quadraticBezierTo(middle, bottom + 3, middle - halfWidth * .82, bottom)
+      ..quadraticBezierTo(
+        middle - halfWidth * .68,
+        lid.top + 3,
+        middle - halfWidth,
+        top,
+      )
+      ..close();
+    canvas.drawPath(
+      fold,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFFE9EFF2).withValues(alpha: visible),
+            const Color(0xFF8196A5).withValues(alpha: visible),
+            const Color(0xFFDCE5E9).withValues(alpha: visible),
+          ],
+          stops: const [0, .55, 1],
+        ).createShader(fold.getBounds()),
     );
-    canvas.drawOval(tab, Paint()..color = const Color(0xFF778A97));
+    canvas.drawPath(
+      fold,
+      Paint()
+        ..color = _canInk.withValues(alpha: visible * .7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = compact ? .9 : 1.5,
+    );
+    final bend = Path()
+      ..moveTo(middle - halfWidth * .73, lid.top + 4 * visible)
+      ..quadraticBezierTo(
+        middle,
+        lid.top + 7 * visible,
+        middle + halfWidth * .73,
+        lid.top + 4 * visible,
+      );
+    canvas.drawPath(
+      bend,
+      Paint()
+        ..color = Colors.white.withValues(alpha: visible * .85)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = compact ? 1.1 : 1.8,
+    );
+  }
+
+  void _paintPullTab(
+    Canvas canvas,
+    _PeelingLidGeometry sheet,
+    Paint ink,
+    double lift,
+  ) {
+    final lid = sheet.lid;
+    final rivet = Offset(lid.center.dx, sheet.projectedY(.69));
+    final tab = Rect.fromCenter(
+      center: Offset(
+        rivet.dx,
+        rivet.dy + lid.height * .08 - lid.width * .072 * lift,
+      ),
+      width: lid.width * .15,
+      height: lid.height * .29 + lid.width * .047 * lift,
+    );
+    final tabEnd = Offset(tab.center.dx, tab.bottom - 1);
+    canvas.drawLine(
+      rivet,
+      tabEnd,
+      Paint()
+        ..color = _canInk
+        ..strokeWidth = compact ? 4 : 6,
+    );
+    canvas.drawLine(
+      rivet,
+      tabEnd,
+      Paint()
+        ..color = const Color(0xFFD8E1E5)
+        ..strokeWidth = compact ? 2 : 3.5,
+    );
+    final inner = tab.deflate(compact ? 2 : 3.2);
+    final ring = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addOval(tab)
+      ..addOval(inner);
+    canvas.drawPath(ring, Paint()..color = const Color(0xFFD9E3E8));
     canvas.drawOval(
       tab,
       Paint()
-        ..color = _canInk.withValues(alpha: .8)
+        ..color = _canInk
         ..style = PaintingStyle.stroke
-        ..strokeWidth = compact ? 1.8 : 2.8,
+        ..strokeWidth = compact ? 1.4 : 2.2,
     );
     canvas.drawOval(
-      tab.deflate(compact ? 2 : 3),
+      inner,
       Paint()
-        ..color = const Color(0xFFEEF2F1)
+        ..color = const Color(0xFF647681)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = compact ? 1.3 : 2.1,
+        ..strokeWidth = compact ? .9 : 1.4,
+    );
+    canvas.drawCircle(
+      rivet,
+      compact ? 1.8 : 2.8,
+      Paint()..color = const Color(0xFF738591),
+    );
+    canvas.drawCircle(
+      rivet.translate(-.6, -.6),
+      compact ? .7 : 1.1,
+      Paint()..color = const Color(0xFFF2F5F6),
     );
   }
 
