@@ -77,7 +77,8 @@ class _CanStageState extends State<CanStage>
             previous == AppPhase.returning)) {
       _start(_CanMotion.emerge, const Duration(milliseconds: 1250));
     } else if (widget.phase == AppPhase.result &&
-        widget.result?.outcome == Outcome.win) {
+        (widget.result?.outcome == Outcome.win ||
+            widget.result?.outcome == Outcome.coopSuccess)) {
       _start(_CanMotion.celebrate, const Duration(milliseconds: 1000));
     } else if (!(previous == AppPhase.home &&
         widget.phase == AppPhase.pairing &&
@@ -151,9 +152,9 @@ class _CanStageState extends State<CanStage>
     final isSetback =
         result?.outcome == Outcome.loss ||
         result?.outcome == Outcome.coopFailure;
-    final boneInSpotlight = isSetback && (showingResult || returning);
+    final followerInSpotlight = result != null && (showingResult || returning);
     final parentVisible =
-        !boneInSpotlight &&
+        !followerInSpotlight &&
         switch (phase) {
           AppPhase.home ||
           AppPhase.pairing ||
@@ -190,26 +191,27 @@ class _CanStageState extends State<CanStage>
               : (width - canWidth) / 2;
           final parentWidth = playing ? 84.0 : canWidth * .62;
           final parentHeight = parentWidth * 1122 / 1402;
-          final followerWidth = boneInSpotlight
+          final followerWidth = followerInSpotlight
               ? canWidth * .72
               : math.min(104.0, width * .28);
-          final followerStyle = boneInSpotlight
-              ? _shoboneStyle
+          final followerStyle = followerInSpotlight
+              ? _resultTitleStyle
               : _followerLabelStyle;
-          final followerGap = boneInSpotlight ? 12.0 : 0.0;
+          final followerGap = followerInSpotlight ? 12.0 : 0.0;
           final followerLabel = isSetback
               ? 'ショBONE'
               : result?.outcome == Outcome.win
-              ? 'よろしく(ツ)ナ'
+              ? 'やった！'
               : result?.promoted != null
-              ? '元気になった！'
+              ? '大成功！'
               : '新しい仲間';
           final primaryIsBone =
               (result?.promoted ?? result?.newFollower)?.kind ==
               FollowerKind.bone;
           final followerImageHeight =
               followerWidth * (primaryIsBone ? 419 / 953 : 571 / 854);
-          final extraBoneImageHeight = followerWidth * 419 / 953;
+          final extraBoneWidth = math.min(64.0, width * .18);
+          final extraBoneImageHeight = extraBoneWidth * 419 / 953;
           final followerHeight =
               followerImageHeight +
               followerGap +
@@ -225,7 +227,7 @@ class _CanStageState extends State<CanStage>
                 context,
                 '新しい仲間',
                 _followerLabelStyle,
-                followerWidth,
+                extraBoneWidth,
               ).height;
           final actorHeight = math.max(
             parentVisible ? parentHeight : 0.0,
@@ -242,7 +244,7 @@ class _CanStageState extends State<CanStage>
                     : math.max(304.0, visibleCanHeight + parentHeight + 60)
               : canHeight +
                     actorHeight +
-                    (parentVisible || boneInSpotlight ? 36 : 40);
+                    (parentVisible || followerInSpotlight ? 36 : 40);
           final canTop = stageHeight - 18 - visibleCanHeight;
           final mouthY = canTop + 23 * canScale;
           final canCenter = playing ? width - 12 - 48 : width / 2;
@@ -329,7 +331,7 @@ class _CanStageState extends State<CanStage>
                       ),
                     if (result != null && (showingResult || returning))
                       _follower(
-                        left: boneInSpotlight
+                        left: followerInSpotlight
                             ? canCenter - followerWidth / 2
                             : 0,
                         top: mouthY - followerHeight,
@@ -341,9 +343,10 @@ class _CanStageState extends State<CanStage>
                         label: followerLabel,
                         labelStyle: followerStyle,
                         labelGap: followerGap,
-                        labelKey: boneInSpotlight
+                        labelKey: isSetback
                             ? const Key('shobone-title')
-                            : null,
+                            : const Key('result-title'),
+                        celebrate: showingResult && !isSetback,
                         image: primaryIsBone
                             ? boneFollowerAsset
                             : normalFollowerAsset,
@@ -352,9 +355,9 @@ class _CanStageState extends State<CanStage>
                       ),
                     if (separateNewBone && (showingResult || returning))
                       _follower(
-                        left: width - followerWidth,
-                        top: mouthY - extraBoneHeight,
-                        width: followerWidth,
+                        left: width - extraBoneWidth,
+                        top: mouthY - extraBoneHeight - 12,
+                        width: extraBoneWidth,
                         height: extraBoneHeight,
                         imageHeight: extraBoneImageHeight,
                         target: Offset(canCenter, mouthY),
@@ -399,6 +402,7 @@ class _CanStageState extends State<CanStage>
     TextStyle labelStyle = _followerLabelStyle,
     double labelGap = 0,
     Key? labelKey,
+    bool celebrate = false,
   }) => Positioned(
     left: left,
     top: top,
@@ -410,7 +414,8 @@ class _CanStageState extends State<CanStage>
         offset: Offset(
           (target.dx - left - width / 2) * progress,
           (target.dy + height * .55 - top - height / 2) * progress -
-              math.sin(progress * math.pi) * 64,
+              math.sin(progress * math.pi) * 64 -
+              (celebrate ? math.sin(_motion.value * math.pi) * 12 : 0),
         ),
         child: Transform.rotate(
           angle: math.sin(progress * math.pi) * (left < target.dx ? .22 : -.22),
@@ -451,7 +456,7 @@ const _followerLabelStyle = TextStyle(
   fontWeight: FontWeight.bold,
   color: _canInk,
 );
-const _shoboneStyle = TextStyle(
+const _resultTitleStyle = TextStyle(
   fontSize: 34,
   height: 1.15,
   fontWeight: FontWeight.w900,

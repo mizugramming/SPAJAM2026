@@ -72,7 +72,15 @@ Future<void> returnHome(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(button);
   await tester.pump();
+  expect(
+    find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '親分'),
+    findsNothing,
+  );
   await tester.pumpAndSettle();
+  final parent = tester.widget<Image>(
+    find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '親分'),
+  );
+  expect((parent.image as AssetImage).assetName, parentAsset);
 }
 
 Future<void> checkProfile(
@@ -95,25 +103,36 @@ Future<void> checkProfile(
   await tap(tester, find.text('閉じる'));
 }
 
-void expectBoneResult(WidgetTester tester) {
+void expectFollowerResult(
+  WidgetTester tester, {
+  required String asset,
+  required String title,
+}) {
   expect(
     find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '親分'),
     findsNothing,
   );
-  final child = find.byWidgetPredicate(
-    (w) =>
-        w is Image &&
-        w.image is AssetImage &&
-        (w.image as AssetImage).assetName == boneFollowerAsset,
+  final child = find.descendant(
+    of: find.byType(CanStage),
+    matching: find.byWidgetPredicate(
+      (w) =>
+          w is Image &&
+          w.image is AssetImage &&
+          (w.image as AssetImage).assetName == asset,
+    ),
   );
   expect(child, findsOneWidget);
   final canRect = tester.getRect(find.byType(TunaCan));
   final childRect = tester.getRect(child);
   expect(childRect.center.dx, closeTo(canRect.center.dx, 1));
   expect(childRect.width, greaterThanOrEqualTo(canRect.width * .5));
-  final label = find.text('ショBONE');
+  final label = find.text(title);
   expect(label, findsOneWidget);
   expect(tester.getSize(label).height, greaterThanOrEqualTo(32));
+}
+
+void expectBoneResult(WidgetTester tester) {
+  expectFollowerResult(tester, asset: boneFollowerAsset, title: 'ショBONE');
   expect(find.text('骨の子分も、大切な仲間。'), findsOneWidget);
   expect(find.text('同じチームと協力ゲーム！\n力を合わせて、元気にしよう。'), findsOneWidget);
 }
@@ -226,16 +245,22 @@ void main() {
     expect(demo.phase, AppPhase.result);
     expectBoneResult(tester);
     await returnHome(tester);
-    final parent = tester.widget<Image>(
-      find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '親分'),
-    );
-    expect((parent.image as AssetImage).assetName, parentAsset);
     await checkProfile(tester, '骨 1 匹', opponent.profile);
     await meet(tester, partner);
     await chooseOutcome(tester, 'positive-outcome');
+    expectFollowerResult(tester, asset: normalFollowerAsset, title: '大成功！');
+    expect(find.text('${opponent.profile.nickname}の子分が、元気に！'), findsOneWidget);
+    final newBone = find.byWidgetPredicate(
+      (w) =>
+          w is Image &&
+          w.image is AssetImage &&
+          (w.image as AssetImage).assetName == boneFollowerAsset,
+    );
+    expect(newBone, findsOneWidget);
+    expect(tester.getSize(newBone).width, lessThanOrEqualTo(80));
     expect(
-      find.text('${opponent.profile.nickname}さんの骨が、元気な子分に成長しました。'),
-      findsOneWidget,
+      tester.getCenter(newBone).dx,
+      greaterThan(tester.getCenter(find.byType(TunaCan)).dx),
     );
     expect(demo.normalCount, 1);
     expect(demo.boneCount, 1);
@@ -441,6 +466,7 @@ void main() {
     final previousDuel = tester.widget<DuelGame>(find.byType(DuelGame));
     previousDuel.onCompleted(DuelGameResult.win);
     await tester.pumpAndSettle();
+    expectFollowerResult(tester, asset: normalFollowerAsset, title: 'やった！');
     expect(demo.normalCount, 1);
     expect(demo.boneCount, 0);
     await returnHome(tester);

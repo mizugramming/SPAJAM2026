@@ -7,6 +7,7 @@ import '../../domain/models.dart';
 import 'can_stage.dart';
 import 'game_scene.dart';
 import 'illustrated_details.dart';
+import 'tug_of_war_finale.dart';
 
 class DemoPage extends StatefulWidget {
   const DemoPage({super.key, this.controller});
@@ -452,40 +453,41 @@ class _DemoPageState extends State<DemoPage> {
             result.outcome == Outcome.loss ||
             result.outcome == Outcome.coopFailure;
         final title = switch (result.outcome) {
-          Outcome.win => 'やった！新しい仲間。',
-          Outcome.loss => '骨の子分も、大切な仲間。',
-          Outcome.coopSuccess => '協力、大成功！',
-          Outcome.coopFailure => '骨の子分も、大切な仲間。',
+          Outcome.win => '新しい仲間が、缶にやってきた！',
+          Outcome.loss || Outcome.coopFailure => '骨の子分も、大切な仲間。',
+          Outcome.coopSuccess => '力を合わせて、元気いっぱい！',
         };
         return [
-          if (isSetback) ...[
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 20,
+              height: 1.4,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            isSetback
+                ? '同じチームと協力ゲーム！\n力を合わせて、元気にしよう。'
+                : result.promoted != null
+                ? '${result.promoted!.profile.nickname}の子分が、元気に！'
+                : '${result.peer.profile.nickname}と、ツナがった！',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 15, height: 1.7),
+          ),
+          if (result.promoted != null &&
+              result.promoted!.id != result.newFollower.id)
             Text(
-              title,
+              '${result.peer.profile.nickname}の骨の子分も仲間入り！',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 20,
-                height: 1.4,
-                fontWeight: FontWeight.w800,
-              ),
+              style: const TextStyle(fontSize: 15, height: 1.7),
             ),
-            const SizedBox(height: 10),
-            const Text(
-              '同じチームと協力ゲーム！\n力を合わせて、元気にしよう。',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15, height: 1.7),
-            ),
-          ] else ...[
-            heading(title),
-            Text(
-              '${result.peer.profile.nickname}さんの${result.newFollower.kind == FollowerKind.bone ? '骨の子分' : '子分'}を獲得。',
-            ),
-            if (result.promoted != null)
-              Text('${result.promoted!.profile.nickname}さんの骨が、元気な子分に成長しました。'),
-          ],
           const SizedBox(height: 12),
           Text(
             'ちから +${result.delta}',
-            textAlign: isSetback ? TextAlign.center : TextAlign.start,
+            textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 20),
@@ -498,25 +500,10 @@ class _DemoPageState extends State<DemoPage> {
       case AppPhase.returning:
         return [heading('仲間が、あなたの缶へ。')];
       case AppPhase.finale:
-        final snapshot = demo.finalSnapshot!;
         return [
-          heading('集まった仲間の、ちからくらべ。'),
-          const Text('交流の時間が終わりました。\n仲間のちからをチームで合わせて、いざ綱引き！'),
-          const SizedBox(height: 24),
-          _TugOfWar(snapshot: snapshot),
-          const SizedBox(height: 20),
-          Text(
-            snapshot.isDraw ? '引き分け！' : '${snapshot.winnerTeam!.label}の勝利！',
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          const Text('子分は3、骨は1のちから。交流で集めた仲間の合計が、そのまま結果になります。'),
-          const SizedBox(height: 20),
-          FilledButton(
-            key: const Key('show-results'),
-            onPressed: demo.showResults,
-            child: const Text('みんなの活躍を見る'),
+          TugOfWarFinale(
+            snapshot: demo.finalSnapshot!,
+            onShowResults: demo.showResults,
           ),
         ];
       case AppPhase.results:
@@ -869,109 +856,4 @@ class _DemoPageState extends State<DemoPage> {
 String formatTime(Duration time) {
   final seconds = time.inSeconds.clamp(0, 86400);
   return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
-}
-
-class _TugOfWar extends StatelessWidget {
-  const _TugOfWar({required this.snapshot});
-  final FinalSnapshot snapshot;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = snapshot.redPower + snapshot.bluePower;
-    final position = total == 0
-        ? 0.0
-        : (snapshot.bluePower - snapshot.redPower) / total * .7;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Column(
-        children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            spacing: 32,
-            children: [
-              Text(
-                '赤チーム\n${snapshot.redPower}',
-                style: const TextStyle(
-                  color: TsunagunColors.red,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                '青チーム\n${snapshot.bluePower}',
-                style: const TextStyle(
-                  color: TsunagunColors.blue,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _teamCrew(Team.red)),
-              const SizedBox(width: 24),
-              Expanded(child: _teamCrew(Team.blue)),
-            ],
-          ),
-          SizedBox(
-            height: 76,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const IllustratedRope(),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: position),
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(seconds: 2),
-                  curve: Curves.easeInOutCubic,
-                  builder: (context, value, _) => Align(
-                    alignment: Alignment(value, 0),
-                    child: const Icon(
-                      Icons.flag_rounded,
-                      color: TsunagunColors.red,
-                      size: 48,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _teamCrew(Team team) {
-    final members = snapshot.rankings.where(
-      (entry) => entry.participant.team == team,
-    );
-    final normal = members.fold(0, (sum, entry) => sum + entry.normalCount);
-    final bone = members.fold(0, (sum, entry) => sum + entry.boneCount);
-    final icons = [
-      if (normal > 0) normalFollowerAsset,
-      if (bone > 0) boneFollowerAsset,
-      if (normal + bone > 2)
-        normal > 1 ? normalFollowerAsset : boneFollowerAsset,
-    ];
-    return SizedBox(
-      height: 48,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (final asset in icons)
-            Flexible(
-              child: Image.asset(
-                asset,
-                width: 44,
-                height: 44,
-                excludeFromSemantics: true,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 }

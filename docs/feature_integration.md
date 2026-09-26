@@ -12,6 +12,7 @@ lib/features/demo/demo_page.dart    一台デモの場面・操作UI
 lib/features/demo/game_scene.dart   安全領域全体を使うゲーム表示枠
 lib/features/demo/can_stage.dart    缶・親分・子分と演出
 lib/features/demo/curved_label.dart  実テキストを保った曲面ラベル描画
+lib/features/demo/tug_of_war_finale.dart  確定結果を使う最終綱引きの演出
 lib/features/demo/illustrated_details.dart  見出し・吹き出し・綱の描画
 lib/features/duel/duel_game.dart     対戦ゲームの差込口
 lib/features/cooperative/cooperative_game.dart  協力ゲームの差込口
