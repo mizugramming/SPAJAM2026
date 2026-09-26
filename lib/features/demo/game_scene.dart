@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import '../../domain/models.dart';
 import '../cooperative/cooperative_game.dart';
 import '../duel/duel_game.dart';
-import 'can_stage.dart';
 
-/// The game owns the full safe viewport. Status and demo tools are overlays,
-/// so a future minigame can replace the placeholder without losing play space.
+/// The scene fills the safe viewport. Status takes only its measured height;
+/// the game receives the remaining space so enlarged text cannot cover play.
 class GameScene extends StatelessWidget {
   const GameScene({
     super.key,
@@ -28,69 +27,60 @@ class GameScene extends StatelessWidget {
     final cooperative = peer.team == self.team;
     return SizedBox.expand(
       key: const Key('game-surface'),
-      child: Stack(
-        fit: StackFit.expand,
+      child: Column(
         children: [
-          if (cooperative)
-            CooperativeGame(
-              self: self,
-              peer: peer,
-              onCompleted: (result) => onCompleted(
-                result == CooperativeGameResult.success
-                    ? Outcome.coopSuccess
-                    : Outcome.coopFailure,
-              ),
-            )
-          else
-            DuelGame(
-              self: self,
-              peer: peer,
-              onCompleted: (result) => onCompleted(
-                result == DuelGameResult.win ? Outcome.win : Outcome.loss,
-              ),
-            ),
-          IgnorePointer(
-            child: CanStage(
-              phase: AppPhase.game,
-              profile: self.profile,
-              team: self.team,
-            ),
-          ),
-          Positioned(
-            top: 12,
-            left: 16,
-            right: 12,
-            child: Row(
+          Padding(
+            key: const Key('game-status'),
+            padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
                         '${peer.profile.nickname}さんと${cooperative ? '協力' : '対戦'}',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        remainingLabel,
-                        key: const Key('remaining-time'),
-                        style: const TextStyle(color: Color(0xFF5C7772)),
+                    ),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'デモ操作',
+                      child: TextButton(
+                        key: const Key('game-demo-menu'),
+                        onPressed: onDemoMenu,
+                        child: const Text('DEMO'),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Tooltip(
-                  message: 'デモ操作',
-                  child: TextButton(
-                    key: const Key('game-demo-menu'),
-                    onPressed: onDemoMenu,
-                    child: const Text('DEMO'),
-                  ),
+                Text(
+                  remainingLabel,
+                  key: const Key('remaining-time'),
+                  style: const TextStyle(color: Color(0xFF5C7772)),
                 ),
               ],
             ),
+          ),
+          Expanded(
+            child: cooperative
+                ? CooperativeGame(
+                    self: self,
+                    peer: peer,
+                    onCompleted: (result) => onCompleted(
+                      result == CooperativeGameResult.success
+                          ? Outcome.coopSuccess
+                          : Outcome.coopFailure,
+                    ),
+                  )
+                : DuelGame(
+                    self: self,
+                    peer: peer,
+                    onCompleted: (result) => onCompleted(
+                      result == DuelGameResult.win ? Outcome.win : Outcome.loss,
+                    ),
+                  ),
           ),
         ],
       ),

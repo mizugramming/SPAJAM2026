@@ -733,7 +733,9 @@ class _DemoPageState extends State<DemoPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             heading('1台用の体験デモ'),
-            const Text('相手は仮想の参加者です。ミニゲームは結果を選んで体験できます。'),
+            const Text(
+              '相手は仮想の参加者です。タップ操作で対戦・協力ゲームを遊べます。DEMOメニューから結果を選んで、続きを確認することもできます。',
+            ),
             const SizedBox(height: 12),
             const Text('端末間通信・保存は行いません。アプリを閉じると、入力や仲間はリセットされます。'),
             const SizedBox(height: 16),

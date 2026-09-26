@@ -361,13 +361,57 @@ void main() {
     expectFullLabel();
     final peer = demo.peers.firstWhere((p) => p.team != demo.self.team);
     await meet(tester, peer);
-    expectFullLabel();
+    expect(find.byType(TunaCan), findsNothing);
+    expect(find.byType(DuelGame), findsOneWidget);
+    expect(demo.self.profile.nickname, profile.nickname);
+    expect(demo.self.profile.hobby, profile.hobby);
+    expect(demo.self.profile.comment, profile.comment);
     await chooseOutcome(tester, 'negative-outcome');
     expectFullLabel();
     await returnHome(tester);
     await checkProfile(tester, '骨 1 匹', peer.profile);
     await key(tester, 'expire-event');
     await key(tester, 'show-results');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('実ゲームのタップ操作から結果・帰還・最終発表まで接続する', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final opponent = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    await meet(tester, opponent);
+    await tester.tap(find.byType(DuelGame));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byType(DuelGame));
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.result);
+    expect(demo.lastResult!.outcome, anyOf(Outcome.win, Outcome.loss));
+    expect(demo.followers, hasLength(1));
+    await returnHome(tester);
+
+    final partner = demo.peers.firstWhere((p) => p.team == demo.self.team);
+    await meet(tester, partner);
+    await tester.tap(find.byType(CooperativeGame));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    // Tap before the first arrival to exercise the game's own failure callback.
+    await tester.tap(find.byType(CooperativeGame));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.result);
+    expect(demo.lastResult!.outcome, Outcome.coopFailure);
+    expect(demo.followers, hasLength(2));
+    expect(demo.lastResult!.newFollower.kind, FollowerKind.bone);
+    await returnHome(tester);
+    await key(tester, 'expire-event');
+    expect(demo.phase, AppPhase.finale);
+    await key(tester, 'show-results');
+    expect(demo.phase, AppPhase.results);
+    expect(demo.followers, hasLength(2));
     expect(tester.takeException(), isNull);
   });
 
