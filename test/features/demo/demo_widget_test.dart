@@ -95,6 +95,29 @@ Future<void> checkProfile(
   await tap(tester, find.text('閉じる'));
 }
 
+void expectBoneResult(WidgetTester tester) {
+  expect(
+    find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '親分'),
+    findsNothing,
+  );
+  final child = find.byWidgetPredicate(
+    (w) =>
+        w is Image &&
+        w.image is AssetImage &&
+        (w.image as AssetImage).assetName == boneFollowerAsset,
+  );
+  expect(child, findsOneWidget);
+  final canRect = tester.getRect(find.byType(TunaCan));
+  final childRect = tester.getRect(child);
+  expect(childRect.center.dx, closeTo(canRect.center.dx, 1));
+  expect(childRect.width, greaterThanOrEqualTo(canRect.width * .5));
+  final label = find.text('ショBONE');
+  expect(label, findsOneWidget);
+  expect(tester.getSize(label).height, greaterThanOrEqualTo(32));
+  expect(find.text('骨の子分も、大切な仲間。'), findsOneWidget);
+  expect(find.text('同じチームと協力ゲーム！\n力を合わせて、元気にしよう。'), findsOneWidget);
+}
+
 void main() {
   testWidgets('空の缶へ入力を即時反映し、必須項目のエラーでも入力を保つ', (tester) async {
     final demo = await launch(tester);
@@ -140,6 +163,10 @@ void main() {
     await tester.tap(returnButton);
     await tester.pump();
     expect(demo.phase, AppPhase.returning);
+    expect(
+      find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '親分'),
+      findsNothing,
+    );
 
     await tester.pump(const Duration(milliseconds: 500));
     expect(
@@ -197,16 +224,12 @@ void main() {
     await meet(tester, opponent);
     await chooseOutcome(tester, 'negative-outcome');
     expect(demo.phase, AppPhase.result);
-    expect(find.text('ショBONE'), findsOneWidget);
+    expectBoneResult(tester);
+    await returnHome(tester);
     final parent = tester.widget<Image>(
       find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '親分'),
     );
     expect((parent.image as AssetImage).assetName, parentAsset);
-    final child = tester.widget<Image>(
-      find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '骨の子分'),
-    );
-    expect((child.image as AssetImage).assetName, boneFollowerAsset);
-    await returnHome(tester);
     await checkProfile(tester, '骨 1 匹', opponent.profile);
     await meet(tester, partner);
     await chooseOutcome(tester, 'positive-outcome');
@@ -429,6 +452,7 @@ void main() {
     expect(demo.phase, AppPhase.result);
     expect(demo.normalCount, 1);
     expect(demo.boneCount, 1);
+    expectBoneResult(tester);
     await returnHome(tester);
     await key(tester, 'expire-event');
     await key(tester, 'show-results');

@@ -448,24 +448,44 @@ class _DemoPageState extends State<DemoPage> {
         return const [];
       case AppPhase.result:
         final result = demo.lastResult!;
+        final isSetback =
+            result.outcome == Outcome.loss ||
+            result.outcome == Outcome.coopFailure;
         final title = switch (result.outcome) {
           Outcome.win => 'やった！新しい仲間。',
           Outcome.loss => '骨の子分も、大切な仲間。',
           Outcome.coopSuccess => '協力、大成功！',
-          Outcome.coopFailure => '一緒に挑んだ、そのしるし。',
+          Outcome.coopFailure => '骨の子分も、大切な仲間。',
         };
         return [
-          heading(title),
-          Text(
-            '${result.peer.profile.nickname}さんの${result.newFollower.kind == FollowerKind.bone ? '骨の子分' : '子分'}を獲得。',
-          ),
-          if (result.promoted != null)
-            Text('${result.promoted!.profile.nickname}さんの骨が、元気な子分に成長しました。'),
-          if (result.outcome == Outcome.loss)
-            const Text('同じチームの人との協力で、骨の子分が元気になります。'),
+          if (isSetback) ...[
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 20,
+                height: 1.4,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '同じチームと協力ゲーム！\n力を合わせて、元気にしよう。',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, height: 1.7),
+            ),
+          ] else ...[
+            heading(title),
+            Text(
+              '${result.peer.profile.nickname}さんの${result.newFollower.kind == FollowerKind.bone ? '骨の子分' : '子分'}を獲得。',
+            ),
+            if (result.promoted != null)
+              Text('${result.promoted!.profile.nickname}さんの骨が、元気な子分に成長しました。'),
+          ],
           const SizedBox(height: 12),
           Text(
             'ちから +${result.delta}',
+            textAlign: isSetback ? TextAlign.center : TextAlign.start,
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 20),

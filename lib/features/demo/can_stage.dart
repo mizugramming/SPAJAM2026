@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../domain/models.dart';
+import 'curved_label.dart';
 
 const parentAsset = 'assets/characters/oyabun.png';
 const normalFollowerAsset = 'assets/characters/kobun_normal.png';
@@ -147,15 +148,20 @@ class _CanStageState extends State<CanStage>
     final playing = phase == AppPhase.game;
     final returning = phase == AppPhase.returning;
     final showingResult = phase == AppPhase.result;
-    final parentVisible = switch (phase) {
-      AppPhase.home ||
-      AppPhase.pairing ||
-      AppPhase.game ||
-      AppPhase.result ||
-      AppPhase.returning => true,
-      _ => false,
-    };
-    final isLoss = result?.outcome == Outcome.loss;
+    final isSetback =
+        result?.outcome == Outcome.loss ||
+        result?.outcome == Outcome.coopFailure;
+    final boneInSpotlight = isSetback && (showingResult || returning);
+    final parentVisible =
+        !boneInSpotlight &&
+        switch (phase) {
+          AppPhase.home ||
+          AppPhase.pairing ||
+          AppPhase.game ||
+          AppPhase.result ||
+          AppPhase.returning => true,
+          _ => false,
+        };
     final separateNewBone =
         result != null &&
         result.promoted != null &&
@@ -184,8 +190,14 @@ class _CanStageState extends State<CanStage>
               : (width - canWidth) / 2;
           final parentWidth = playing ? 84.0 : canWidth * .62;
           final parentHeight = parentWidth * 1122 / 1402;
-          final followerWidth = math.min(104.0, width * .28);
-          final followerLabel = isLoss
+          final followerWidth = boneInSpotlight
+              ? canWidth * .72
+              : math.min(104.0, width * .28);
+          final followerStyle = boneInSpotlight
+              ? _shoboneStyle
+              : _followerLabelStyle;
+          final followerGap = boneInSpotlight ? 12.0 : 0.0;
+          final followerLabel = isSetback
               ? 'ショBONE'
               : result?.outcome == Outcome.win
               ? 'よろしく(ツ)ナ'
@@ -200,10 +212,11 @@ class _CanStageState extends State<CanStage>
           final extraBoneImageHeight = followerWidth * 419 / 953;
           final followerHeight =
               followerImageHeight +
+              followerGap +
               _measureText(
                 context,
                 followerLabel,
-                _followerLabelStyle,
+                followerStyle,
                 followerWidth,
               ).height;
           final extraBoneHeight =
@@ -214,22 +227,22 @@ class _CanStageState extends State<CanStage>
                 _followerLabelStyle,
                 followerWidth,
               ).height;
-          final actorHeight = parentVisible
-              ? math.max(
-                  parentHeight,
-                  showingResult || returning
-                      ? math.max(
-                          followerHeight,
-                          separateNewBone ? extraBoneHeight : 0.0,
-                        )
-                      : 0.0,
-                )
-              : 0.0;
+          final actorHeight = math.max(
+            parentVisible ? parentHeight : 0.0,
+            showingResult || returning
+                ? math.max(
+                    followerHeight,
+                    separateNewBone ? extraBoneHeight : 0.0,
+                  )
+                : 0.0,
+          );
           final stageHeight = playing
               ? constraints.hasBoundedHeight
                     ? constraints.maxHeight
                     : math.max(304.0, visibleCanHeight + parentHeight + 60)
-              : canHeight + actorHeight + (parentVisible ? 36 : 40);
+              : canHeight +
+                    actorHeight +
+                    (parentVisible || boneInSpotlight ? 36 : 40);
           final canTop = stageHeight - 18 - visibleCanHeight;
           final mouthY = canTop + 23 * canScale;
           final canCenter = playing ? width - 12 - 48 : width / 2;
@@ -285,37 +298,40 @@ class _CanStageState extends State<CanStage>
                         ),
                       ),
                     ),
-                    AnimatedPositioned(
-                      duration: duration,
-                      curve: Curves.easeInOutCubic,
-                      left: parentLeft,
-                      top: parentTop,
-                      width: parentWidth,
-                      height: parentHeight,
-                      child: Opacity(
-                        opacity: parentVisible && parentProgress < 1 ? 1 : 0,
-                        child: Transform.translate(
-                          key: const Key('parent-motion'),
-                          offset: parentOffset,
-                          child: Transform.rotate(
-                            angle: _kind == _CanMotion.celebrate
-                                ? math.sin(_motion.value * math.pi * 6) * .10
-                                : math.sin(parentProgress * math.pi) * .16,
-                            child: Transform.scale(
-                              scale: 1 - parentProgress * .25,
-                              child: Image.asset(
-                                parentAsset,
-                                semanticLabel: '親分',
-                                fit: BoxFit.contain,
+                    if (parentVisible)
+                      AnimatedPositioned(
+                        duration: duration,
+                        curve: Curves.easeInOutCubic,
+                        left: parentLeft,
+                        top: parentTop,
+                        width: parentWidth,
+                        height: parentHeight,
+                        child: Opacity(
+                          opacity: parentVisible && parentProgress < 1 ? 1 : 0,
+                          child: Transform.translate(
+                            key: const Key('parent-motion'),
+                            offset: parentOffset,
+                            child: Transform.rotate(
+                              angle: _kind == _CanMotion.celebrate
+                                  ? math.sin(_motion.value * math.pi * 6) * .10
+                                  : math.sin(parentProgress * math.pi) * .16,
+                              child: Transform.scale(
+                                scale: 1 - parentProgress * .25,
+                                child: Image.asset(
+                                  parentAsset,
+                                  semanticLabel: '親分',
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
                     if (result != null && (showingResult || returning))
                       _follower(
-                        left: 0,
+                        left: boneInSpotlight
+                            ? canCenter - followerWidth / 2
+                            : 0,
                         top: mouthY - followerHeight,
                         width: followerWidth,
                         height: followerHeight,
@@ -323,10 +339,15 @@ class _CanStageState extends State<CanStage>
                         target: Offset(canCenter, mouthY),
                         progress: returning ? _part(.16, .62) : 0,
                         label: followerLabel,
+                        labelStyle: followerStyle,
+                        labelGap: followerGap,
+                        labelKey: boneInSpotlight
+                            ? const Key('shobone-title')
+                            : null,
                         image: primaryIsBone
                             ? boneFollowerAsset
                             : normalFollowerAsset,
-                        semanticLabel: isLoss ? '骨の子分' : '獲得・成長した子分',
+                        semanticLabel: primaryIsBone ? '骨の子分' : '獲得・成長した子分',
                         motionKey: const Key('follower-motion-primary'),
                       ),
                     if (separateNewBone && (showingResult || returning))
@@ -375,6 +396,9 @@ class _CanStageState extends State<CanStage>
     required String image,
     required String semanticLabel,
     required Key motionKey,
+    TextStyle labelStyle = _followerLabelStyle,
+    double labelGap = 0,
+    Key? labelKey,
   }) => Positioned(
     left: left,
     top: top,
@@ -398,10 +422,12 @@ class _CanStageState extends State<CanStage>
                   opacity: (1 - progress * 4).clamp(0.0, 1.0),
                   child: Text(
                     label,
+                    key: labelKey,
                     textAlign: TextAlign.center,
-                    style: _followerLabelStyle,
+                    style: labelStyle,
                   ),
                 ),
+                if (labelGap > 0) SizedBox(height: labelGap),
                 Image.asset(
                   image,
                   width: width,
@@ -423,6 +449,13 @@ const _followerLabelStyle = TextStyle(
   fontSize: 11,
   height: 1.35,
   fontWeight: FontWeight.bold,
+  color: _canInk,
+);
+const _shoboneStyle = TextStyle(
+  fontSize: 34,
+  height: 1.15,
+  fontWeight: FontWeight.w900,
+  letterSpacing: 1.2,
   color: _canInk,
 );
 const _prefixStyle = TextStyle(
@@ -497,7 +530,10 @@ class TunaCan extends StatelessWidget {
       );
     }
     final layout = _LabelLayout(context, width - padding.horizontal, profile);
-    return math.max(184, layout.height + padding.vertical);
+    return math.max(
+      184,
+      layout.height + CurvedLabel.defaultDrop + padding.vertical,
+    );
   }
 
   @override
@@ -538,15 +574,17 @@ class TunaCan extends StatelessWidget {
                       constraints.maxWidth,
                       profile,
                     );
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var i = 0; i < _prefixes.length; i++) ...[
-                          if (i > 0) const SizedBox(height: 8),
-                          _labelRow(layout, i, textColor),
+                    return CurvedLabel(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var i = 0; i < _prefixes.length; i++) ...[
+                            if (i > 0) const SizedBox(height: 8),
+                            _labelRow(layout, i, textColor),
+                          ],
                         ],
-                      ],
+                      ),
                     );
                   },
                 ),
