@@ -1,39 +1,36 @@
-"""Validate this documentation kit using only the Python standard library."""
+"""Validate honban application documents, layout and pinned SDK configuration.
 
+The filename is retained for links copied from the reusable kit. On honban this
+checks an application repository: application files are required, not forbidden.
+Flutter analysis/tests/builds run separately in the CI `check` job.
+"""
+
+import json
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 from urllib.parse import unquote, urlsplit
 
 
 REQUIRED = (
-    "AGENTS.md",
-    "CLAUDE.md",
-    "README.md",
-    ".github/copilot-instructions.md",
-    ".github/PULL_REQUEST_TEMPLATE.md",
-    ".github/workflows/check.yml",
-    "docs/ai_prompts.md",
-    "docs/reuse_rules.md",
-    "docs/repository_maintenance.md",
-    "templates/project/README.md",
-    "templates/project/README.flutter.md",
-    "templates/project/.github/PULL_REQUEST_TEMPLATE.md",
-    "templates/project/docs/app_design.md",
-    "templates/project/docs/project_structure.md",
-    "templates/project/docs/development.md",
-    "templates/project/docs/assets.md",
+    "AGENTS.md", "CLAUDE.md", "README.md",
+    ".github/copilot-instructions.md", ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/workflows/check.yml", ".fvmrc", "tool/toolchain.json",
+    "tool/check_environment.dart", "pubspec.yaml", "pubspec.lock",
+    "analysis_options.yaml", "lib/main.dart", "lib/domain/models.dart",
+    "lib/domain/reward_rules.dart", "lib/data/demo_controller.dart",
+    "lib/app/tsunagun_app.dart", "lib/features/demo/demo_page.dart",
+    "docs/ai_prompts.md", "docs/app_design.md", "docs/decisions.md",
+    "docs/development.md", "docs/feature_integration.md", "docs/assets.md",
+    "docs/tsunagun/APP_DESIGN.md", "docs/repository_maintenance.md",
+    "android/app/build.gradle.kts", "web/index.html",
 )
-APP_PATHS = (
-    "lib", "assets", "test", "android", "ios", "web", "linux", "macos",
-    "windows", "practice", "pubspec.yaml", "pubspec.lock", ".metadata",
-    "analysis_options.yaml", "yohaku_app_design.md",
-    ".github/workflows/flutter.yml", "docs/screenshots",
-)
-SHARED = (
-    "AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md",
-    "docs/ai_prompts.md",
-)
+SKIP_DIRS = {
+    ".git", ".fvm", ".dart_tool", "build", ".gradle", ".idea",
+    ".venv", "node_modules", "__pycache__",
+}
 
 
 def check(root: Path) -> list[str]:
@@ -42,40 +39,69 @@ def check(root: Path) -> list[str]:
     for name in REQUIRED:
         if not (root / name).is_file():
             errors.append(f"Missing required file: {name}")
-    for name in APP_PATHS:
-        if (root / name).exists():
-            errors.append(f"App files do not belong in the kit: {name}")
+    if not list((root / "test").rglob("*_test.dart")):
+        errors.append("At least one Flutter test is required")
 
-    for path in sorted(root.rglob("*.md")):
-        relative = path.relative_to(root)
-        if ".git" in relative.parts:
-            continue
-        content = path.read_text(encoding="utf-8")
-        if re.search(r"^(<<<<<<< |=======|>>>>>>> )", content, re.MULTILINE):
-            errors.append(f"Conflict marker: {relative}")
-        # Ignore examples in fenced blocks; only inspect inline Markdown links.
-        prose = re.sub(r"^```[^\n]*\n.*?^```[^\n]*$", "", content,
-                       flags=re.MULTILINE | re.DOTALL)
-        for target in re.findall(r"\]\(([^)]+)\)", prose):
-            url = urlsplit(target.strip("<>"))
-            if url.scheme or url.netloc or not url.path:
+    for directory, children, files in os.walk(root):
+        children[:] = [child for child in children if child not in SKIP_DIRS]
+        for name in sorted(files):
+            if not name.endswith(".md"):
                 continue
-            destination = (path.parent / unquote(url.path)).resolve()
-            if not destination.is_relative_to(root) or not destination.exists():
-                errors.append(f"Broken local link in {relative}: {target}")
+            path = Path(directory) / name
+            relative = path.relative_to(root)
+            content = path.read_text(encoding="utf-8")
+            if re.search(r"^(<<<<<<< |=======|>>>>>>> )", content, re.MULTILINE):
+                errors.append(f"Conflict marker: {relative}")
+            prose = re.sub(r"^```[^\n]*\n.*?^```[^\n]*$", "", content,
+                           flags=re.MULTILINE | re.DOTALL)
+            for target in re.findall(r"\]\(([^)]+)\)", prose):
+                url = urlsplit(target.strip("<>"))
+                if url.scheme or url.netloc or not url.path:
+                    continue
+                destination = (path.parent / unquote(url.path)).resolve()
+                if not destination.is_relative_to(root) or not destination.exists():
+                    errors.append(f"Broken local link in {relative}: {target}")
 
-    for name in SHARED:
-        path = root / name
-        if path.is_file() and re.search(
-            r"余白|SPAJAM2026|rehearsal/02|yohaku|3\.41\.5|SpaceRecord",
-            path.read_text(encoding="utf-8"),
-        ):
-            errors.append(f"App-specific content in reusable guidance: {name}")
+    try:
+        fvm = json.loads((root / ".fvmrc").read_text(encoding="utf-8"))
+        chain = json.loads((root / "tool/toolchain.json").read_text(encoding="utf-8"))
+        for value, label in ((fvm["flutter"], "Flutter"), (chain["dart"], "Dart")):
+            if not re.fullmatch(r"\d+\.\d+\.\d+", value):
+                errors.append(f"{label} must pin a complete stable version")
+        if not re.fullmatch(r"\d+", chain["java"]):
+            errors.append("Java must pin its major version")
+        pubspec = (root / "pubspec.yaml").read_text(encoding="utf-8")
+        sdk = re.search(r"^  sdk: *[\"']?>=([^ <]+)", pubspec, re.MULTILINE)
+        flutter = re.search(r"^  flutter: *[\"']?>=([^ <\"']+)", pubspec, re.MULTILINE)
+        if not sdk or sdk[1] != chain["dart"]:
+            errors.append("pubspec Dart minimum must match tool/toolchain.json")
+        if not flutter or flutter[1] != fvm["flutter"]:
+            errors.append("pubspec Flutter minimum must match .fvmrc")
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        errors.append(f"Cannot validate SDK configuration: {error}")
+
     prompts = root / "docs/ai_prompts.md"
     if prompts.is_file():
-        text = prompts.read_text(encoding="utf-8")
-        if text.count("```text") != 2 or "【" in text:
+        content = prompts.read_text(encoding="utf-8")
+        if content.count("```text") != 2 or "【" in content:
             errors.append("Expected two copy-ready prompts without fill-in fields")
+
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=root, capture_output=True, check=False,
+    )
+    if tracked.returncode:
+        errors.append("Could not inspect tracked files")
+    else:
+        for raw in tracked.stdout.decode("utf-8").split("\0"):
+            if not raw:
+                continue
+            path = Path(raw)
+            if set(path.parts) & SKIP_DIRS:
+                errors.append(f"Tracked cache or generated directory: {raw}")
+            if (path.name in {"local.properties", "key.properties", ".env"}
+                    or path.suffix in {".jks", ".keystore", ".p12", ".pem"}
+                    or path.name.endswith("Zone.Identifier")):
+                errors.append(f"Tracked local/credential file: {raw}")
     return errors
 
 
@@ -84,4 +110,4 @@ if __name__ == "__main__":
     if problems:
         print("\n".join(problems), file=sys.stderr)
         sys.exit(1)
-    print("PASS: required files, local links, reusable prompts, and kit scope")
+    print("PASS: application layout, document links, pinned SDKs and tracked files")

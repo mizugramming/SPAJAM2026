@@ -1,8 +1,46 @@
-# Local editor / OS files
+# Editor and OS files
 .DS_Store
 .idea/
+*.iml
 *.swp
 *.log
+
+# Flutter/Dart SDK, cache and generated output
+.fvm/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+.flutter_export_environment.sh
+
+# Local Android configuration / generated tooling
+android/.gradle/
+android/captures/
+android/local.properties
+android/key.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/gradlew
+android/gradlew.bat
+android/gradle/wrapper/gradle-wrapper.jar
+
+# Credentials and private runtime configuration
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pem
+**/service-account*.json
+
+# Local handoff packages (versioned source is docs/tsunagun/)
+*.zip
+*Zone.Identifier
+/tsunagun_design_v2/
 
 # Local validation artifacts
 __pycache__/
