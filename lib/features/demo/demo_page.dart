@@ -139,6 +139,8 @@ class _DemoPageState extends State<DemoPage> {
                             ? '結果の受付 残り ${formatTime(demo.settlementRemaining)}'
                             : '残り ${formatTime(demo.remaining)}',
                         onDemoMenu: showGameDemoMenu,
+                        onResolved: (outcome) =>
+                            reserveGame(generation, peerId!, outcome),
                         onCompleted: (outcome) =>
                             completeGame(generation, peerId!, outcome),
                       )
@@ -595,15 +597,22 @@ class _DemoPageState extends State<DemoPage> {
     ),
   );
 
+  bool isCurrentGame(int generation, String peerId) =>
+      mounted &&
+      generation == encounterGeneration &&
+      demo.phase == AppPhase.game &&
+      demo.activePeer?.id == peerId;
+
+  void reserveGame(int generation, String peerId, Outcome outcome) {
+    // Both decision and presentation callbacks use the same encounter guard.
+    if (!isCurrentGame(generation, peerId)) return;
+    demo.reserveOutcome(outcome);
+  }
+
   void completeGame(int generation, String peerId, Outcome outcome) {
     // Ignore duplicate, expired, and previous-game callbacks, including
     // callbacks from a room that was reset and started again.
-    if (!mounted ||
-        generation != encounterGeneration ||
-        demo.phase != AppPhase.game ||
-        demo.activePeer?.id != peerId) {
-      return;
-    }
+    if (!isCurrentGame(generation, peerId)) return;
     runAction(() => demo.injectOutcome(outcome));
   }
 

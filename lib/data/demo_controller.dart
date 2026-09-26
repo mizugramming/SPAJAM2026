@@ -34,6 +34,7 @@ class DemoController extends ChangeNotifier {
   Profile? _savedProfile;
   Participant? _activePeer;
   EncounterResult? _lastResult;
+  ({String peerId, Outcome outcome})? _pendingResult;
   FinalSnapshot? _finalSnapshot;
   final Map<String, List<Follower>> _collections = {};
   final Set<String> _completedPeerIds = {};
@@ -189,6 +190,7 @@ class DemoController extends ChangeNotifier {
     }
     _activePeer = null;
     _lastResult = null;
+    _pendingResult = null;
     _phase = AppPhase.pairing;
     notifyListeners();
   }
@@ -225,12 +227,27 @@ class DemoController extends ChangeNotifier {
         _completedPeerIds.contains(_activePeer!.id)) {
       return false;
     }
+    _pendingResult = null;
     _phase = AppPhase.game;
     notifyListeners();
     return true;
   }
 
-  bool injectOutcome(Outcome outcome) {
+  /// Reserve a resolved duel while its result/dance presentation is running.
+  /// Reservations do not award followers or navigate; completion or deadline
+  /// settles the same result once. Cooperative games still complete directly.
+  bool reserveOutcome(Outcome outcome) {
+    if ((outcome != Outcome.win && outcome != Outcome.loss) ||
+        !_canAcceptOutcome(outcome)) {
+      return false;
+    }
+    if (_pendingResult != null) return true;
+    _pendingResult = (peerId: _activePeer!.id, outcome: outcome);
+    notifyListeners();
+    return true;
+  }
+
+  bool _canAcceptOutcome(Outcome outcome) {
     if (_disposed ||
         _phase != AppPhase.game ||
         _activePeer == null ||
@@ -244,7 +261,24 @@ class DemoController extends ChangeNotifier {
     final cooperativeOutcome =
         outcome == Outcome.coopSuccess || outcome == Outcome.coopFailure;
     if (cooperative != cooperativeOutcome) return false;
+    final pending = _pendingResult;
+    return pending == null ||
+        (pending.peerId == peer.id && pending.outcome == outcome);
+  }
 
+  bool injectOutcome(Outcome outcome) {
+    if (!_canAcceptOutcome(outcome)) return false;
+    _applyOutcome(outcome);
+    _phase = AppPhase.result;
+    if (_remaining <= Duration.zero) _freeze();
+    notifyListeners();
+    return true;
+  }
+
+  /// Called only for an accepted notification or a previously accepted
+  /// reservation. Deadline settlement deliberately bypasses fresh-input checks.
+  void _applyOutcome(Outcome outcome) {
+    final peer = _activePeer!;
     // Build both immutable results first, then publish both together.
     final reward = _rules.settle(
       self: self,
@@ -257,10 +291,7 @@ class DemoController extends ChangeNotifier {
     _collections[peer.id] = reward.peerFollowers;
     _completedPeerIds.add(peer.id);
     _lastResult = reward.selfResult;
-    _phase = AppPhase.result;
-    if (_remaining <= Duration.zero) _freeze();
-    notifyListeners();
-    return true;
+    _pendingResult = null;
   }
 
   void returnHome() {
@@ -321,6 +352,15 @@ class DemoController extends ChangeNotifier {
   }
 
   void _freeze() {
+    final pending = _pendingResult;
+    if (_finalSnapshot == null &&
+        _phase == AppPhase.game &&
+        pending != null &&
+        _activePeer?.id == pending.peerId &&
+        !_completedPeerIds.contains(pending.peerId)) {
+      _applyOutcome(pending.outcome);
+    }
+    _pendingResult = null;
     _finalSnapshot ??= _rules.summarize([self, ...peers], _collections);
     _remaining = Duration.zero;
     _graceRemaining = Duration.zero;
@@ -347,6 +387,7 @@ class DemoController extends ChangeNotifier {
     _savedProfile = null;
     _activePeer = null;
     _lastResult = null;
+    _pendingResult = null;
     _finalSnapshot = null;
     _collections.clear();
     _completedPeerIds.clear();

@@ -26,7 +26,7 @@ class RaceField extends StatelessWidget {
   /// アウトの線の高さ。盤面の高さに対する割合（0が上端、1が下端）。
   ///
   /// 魚の口先がこの線へ届くと、海へ落ちたことになる。位置はユーザーが決めた値。
-  static const defaultLandingRatio = 0.894;
+  static const defaultLandingRatio = 0.913;
 
   /// 描画する深さの上限（線を越えて海の中）。
   static const maxDepth = 1.4;
