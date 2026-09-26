@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -12,10 +13,20 @@ class TugOfWarFinale extends StatefulWidget {
     super.key,
     required this.snapshot,
     required this.onShowResults,
+    this.serverStartAt,
+    this.serverNow,
+    this.onStartRequested,
+    this.canStart = true,
   });
 
   final FinalSnapshot snapshot;
   final VoidCallback onShowResults;
+
+  /// Supplying a server clock enables a shared, non-skippable presentation.
+  final int? serverStartAt;
+  final int Function()? serverNow;
+  final VoidCallback? onStartRequested;
+  final bool canStart;
 
   @override
   State<TugOfWarFinale> createState() => _TugOfWarFinaleState();
@@ -31,26 +42,30 @@ const _revealSeconds = 11.0;
 const _totalSeconds = 13.0;
 
 class _TugOfWarFinaleState extends State<TugOfWarFinale>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _motion;
   bool _started = false;
   bool _reduceMotion = false;
   bool _resultsOpened = false;
+  Timer? _sharedClock;
+  bool get _shared => widget.serverNow != null;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _motion = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 13),
     );
+    _resumeSharedClock();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _reduceMotion = MediaQuery.disableAnimationsOf(context);
-    if (_started && _reduceMotion) _motion.value = 1;
+    if (_started && _reduceMotion && !_shared) _motion.value = 1;
   }
 
   @override
@@ -58,11 +73,43 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
     super.didUpdateWidget(oldWidget);
     // Clock-driven parent rebuilds keep their place. A new snapshot waits for
     // its own explicit start, including reduced-motion and zero-power events.
-    if (!identical(oldWidget.snapshot, widget.snapshot)) {
+    if (!_shared && !identical(oldWidget.snapshot, widget.snapshot)) {
       _motion.stop();
       _motion.value = 0;
       _started = false;
       _resultsOpened = false;
+    }
+    if (_shared) _resumeSharedClock();
+  }
+
+  void _resumeSharedClock() {
+    _sharedClock?.cancel();
+    if (!_shared) return;
+    _syncSharedClock();
+    if (widget.serverStartAt != null && _motion.value < 1) {
+      _sharedClock = Timer.periodic(const Duration(milliseconds: 33), (_) {
+        if (mounted) setState(_syncSharedClock);
+      });
+    }
+  }
+
+  void _syncSharedClock() {
+    final start = widget.serverStartAt;
+    final now = widget.serverNow!();
+    _started = start != null && now >= start;
+    _motion.value = !_started
+        ? 0
+        : ((now - start!) / (_totalSeconds * 1000)).clamp(0.0, 1.0);
+    if (_motion.value >= 1) _sharedClock?.cancel();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_shared) return;
+    if (state == AppLifecycleState.resumed) {
+      setState(_resumeSharedClock);
+    } else {
+      _sharedClock?.cancel();
     }
   }
 
@@ -71,6 +118,12 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
 
   void _start() {
     if (_started) return;
+    if (_shared) {
+      if (widget.canStart && widget.serverStartAt == null) {
+        widget.onStartRequested?.call();
+      }
+      return;
+    }
     setState(() => _started = true);
     if (_reduceMotion || _hasNoPower) {
       _motion.value = 1;
@@ -87,6 +140,8 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _sharedClock?.cancel();
     _motion.dispose();
     super.dispose();
   }
@@ -118,12 +173,17 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
           : snapshot.isDraw
           ? 'どちらも、ゆずらない！'
           : 'あと、ひと引き！';
-      final progress = ((seconds - _countdownSeconds) / _pullSeconds).clamp(
-        0.0,
-        1.0,
-      );
+      // Accessibility changes the motion, never the shared reveal deadline.
+      final motionSeconds = _reduceMotion
+          ? (finished ? _totalSeconds : 0.0)
+          : seconds;
+      final progress = ((motionSeconds - _countdownSeconds) / _pullSeconds)
+          .clamp(0.0, 1.0);
       final finish = Curves.easeInOutCubic.transform(
-        ((seconds - _countdownSeconds - _pullSeconds) / 1.5).clamp(0.0, 1.0),
+        ((motionSeconds - _countdownSeconds - _pullSeconds) / 1.5).clamp(
+          0.0,
+          1.0,
+        ),
       );
       final direction = winner == Team.red
           ? -1.0
@@ -149,8 +209,13 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
           (1 - margin * .45);
       final contest = advantage + tussle;
       final pull = contest * (1 - finish) + direction * .82 * finish;
-      final beat = pulling ? math.sin(seconds * math.pi * 5) : 0.0;
-      final celebration = ((seconds - _revealSeconds) / 2).clamp(0.0, 1.0);
+      final beat = pulling && !_reduceMotion
+          ? math.sin(seconds * math.pi * 5)
+          : 0.0;
+      final celebration = ((motionSeconds - _revealSeconds) / 2).clamp(
+        0.0,
+        1.0,
+      );
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -318,10 +383,20 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
             if (!_started)
               FilledButton(
                 key: const Key('start-tug-button'),
-                onPressed: _start,
-                child: const Text('綱引きスタート！'),
+                onPressed:
+                    !_shared ||
+                        (widget.canStart && widget.serverStartAt == null)
+                    ? _start
+                    : null,
+                child: Text(
+                  _shared && widget.serverStartAt != null
+                      ? 'まもなくスタート！'
+                      : _shared && !widget.canStart
+                      ? '主催者のスタートを待っています'
+                      : '綱引きスタート！',
+                ),
               )
-            else
+            else if (!_shared)
               TextButton(
                 key: const Key('skip-tug-animation'),
                 onPressed: () => _motion.value = 1,

@@ -73,3 +73,65 @@ jobs:
           else
             git show --format= --check HEAD
           fi
+  server:
+    name: Server checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: server
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Fetch locked server dependencies
+        run: npm ci
+      - name: Check server types
+        run: npm run check
+      - name: Test room rules
+        run: npm test
+      - name: Build Worker without deploying
+        run: npm run build
+      - name: Exercise two authenticated clients against the local Worker
+        env:
+          TSUNAGUN_TEST_URL: http://127.0.0.1:8787
+        run: |
+          set -euo pipefail
+          server_log="$RUNNER_TEMP/tsunagun-server.log"
+          setsid ./node_modules/.bin/wrangler dev --ip 127.0.0.1 --port 8787 > "$server_log" 2>&1 &
+          server_pid=$!
+          cleanup() {
+            local result=$?
+            trap - EXIT INT TERM
+            kill -- "-$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+            if [ "$result" -ne 0 ]; then
+              cat "$server_log"
+            fi
+            exit "$result"
+          }
+          trap cleanup EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          ready=false
+          for attempt in {1..60}; do
+            if curl --fail --silent --max-time 1 "$TSUNAGUN_TEST_URL/health" > /dev/null; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            exit 1
+          fi
+          npm run test:integration
+      - name: Confirm server lockfile is unchanged
+        run: git diff --exit-code -- package-lock.json

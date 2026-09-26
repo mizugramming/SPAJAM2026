@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 
 import 'app/tsunagun_app.dart';
 import 'data/conveyor_settings.dart';
+import 'data/online_controller.dart';
+import 'data/online_session_store.dart';
 import 'features/demo/result_sound_player.dart';
 
 Future<void> main() async {
@@ -25,6 +27,9 @@ Future<void> main() async {
   runApp(
     TsunagunApp(
       conveyorSettings: conveyorSettings,
+      onlineController: const bool.fromEnvironment('TSUNAGUN_DEMO')
+          ? null
+          : OnlineController(store: SecureOnlineSessionStore()),
       resultSoundPlayer: AssetResultSoundPlayer(),
     ),
   );

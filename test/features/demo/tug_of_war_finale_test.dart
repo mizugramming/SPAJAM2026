@@ -535,4 +535,101 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('共有開始は主催者の要求後もサーバー時刻を待ち、全員同じ位置から進む', (tester) async {
+    narrowScreen(tester);
+    var now = 1000;
+    int? startAt;
+    var requested = 0;
+    Widget shared({bool host = true}) => MaterialApp(
+      theme: tsunagunTheme(),
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: TugOfWarFinale(
+            snapshot: snapshot(7, 3),
+            onShowResults: () {},
+            serverNow: () => now,
+            serverStartAt: startAt,
+            canStart: host,
+            onStartRequested: () => requested++,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(shared(host: false));
+    expect(find.text('主催者のスタートを待っています'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('start-tug-button')))
+          .onPressed,
+      isNull,
+    );
+    await tester.pumpWidget(shared());
+    await start(tester);
+    expect(requested, 1);
+    expectHiddenScore();
+    expect(find.byKey(const Key('tug-countdown')), findsNothing);
+    startAt = 2000;
+    await tester.pumpWidget(shared());
+    expect(find.text('まもなくスタート！'), findsOneWidget);
+    now = 2000;
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(find.text('3'), findsOneWidget);
+    expect(find.byKey(const Key('skip-tug-animation')), findsNothing);
+    now = 6500;
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(find.text('オーエス！ オーエス！'), findsOneWidget);
+    // A refreshed immutable snapshot cannot restart the common countdown.
+    await tester.pumpWidget(shared());
+    expect(find.text('オーエス！ オーエス！'), findsOneWidget);
+    expectHiddenScore();
+    now = 13001;
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(find.text('赤チームの勝利！'), findsOneWidget);
+    now = 15000;
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(find.byKey(const Key('tug-confetti')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('共有演出は途中参加と背景復帰で追いつき、動作軽減でも結果を先に公開しない', (tester) async {
+    narrowScreen(tester);
+    var now = 6500;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: TugOfWarFinale(
+                snapshot: snapshot(3, 1),
+                onShowResults: () {},
+                serverNow: () => now,
+                serverStartAt: 1000,
+                canStart: false,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('オーエス！ オーエス！'), findsOneWidget);
+    expectHiddenScore();
+    final stillFlag = tester.getCenter(find.byKey(const Key('tug-rope-flag')));
+    final stillAudience = spectatorRects(tester);
+    now = 10500;
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(tester.getCenter(find.byKey(const Key('tug-rope-flag'))), stillFlag);
+    expectSpectatorsSeated(spectatorRects(tester), stillAudience);
+    expectHiddenScore();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    now = 15000;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(find.text('赤チームの勝利！'), findsOneWidget);
+    expect(find.byKey(const Key('tug-confetti')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.takeException(), isNull);
+  });
 }
