@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../domain/models.dart';
-import '../duel/sea_background.dart';
 import 'soul_course.dart';
 import 'soul_placement.dart';
 
@@ -158,7 +157,6 @@ class SoulStage extends StatelessWidget {
     required this.peerName,
     required this.run,
     required this.runTime,
-    required this.elapsed,
     this.flashText,
     this.flashHop = 1,
     this.placement = SoulPlacement.standard,
@@ -174,9 +172,6 @@ class SoulStage extends StatelessWidget {
 
   /// 魂を放してからの経過時間。放す前は0以下。
   final Duration runTime;
-
-  /// 背景のゆれに使うゲーム時計。止まっているときは動かない。
-  final Duration elapsed;
 
   /// 運べたときに缶の近くへ出す短い言葉と、その缶。
   final String? flashText;
@@ -196,7 +191,6 @@ class SoulStage extends StatelessWidget {
         return Stack(
           clipBehavior: Clip.hardEdge,
           children: [
-            Positioned.fill(child: SeaBackground(elapsed: elapsed)),
             _Hole(layout: layout),
             for (var hop = 1; hop <= SoulRun.hops; hop++)
               _Can(layout: layout, hop: hop),

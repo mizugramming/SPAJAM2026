@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../../domain/models.dart';
+import '../duel/sea_background.dart';
 import 'soul_course.dart';
 import 'soul_stage.dart';
 
@@ -195,6 +196,9 @@ class _CooperativeGameState extends State<CooperativeGame>
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // 背景は「レベル・魂」の行も含めて敷く。幅に合わせて下端をそろえるので、
+            // 上の共通の帯に敷いた同じ背景と、境目でずれずにつながる。
+            Positioned.fill(child: SeaBackground(elapsed: _elapsed)),
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -229,7 +233,6 @@ class _CooperativeGameState extends State<CooperativeGame>
                                       _phase == _Phase.intro
                                   ? Duration.zero
                                   : _runTime,
-                              elapsed: _elapsed,
                               flashText: showFlash ? _flashText : null,
                               flashHop: _flashHop,
                             ),
@@ -354,8 +357,9 @@ class _Hud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
+    // 背景の絵の上でも読めるよう、文字の後ろに薄い灰色を敷く。
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.85),
+      color: const Color(0xCCE6E8EB),
       borderRadius: BorderRadius.circular(12),
     ),
     child: Padding(
