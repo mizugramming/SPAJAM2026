@@ -6,6 +6,7 @@ import 'package:spajam2026/features/duel/duel_game.dart';
 import 'package:spajam2026/features/duel/race_course.dart';
 import 'package:spajam2026/features/duel/race_field.dart';
 import 'package:spajam2026/features/duel/sea_background.dart';
+import 'package:spajam2026/features/duel/win_dance.dart';
 
 const selfProfile = Profile(nickname: 'わたし', hobby: '', comment: '');
 const peerProfile = Profile(nickname: 'あいて', hobby: '', comment: '');
@@ -125,7 +126,12 @@ void main() {
     await pumpTicks(tester, const Duration(seconds: 2));
     expect(find.text('WIN'), findsOneWidget);
     expect(results, isEmpty);
+    // 勝ったら結果画面の前に、子分が親方に変わって踊る（約4秒）。その間も通知しない。
     await pumpTicks(tester, const Duration(seconds: 1));
+    expect(find.byKey(const Key('win-dance')), findsOneWidget);
+    expect(find.byKey(const Key('oyakata-dance')), findsOneWidget);
+    expect(results, isEmpty);
+    await pumpTicks(tester, const Duration(seconds: 4));
     expect(results, [DuelGameResult.win]);
 
     // 決着後にさらに時間が進んでも、通知は一度だけ。
@@ -191,7 +197,7 @@ void main() {
     await tester.pump();
     expect(find.text('81%'), findsOneWidget);
 
-    await pumpTicks(tester, const Duration(seconds: 4));
+    await pumpTicks(tester, const Duration(seconds: 8));
     expect(results, [DuelGameResult.win]);
   });
 
@@ -423,5 +429,62 @@ void main() {
     await startRace(tester);
     await pumpTicks(tester, const Duration(seconds: 4));
     expect(vibrations, ['HapticFeedbackType.heavyImpact']);
+  });
+
+  testWidgets('負けたときは踊らずに結果へ進み、踊りは1秒見たらタップで飛ばせる', (tester) async {
+    // 負け：踊りの場面は出ない。
+    final lost = <DuelGameResult>[];
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.stopped(0.5),
+        onCompleted: lost.add,
+      ),
+    );
+    await startRace(tester);
+    await pumpTicks(tester, const Duration(seconds: 4));
+    expect(lost, [DuelGameResult.loss]);
+    expect(find.byKey(const Key('win-dance')), findsNothing);
+
+    // 勝ち：踊り始めてすぐのタップは無視し、1秒たったら飛ばせる。
+    final won = <DuelGameResult>[];
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      duel(
+        course: const RaceCourse(fallDuration: Duration(seconds: 1)),
+        peerDecision: const RaceDecision.fell(),
+        onCompleted: won.add,
+      ),
+    );
+    await startRace(tester);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byType(DuelGame));
+    // 相手が落ちて決着（約1秒）＋結果表示1.8秒のあと、踊りが始まる。
+    await pumpTicks(tester, const Duration(milliseconds: 2500));
+    expect(find.byKey(const Key('win-dance')), findsOneWidget);
+    await tester.tap(find.byType(DuelGame));
+    await tester.pump();
+    expect(won, isEmpty);
+    await pumpTicks(tester, const Duration(seconds: 1));
+    await tester.tap(find.byType(DuelGame));
+    await tester.pump();
+    expect(won, [DuelGameResult.win]);
+  });
+
+  testWidgets('踊りの素材は登録済みで、動きを減らす設定では1枚絵を出す', (tester) async {
+    for (final asset in [WinDance.danceAsset, WinDance.stillAsset]) {
+      final data = await rootBundle.load(asset);
+      expect(data.lengthInBytes, greaterThan(0), reason: asset);
+    }
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: WinDance(elapsed: Duration(seconds: 2)),
+        ),
+      ),
+    );
+    final image = tester.widget<Image>(find.byKey(const Key('oyakata-dance')));
+    expect((image.image as AssetImage).assetName, WinDance.stillAsset);
   });
 }

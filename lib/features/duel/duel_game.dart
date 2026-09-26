@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../domain/models.dart';
 import 'race_course.dart';
 import 'race_field.dart';
+import 'win_dance.dart';
 
 /// 自分（self）から見た対戦結果。
 enum DuelGameResult { win, loss }
@@ -48,6 +49,13 @@ class _DuelGameState extends State<DuelGame>
     with SingleTickerProviderStateMixin {
   /// 両者が決まってから結果を通知するまでの間（落ちる／止まる様子を見せる）。
   static const _settleDelay = Duration(milliseconds: 1800);
+
+  /// 勝ったときの、親方が踊る場面の長さと、タップで飛ばせるようになるまで。
+  static const _danceDuration = Duration(seconds: 4);
+  static const _danceSkippableAfter = Duration(seconds: 1);
+
+  /// 親方が踊り始めた時刻。勝って結果表示が終わるまでは null。
+  Duration? _danceStartedAt;
 
   late final Ticker _ticker;
   late final RaceCourse _course;
@@ -97,15 +105,25 @@ class _DuelGameState extends State<DuelGame>
     if (selfDecision != null && _peerSettled(raw)) {
       final settledAt = _bothSettledAt ??= elapsed;
       if (!_reported && elapsed - settledAt >= _settleDelay) {
-        _reported = true;
-        widget.onCompleted(
-          selfWinsRace(selfDecision, _peerDecision)
-              ? DuelGameResult.win
-              : DuelGameResult.loss,
-        );
+        if (!selfWinsRace(selfDecision, _peerDecision)) {
+          _report(DuelGameResult.loss);
+        } else {
+          // 勝ったら、結果画面の前に子分が親方に変わって踊る場面を見せる。
+          final danceStartedAt = _danceStartedAt ??= elapsed;
+          if (elapsed - danceStartedAt >= _danceDuration) {
+            _report(DuelGameResult.win);
+          }
+        }
       }
     }
     setState(() {});
+  }
+
+  /// 結果を一度だけ親へ知らせる。
+  void _report(DuelGameResult result) {
+    if (_reported) return;
+    _reported = true;
+    widget.onCompleted(result);
   }
 
   void _onTap() {
@@ -113,6 +131,14 @@ class _DuelGameState extends State<DuelGame>
       // 最初のタップは開始だけ。落下も背景もここから動く。
       setState(() => _started = true);
       _ticker.start();
+      return;
+    }
+    // 親方の踊りは、少し見たらタップで飛ばして結果へ進める。
+    final danceStartedAt = _danceStartedAt;
+    if (danceStartedAt != null) {
+      if (_elapsed - danceStartedAt >= _danceSkippableAfter) {
+        _report(DuelGameResult.win);
+      }
       return;
     }
     if (_selfDecision != null) return;
@@ -188,6 +214,8 @@ class _DuelGameState extends State<DuelGame>
                   ),
                 ),
               ),
+              if (_danceStartedAt case final startedAt?)
+                Positioned.fill(child: WinDance(elapsed: _elapsed - startedAt)),
             ],
           ),
         ),
