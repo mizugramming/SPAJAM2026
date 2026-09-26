@@ -9,12 +9,14 @@ lib/main.dart                       起動
 lib/app/tsunagun_app.dart            アプリ設定・共通PhoneViewport
 lib/app/tsunagun_theme.dart          イラストに合わせた共通色・入力・ボタン
 lib/app/tsunagun_typography.dart     同梱Medium 500フォントと選択共有
+lib/app/conveyor_settings_scope.dart  保存済み配置の共有
 lib/features/demo/demo_page.dart    一台デモの場面・操作UI
 lib/features/demo/game_scene.dart   共通ヘッダーと残り領域を使うゲーム表示枠
 lib/features/demo/can_stage.dart    缶・親分・子分・ショBONEの煙・帰還演出
 lib/features/demo/parent_character.dart  待機動画・静止画と停止条件
 lib/features/demo/font_comparison_controls.dart  DEMO内の書体切替
 lib/features/demo/factory_backdrop.dart  工場背景と場面移動時のコンベア
+lib/features/demo/conveyor_editor.dart  配置プレビュー・調整・保存
 lib/features/demo/curved_label.dart  実テキストを保った曲面ラベル描画
 lib/features/demo/tug_of_war_finale.dart  確定結果を使う最終綱引きの演出
 lib/features/demo/illustrated_details.dart  見出し・吹き出し・綱の描画
@@ -29,6 +31,8 @@ lib/features/cooperative/soul_placement.dart  ゲーム内素材の配置
 lib/domain/models.dart              プロフィール・参加者・子分・結果・状態
 lib/domain/reward_rules.dart        報酬・成長・戦力・最終集計
 lib/data/demo_controller.dart       デモの単一状態・進行管理
+lib/domain/conveyor_layout.dart     拡大率・位置の形式と値検証
+lib/data/conveyor_settings.dart     配置の端末保存・復元・失敗処理
 assets/characters/                  アプリが読むユーザー提供キャラクター
 assets/home/                        ユーザー提供のコンベア
 assets/fonts/                       比較フォントとOFLライセンス
@@ -47,14 +51,17 @@ docs/tsunagun/                     v2受領原本（画像・手書きPDFを含�
 - `EncounterResult.newFollower` はnullableです。復活は `newFollower == null`・`promoted != null`、新規の仲間入りはその逆です。表示する1匹は `rewardFollower` を使います。復活の `delta` は2、骨なし成功は3で、報酬の前後差から計算します。「協力成功なら必ずREBORN」「必ず骨追加」と判定しません。
 - `DemoController` は単一の `ChangeNotifier` で、ルーム進行・相手・結果・所持状態を管理します。画面専用の子分リストや二つ目の保存先を作りません。`completedPeerIds` により失敗後も同じ相手との再戦を拒否します。純粋な `RewardRules` でも双方の `peerId` と `revivedWith.id` を調べ、復活だけで新規子分を追加しなかった交流を含めて二重決済を拒否します。
 - `FinalSnapshot` は終了時の集計です。画面演出やホームへの帰還で結果を作り直したり、期限後に新規交流を再開したりしません。
-- 現在はメモリだけで、再起動後の復帰は未実装です。永続化や通信を追加する場合は、結果IDによる二重適用防止・双方の確定・時刻・失敗復帰を共通管理へ追加します。
+- ゲーム進行は現在メモリだけで、再起動後の復帰は未実装です。永続化や通信を追加する場合は、結果IDによる二重適用防止・双方の確定・時刻・失敗復帰を共通管理へ追加します。
 
 公開メソッドの引数と戻り値は現在のソース・関連テストを確認して使用します。変更が必要な場合は、呼び出し側とテストを含めて統合担当へ影響を示します。
 
 ## ゲーム以外の表示と最終演出
 
 - 工場の壁・窓・配管と缶下のコンベアは `factory_backdrop.dart` が担当します。場面移動時だけ短時間動かし、入力・待機中は静止します。ゲーム本体には背景を重ねず、`PhoneViewport` やゲームへ渡す制約を変更しません。
-- `ConveyorPlatform` は提供画像を3:1で表示し、缶底をベルト面に合わせます。脚を収める高さをステージ内へ予約し、共通のスマホ枠は広げません。
+- `ConveyorPlatform` は提供画像を3:1で表示します。既定は缶底をベルト面に合わせ、`CanStage.conveyorLayout` でベルトだけ拡縮・XY移動します。横の余剰はベルト専用ClipRectで隠し、下の余剰はステージ内へ予約します。缶・親分・帰還演出の元の座標系と共通スマホ枠は維持します。
+- `ConveyorEditor` は保存済み配置のコピーを編集し、保存成功までは本画面へ適用しません。閉じると取り消し、初期化も明示保存で確定します。コピーはその時点のプレビュー値です。イベント時計は止めませんが、期限到達でこの編集画面は閉じず、編集終了後に最終場面を表示します。
+- `ConveyorSettings` と `ConveyorLayoutStore` が配置を保存します。起動時は `main` がSharedPreferences版を読み込んでAppへ注入し、テストや直接Appを作るプレビューはMemory版を使います。JSONを単一キーへ保存し、成功後だけ公開値を更新します。破損・読み書き失敗は既定または前回値を維持して画面へ伝えます。独自の画面用保存先を追加しません。
+- 保存形式は `schemaVersion:1`、`scale`（0.6〜1.8）、`offsetX`・`offsetY`（-100〜100）です。位置は缶幅286論理pxを基準に実表示の缶幅に比例させます。正のXは右、正のYは下。公開型は `ConveyorLayout`、保存キーは `tsunagun.conveyor.layout.v1`。読み込みでは形式・バージョン・有限値・範囲を検証します。
 - 親分の待機は `ParentCharacter` の透過WebPで、ホーム・相手確認かつ缶の登場演出後だけ再生します。動作軽減・バックグラウンド・無効な `TickerMode` では同寸法のPNGへ切り替えます。UIテストは `TsunagunApp(animateCharacters: false)` で無限ループだけを止め、缶やゲームの一度で終わる演出は検証します。
 - 書体の既定はKaisei Tokumin Medium 500です。`TypographyScope` でM PLUS Rounded 1c Medium 500へ切り替え、画面とControllerの状態を保持します。曲面ラベルは選択中の実フォントとOSの文字拡大・太字で計測します。
 - `CanStage` のショBONEは一度で消える煙を伴い、REBORNは復活した普通の子分1匹だけを表示します。帰還時の缶底を越えない位置制約を維持します。

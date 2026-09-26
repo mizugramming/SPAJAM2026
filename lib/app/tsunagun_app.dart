@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../data/demo_controller.dart';
+import '../data/conveyor_settings.dart';
+import 'conveyor_settings_scope.dart';
 import '../features/demo/demo_page.dart';
 import '../features/demo/parent_character.dart';
 import 'tsunagun_theme.dart';
@@ -12,11 +14,13 @@ class TsunagunApp extends StatefulWidget {
   const TsunagunApp({
     super.key,
     this.controller,
+    this.conveyorSettings,
     this.animateCharacters = true,
     this.initialTypeface = TsunagunTypeface.kaiseiTokumin,
   });
 
   final DemoController? controller;
+  final ConveyorSettings? conveyorSettings;
   final bool animateCharacters;
   final TsunagunTypeface initialTypeface;
 
@@ -26,24 +30,42 @@ class TsunagunApp extends StatefulWidget {
 
 class _TsunagunAppState extends State<TsunagunApp> {
   late TsunagunTypeface _typeface = widget.initialTypeface;
+  late final ConveyorSettings _conveyorSettings =
+      widget.conveyorSettings ??
+      ConveyorSettings(store: MemoryConveyorLayoutStore());
 
   @override
-  Widget build(BuildContext context) => TypographyScope(
-    typeface: _typeface,
-    onChanged: (typeface) => setState(() => _typeface = typeface),
-    child: CharacterPlaybackScope(
-      enabled: widget.animateCharacters,
-      child: MaterialApp(
-        title: 'つなぐん DEMO',
-        debugShowCheckedModeBanner: false,
-        locale: const Locale('ja'),
-        supportedLocales: const [Locale('ja')],
-        localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        theme: tsunagunTheme(typeface: _typeface),
-        // Avoid interpolating geometry between unrelated font metrics.
-        themeAnimationDuration: Duration.zero,
-        builder: (context, child) => PhoneViewport(child: child!),
-        home: DemoPage(controller: widget.controller),
+  void initState() {
+    super.initState();
+    if (!_conveyorSettings.isLoaded) _conveyorSettings.load();
+  }
+
+  @override
+  void dispose() {
+    if (widget.conveyorSettings == null) _conveyorSettings.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ConveyorSettingsScope(
+    settings: _conveyorSettings,
+    child: TypographyScope(
+      typeface: _typeface,
+      onChanged: (typeface) => setState(() => _typeface = typeface),
+      child: CharacterPlaybackScope(
+        enabled: widget.animateCharacters,
+        child: MaterialApp(
+          title: 'つなぐん DEMO',
+          debugShowCheckedModeBanner: false,
+          locale: const Locale('ja'),
+          supportedLocales: const [Locale('ja')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          theme: tsunagunTheme(typeface: _typeface),
+          // Avoid interpolating geometry between unrelated font metrics.
+          themeAnimationDuration: Duration.zero,
+          builder: (context, child) => PhoneViewport(child: child!),
+          home: DemoPage(controller: widget.controller),
+        ),
       ),
     ),
   );

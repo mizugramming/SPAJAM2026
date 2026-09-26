@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/tsunagun_theme.dart';
+import '../../app/conveyor_settings_scope.dart';
+import '../../domain/conveyor_layout.dart';
+import 'conveyor_editor.dart';
 import '../../data/demo_controller.dart';
 import '../../domain/models.dart';
 import 'can_stage.dart';
@@ -30,6 +33,7 @@ class _DemoPageState extends State<DemoPage> {
   String? error;
   int durationMinutes = 3;
   int openSheets = 0;
+  bool conveyorEditorOpen = false;
   int encounterGeneration = 0;
   AppPhase? observedPhase;
 
@@ -62,12 +66,13 @@ class _DemoPageState extends State<DemoPage> {
         }
       });
     }
-    if ((reachedFinale || leftGame) && openSheets > 0) {
+    if ((reachedFinale || leftGame) && openSheets > 0 && !conveyorEditorOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted &&
             (demo.phase == AppPhase.finale ||
                 (leftGame && demo.phase != AppPhase.game)) &&
-            openSheets > 0) {
+            openSheets > 0 &&
+            !conveyorEditorOpen) {
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       });
@@ -216,6 +221,11 @@ class _DemoPageState extends State<DemoPage> {
                                       ),
                                       curve: Curves.easeInOut,
                                       child: CanStage(
+                                        conveyorLayout:
+                                            ConveyorSettingsScope.maybeOf(
+                                              context,
+                                            )?.value ??
+                                            const ConveyorLayout(),
                                         phase: phase,
                                         profile: demo.profileDraft,
                                         result: demo.lastResult,
@@ -662,9 +672,9 @@ class _DemoPageState extends State<DemoPage> {
     if (outcome != null) completeGame(generation, peer.id, outcome);
   }
 
-  void showDemoInfo() {
+  Future<void> showDemoInfo() async {
     openSheets++;
-    showModalBottomSheet<void>(
+    final editConveyor = await showModalBottomSheet<bool>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
@@ -680,9 +690,21 @@ class _DemoPageState extends State<DemoPage> {
               '相手は仮想の参加者です。タップ操作で対戦・協力ゲームを遊べます。DEMOメニューから結果を選んで、続きを確認することもできます。',
             ),
             const SizedBox(height: 12),
-            const Text('端末間通信・保存は行いません。アプリを閉じると、入力や仲間はリセットされます。'),
+            const Text(
+              '端末間通信は行いません。アプリを閉じると、入力や仲間はリセットされます。コンベアの配置はこの端末に保存できます。',
+            ),
             const SizedBox(height: 16),
             const FontComparisonControls(),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const Key('edit-conveyor'),
+              onPressed:
+                  ConveyorSettingsScope.maybeOf(context)?.isLoaded == true
+                  ? () => Navigator.pop(context, true)
+                  : null,
+              icon: const Icon(Icons.tune),
+              label: const Text('ベルトコンベアを編集'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('閉じる'),
@@ -690,7 +712,46 @@ class _DemoPageState extends State<DemoPage> {
           ],
         ),
       ),
-    ).whenComplete(() => openSheets--);
+    );
+    openSheets--;
+    if (editConveyor == true && mounted) await showConveyorEditor();
+  }
+
+  Future<void> showConveyorEditor() async {
+    final settings = ConveyorSettingsScope.maybeOf(context);
+    if (settings == null || !settings.isLoaded) return;
+    openSheets++;
+    conveyorEditorOpen = true;
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: .96,
+        child: SafeArea(
+          top: false,
+          child: ConveyorEditor(
+            settings: settings,
+            phase: demo.phase,
+            profile: demo.profileDraft,
+            result: demo.lastResult,
+            team: switch (demo.phase) {
+              AppPhase.entry || AppPhase.profile || AppPhase.lobby => null,
+              _ => demo.self.team,
+            },
+          ),
+        ),
+      ),
+    );
+    openSheets--;
+    conveyorEditorOpen = false;
+    if (mounted && saved == true) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('配置を保存しました')));
+    }
   }
 
   void showCollection(FollowerKind? kind) {

@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app/tsunagun_app.dart';
+import 'data/conveyor_settings.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
     for (final font in [
@@ -16,5 +17,9 @@ void main() {
       ], await rootBundle.loadString(font.$2));
     }
   });
-  runApp(const TsunagunApp());
+  final conveyorSettings = ConveyorSettings(
+    store: SharedPreferencesConveyorLayoutStore(),
+  );
+  await conveyorSettings.load();
+  runApp(TsunagunApp(conveyorSettings: conveyorSettings));
 }
