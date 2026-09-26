@@ -34,6 +34,11 @@ jobs:
           distribution: temurin
           java-version: ${{ steps.sdk.outputs.java }}
       - uses: android-actions/setup-android@v3
+        with:
+          # The legacy tools package is no longer distributed by Google.
+          # sdkmanager is already supplied by this action's command-line tools.
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ steps.sdk.outputs.flutter }}
