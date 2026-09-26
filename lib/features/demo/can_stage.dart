@@ -131,7 +131,7 @@ class CanStage extends StatelessWidget {
                       : (width - parentWidth) / 2,
                   bottom: returning
                       ? visibleCanHeight * .35
-                      : visibleCanHeight + 18,
+                      : visibleCanHeight + 18 - 9 * canScale,
                   width: parentWidth,
                   height: parentHeight,
                   child: AnimatedOpacity(
@@ -239,17 +239,23 @@ class CanStage extends StatelessWidget {
   }
 }
 
+const _canInk = Color(0xFF392923);
 const _followerLabelStyle = TextStyle(
   fontSize: 11,
   height: 1.35,
   fontWeight: FontWeight.bold,
+  color: _canInk,
 );
 const _prefixStyle = TextStyle(
   fontSize: 11.5,
   height: 1.4,
   fontWeight: FontWeight.w600,
 );
-const _valueStyle = TextStyle(fontSize: 13.5, height: 1.4);
+const _valueStyle = TextStyle(
+  fontSize: 13.5,
+  height: 1.4,
+  fontWeight: FontWeight.w600,
+);
 const _nicknameStyle = TextStyle(
   fontSize: 16,
   height: 1.4,
@@ -292,39 +298,38 @@ class TunaCan extends StatelessWidget {
     required bool compact,
     required bool showLabel,
   }) {
+    final padding = _CanGeometry.textPadding(compact);
     if (compact) {
       return math.max(
         72,
-        MediaQuery.textScalerOf(context).scale(10) * 1.4 + 42,
+        MediaQuery.textScalerOf(context).scale(10) * 1.4 + padding.vertical,
       );
     }
     if (!showLabel) {
       return math.max(
-        176,
-        MediaQuery.textScalerOf(context).scale(22) * 1.4 + 64,
+        184,
+        MediaQuery.textScalerOf(context).scale(22) * 1.4 + padding.vertical,
       );
     }
-    final layout = _LabelLayout(context, width - 48, profile);
-    return math.max(176, layout.height + 64);
+    final layout = _LabelLayout(context, width - padding.horizontal, profile);
+    return math.max(184, layout.height + padding.vertical);
   }
 
   @override
   Widget build(BuildContext context) {
     final labelColor = switch (team) {
-      Team.red => const Color(0xFFB83F40),
-      Team.blue => const Color(0xFF286CA8),
-      null => const Color(0xFFF6F0DF),
+      Team.red => const Color(0xFFBB4843),
+      Team.blue => const Color(0xFF176DAD),
+      null => const Color(0xFFFFEDC4),
     };
-    final textColor = team == null ? const Color(0xFF304D46) : Colors.white;
+    final textColor = team == null ? _canInk : Colors.white;
     return CustomPaint(
       painter: _CanPainter(
         labelColor: showLabel ? labelColor : null,
         compact: compact,
       ),
       child: Padding(
-        padding: compact
-            ? const EdgeInsets.fromLTRB(10, 28, 10, 14)
-            : const EdgeInsets.fromLTRB(24, 44, 24, 20),
+        padding: _CanGeometry.textPadding(compact),
         child: Center(
           child: compact || !showLabel
               ? Text(
@@ -435,6 +440,69 @@ class _LabelLayout {
   }
 }
 
+/// The label curves and the readable text area share one set of dimensions.
+/// Increasing text size stretches the cylinder, never a detached label panel.
+class _CanGeometry {
+  _CanGeometry(this.size, this.compact);
+
+  final Size size;
+  final bool compact;
+
+  static EdgeInsets textPadding(bool compact) => compact
+      ? const EdgeInsets.fromLTRB(12, 33, 12, 19)
+      : const EdgeInsets.fromLTRB(26, 60, 26, 34);
+
+  double get stroke => compact ? 2.4 : 3.8;
+  double get left => stroke / 2 + 2;
+  double get right => size.width - left;
+  double get lidHeight => compact ? 24 : 38;
+  double get bottomRise => compact ? 8 : 14;
+  double get bottomSide => size.height - bottomRise - 7;
+  Rect get lid => Rect.fromLTRB(left, 4, right, 4 + lidHeight);
+
+  Path get body => Path()
+    ..moveTo(left, lid.center.dy)
+    ..quadraticBezierTo(left - .8, size.height * .6, left + .6, bottomSide)
+    ..quadraticBezierTo(
+      size.width * .49,
+      size.height + bottomRise - 7,
+      right - .6,
+      bottomSide,
+    )
+    ..quadraticBezierTo(right + .5, size.height * .57, right, lid.center.dy)
+    ..close();
+
+  Path get label {
+    final top = textPadding(compact).top - (compact ? 10 : 23);
+    final bottom = size.height - textPadding(compact).bottom - 1;
+    return Path()
+      ..moveTo(left + 2, top)
+      ..quadraticBezierTo(
+        size.width * .49,
+        top + (compact ? 11 : 20),
+        right - 2,
+        top + .6,
+      )
+      ..lineTo(right - 2.5, bottom)
+      ..quadraticBezierTo(
+        size.width * .5,
+        bottom + bottomRise * 2,
+        left + 2.5,
+        bottom + .5,
+      )
+      ..close();
+  }
+
+  Path frontArc(double sideY) => Path()
+    ..moveTo(left + .6, sideY)
+    ..quadraticBezierTo(
+      size.width * .49,
+      sideY + bottomRise * 2,
+      right - .6,
+      sideY,
+    );
+}
+
 class _CanPainter extends CustomPainter {
   const _CanPainter({required this.labelColor, required this.compact});
 
@@ -443,60 +511,197 @@ class _CanPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final lip = compact ? 22.0 : 36.0;
-    final body = Rect.fromLTWH(2, lip / 2, size.width - 4, size.height - lip);
-    final paint = Paint()
+    final shape = _CanGeometry(size, compact);
+    final bounds = Offset.zero & size;
+    final ink = Paint()
+      ..color = _canInk
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = shape.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final metal = Paint()
       ..shader = const LinearGradient(
         colors: [
-          Color(0xFFADBDB7),
-          Color(0xFFF2F4EE),
-          Color(0xFFDCE5DF),
-          Color(0xFFAABDB6),
+          Color(0xFF8998A3),
+          Color(0xFFDAE0E4),
+          Color(0xFFF0F2F2),
+          Color(0xFFC0CCD4),
+          Color(0xFF8998A3),
         ],
-      ).createShader(body);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(body, const Radius.circular(18)),
-      paint,
-    );
-    canvas.drawOval(
-      Rect.fromLTWH(2, size.height - lip - 1, size.width - 4, lip),
-      Paint()..color = const Color(0xFFB7C6BD),
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(2, lip / 2, size.width - 4, size.height - lip * 1.5),
-      paint,
-    );
-    if (labelColor != null) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTRB(8, lip + 2, size.width - 8, size.height - 14),
-          const Radius.circular(5),
-        ),
-        Paint()..color = labelColor!,
+        stops: [0, .16, .46, .79, 1],
+      ).createShader(bounds);
+    canvas.drawPath(shape.body, metal);
+
+    canvas.save();
+    canvas.clipPath(shape.body);
+    _wash(canvas, bounds, const Color(0xFF627D91), 0.075);
+    // A few soft rolled-metal ribs remain visible when the paper is removed.
+    for (final fraction in [.29, .6, .82]) {
+      final y =
+          shape.lid.bottom +
+          (shape.bottomSide - shape.lid.bottom - 12) * fraction;
+      canvas.drawPath(
+        shape.frontArc(y),
+        Paint()
+          ..color = const Color(0xFF667984).withValues(alpha: .3)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = compact ? 1 : 1.8,
+      );
+      canvas.drawPath(
+        shape.frontArc(y + 3),
+        Paint()
+          ..color = Colors.white.withValues(alpha: .6)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = compact ? 1 : 2.4,
       );
     }
-    canvas.drawOval(
-      Rect.fromLTWH(2, 1, size.width - 4, lip),
-      Paint()..color = const Color(0xFFE4EAE4),
-    );
-    canvas.drawOval(
-      Rect.fromLTWH(7, 4, size.width - 14, lip - 7),
+    if (labelColor != null) {
+      canvas.save();
+      canvas.clipPath(shape.label);
+      canvas.drawRect(bounds, Paint()..color = labelColor!);
+      _wash(canvas, bounds, _canInk, .04);
+      // The paper wraps around the cylinder: both edges fall into shadow,
+      // while the middle stays quiet enough for live, accessible text.
+      canvas.drawRect(
+        bounds,
+        Paint()
+          ..shader = LinearGradient(
+            colors: [
+              _canInk.withValues(alpha: .28),
+              _canInk.withValues(alpha: .025),
+              Colors.white.withValues(alpha: .035),
+              Colors.transparent,
+              _canInk.withValues(alpha: .24),
+            ],
+            stops: const [0, .13, .44, .85, 1],
+          ).createShader(bounds),
+      );
+      canvas.restore();
+      canvas.drawPath(
+        shape.label,
+        Paint()
+          ..color = _canInk.withValues(alpha: .62)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = compact ? 1 : 1.5,
+      );
+    }
+    canvas.restore();
+
+    // The bottom rolled rim encloses the curved paper band.
+    canvas.drawPath(
+      shape.frontArc(shape.bottomSide - (compact ? 5 : 8)),
       Paint()
-        ..color = const Color(0xFF99ADA3)
+        ..color = Colors.white.withValues(alpha: .8)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
+        ..strokeWidth = compact ? 2 : 3.2,
+    );
+    canvas.drawPath(
+      shape.frontArc(shape.bottomSide - (compact ? 2 : 4)),
+      Paint()
+        ..color = const Color(0xFF64737E)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = compact ? 1.3 : 2,
+    );
+    canvas.drawPath(shape.body, ink);
+    _paintLid(canvas, shape, ink);
+  }
+
+  void _paintLid(Canvas canvas, _CanGeometry shape, Paint ink) {
+    final lid = shape.lid;
+    // Slightly unequal Bézier handles keep the outline close to the supplied
+    // brush-drawn characters without changing between animation frames.
+    final outline = Path()
+      ..moveTo(lid.left, lid.center.dy)
+      ..cubicTo(
+        lid.left + 1,
+        lid.top - 3,
+        lid.right - 5,
+        lid.top - 1,
+        lid.right,
+        lid.center.dy,
+      )
+      ..cubicTo(
+        lid.right + 1,
+        lid.bottom + 3,
+        lid.left - 3,
+        lid.bottom + 1,
+        lid.left,
+        lid.center.dy,
+      )
+      ..close();
+    canvas.drawPath(
+      outline,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFB7C7D2), Color(0xFFECF0F0), Color(0xFFA5B4BE)],
+        ).createShader(lid),
+    );
+    canvas.save();
+    canvas.clipPath(outline);
+    _wash(canvas, lid, const Color(0xFF6E8A9C), .14);
+    canvas.restore();
+    canvas.drawPath(outline, ink);
+    final inner = lid.deflate(compact ? 4 : 6);
+    canvas.drawOval(
+      inner,
+      Paint()
+        ..color = Colors.white.withValues(alpha: .9)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = compact ? 1.6 : 2.8,
     );
     canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(size.width * .55, lip / 2),
-        width: size.width * .16,
-        height: lip * .44,
-      ),
+      inner.deflate(compact ? 2 : 3),
       Paint()
-        ..color = const Color(0xFF8C9E98)
+        ..color = const Color(0xFF647681)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3,
+        ..strokeWidth = compact ? 1.1 : 1.8,
     );
+    final tab = Rect.fromCenter(
+      center: Offset(lid.left + lid.width * .32, lid.center.dy + 1),
+      width: lid.width * .19,
+      height: lid.height * .36,
+    );
+    canvas.drawOval(tab, Paint()..color = const Color(0xFF778A97));
+    canvas.drawOval(
+      tab,
+      Paint()
+        ..color = _canInk.withValues(alpha: .8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = compact ? 1.8 : 2.8,
+    );
+    canvas.drawOval(
+      tab.deflate(compact ? 2 : 3),
+      Paint()
+        ..color = const Color(0xFFEEF2F1)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = compact ? 1.3 : 2.1,
+    );
+  }
+
+  // Small, fixed translucent washes give silver and paper the same handmade
+  // surface. They are decorative only; all profile text remains real Text.
+  void _wash(Canvas canvas, Rect bounds, Color color, double opacity) {
+    final paint = Paint();
+    for (var i = 0; i < 36; i++) {
+      final x = bounds.left + bounds.width * ((i * 37 % 101) / 101);
+      final y = bounds.top + bounds.height * ((i * 61 % 97) / 97);
+      final width = bounds.width * (.055 + (i % 4) * .017);
+      final height =
+          math.min(16.0, bounds.height * .15) * (.45 + (i % 3) * .19);
+      paint.color = color.withValues(alpha: opacity * (.5 + (i % 4) * .15));
+      canvas.drawPath(
+        Path()
+          ..moveTo(x - width * .5, y)
+          ..lineTo(x - width * .2, y - height * .45)
+          ..lineTo(x + width * .48, y - height * .28)
+          ..lineTo(x + width * .36, y + height * .48)
+          ..lineTo(x - width * .38, y + height * .31)
+          ..close(),
+        paint,
+      );
+    }
   }
 
   @override

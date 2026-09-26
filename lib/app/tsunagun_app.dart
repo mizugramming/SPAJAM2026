@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../data/demo_controller.dart';
 import '../features/demo/demo_page.dart';
+import 'tsunagun_theme.dart';
 
 class TsunagunApp extends StatelessWidget {
   const TsunagunApp({super.key, this.controller});
@@ -18,27 +19,7 @@ class TsunagunApp extends StatelessWidget {
       locale: const Locale('ja'),
       supportedLocales: const [Locale('ja')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF186964),
-          surface: Colors.white,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        inputDecorationTheme: const InputDecorationTheme(
-          filled: false,
-          border: UnderlineInputBorder(),
-          contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(48, 52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-      ),
+      theme: tsunagunTheme(),
       builder: (context, child) => PhoneViewport(child: child!),
       home: DemoPage(controller: controller),
     );

@@ -84,8 +84,15 @@ Future<void> checkProfile(
 ) async {
   await tap(tester, find.text(countLabel));
   await tap(tester, find.text(profile.nickname));
-  expect(find.text(profile.hobby), findsOneWidget);
-  expect(find.text(profile.comment), findsOneWidget);
+  final detailSheet = find.byType(BottomSheet).last;
+  expect(
+    find.descendant(of: detailSheet, matching: find.text(profile.hobby)),
+    findsOneWidget,
+  );
+  expect(
+    find.descendant(of: detailSheet, matching: find.text(profile.comment)),
+    findsOneWidget,
+  );
   await tap(tester, find.text('閉じる').last);
   await tap(tester, find.text('閉じる'));
 }
@@ -180,22 +187,54 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('360幅・文字2倍・キーボード表示中でも入力と決定へ到達できる', (tester) async {
+  testWidgets('360幅・文字2倍で上限まで入力しても缶の中に全文を保ち、ゲームと結果へ進める', (tester) async {
     final demo = await launch(tester, textScale: 2);
+    final profile = Profile(
+      nickname: List.filled(10, 'ツナ').join(),
+      hobby: List.filled(6, 'CAMERA2026').join(),
+      comment: List.filled(10, '一緒に遊ぼうね！').join(),
+    );
+    // Japanese and an unbroken ASCII word exercise different line wrapping.
+    expect(profile.nickname.length, 20);
+    expect(profile.hobby.length, 60);
+    expect(profile.comment.length, 80);
+
+    void expectFullLabel() {
+      final can = find.byType(TunaCan);
+      final canRect = tester.getRect(can).inflate(.1);
+      for (final value in [profile.nickname, profile.hobby, profile.comment]) {
+        final text = find.descendant(of: can, matching: find.text(value));
+        expect(text, findsOneWidget);
+        final textRect = tester.getRect(text);
+        expect(canRect.contains(textRect.topLeft), isTrue);
+        expect(canRect.contains(textRect.bottomRight), isTrue);
+      }
+      expect(tester.takeException(), isNull);
+    }
+
     await key(tester, 'create-room');
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);
     await tester.pumpAndSettle();
-    await fillProfile(tester);
+    await type(tester, 'nickname', profile.nickname);
+    await type(tester, 'hobby', profile.hobby);
+    await type(tester, 'comment', profile.comment);
+    expectFullLabel();
     await key(tester, 'save-profile');
     expect(demo.phase, AppPhase.lobby);
-    expect(tester.takeException(), isNull);
+    expect(demo.self.profile.nickname, profile.nickname);
+    expect(demo.self.profile.hobby, profile.hobby);
+    expect(demo.self.profile.comment, profile.comment);
+    expectFullLabel();
     tester.view.resetViewInsets();
     await tester.pumpAndSettle();
     await key(tester, 'start-event');
+    expectFullLabel();
     final peer = demo.peers.firstWhere((p) => p.team != demo.self.team);
     await meet(tester, peer);
+    expectFullLabel();
     await chooseOutcome(tester, 'negative-outcome');
+    expectFullLabel();
     await returnHome(tester);
     await checkProfile(tester, '骨 1 匹', peer.profile);
     await key(tester, 'expire-event');

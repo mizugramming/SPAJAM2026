@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app/tsunagun_theme.dart';
 import '../../data/demo_controller.dart';
 import '../../domain/models.dart';
 import 'can_stage.dart';
 import 'game_scene.dart';
+import 'illustrated_details.dart';
 
 class DemoPage extends StatefulWidget {
   const DemoPage({super.key, this.controller});
@@ -156,14 +158,7 @@ class _DemoPageState extends State<DemoPage> {
                                 crossAxisAlignment: WrapCrossAlignment.center,
                                 spacing: 8,
                                 children: [
-                                  const Text(
-                                    'つなぐん',
-                                    style: TextStyle(
-                                      fontSize: 25,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 2,
-                                    ),
-                                  ),
+                                  const TsunagunWordmark(),
                                   TextButton.icon(
                                     key: const Key('demo-info'),
                                     onPressed: showDemoInfo,
@@ -184,8 +179,11 @@ class _DemoPageState extends State<DemoPage> {
                                   children: [
                                     Text(
                                       '${demo.roomName} · ${demo.self.team.label}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        color: demo.self.team == Team.red
+                                            ? TsunagunColors.red
+                                            : TsunagunColors.blue,
                                       ),
                                     ),
                                     Text(
@@ -210,7 +208,7 @@ class _DemoPageState extends State<DemoPage> {
                                     team: inEvent ? demo.self.team : null,
                                   ),
                                 ),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 20),
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 250),
                                 switchInCurve: Curves.easeOut,
@@ -350,13 +348,25 @@ class _DemoPageState extends State<DemoPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              TextButton(
+              TextButton.icon(
                 onPressed: () => showCollection(FollowerKind.normal),
-                child: Text('子分 ${demo.normalCount} 匹'),
+                icon: Image.asset(
+                  normalFollowerAsset,
+                  width: 28,
+                  height: 28,
+                  excludeFromSemantics: true,
+                ),
+                label: Text('子分 ${demo.normalCount} 匹'),
               ),
-              TextButton(
+              TextButton.icon(
                 onPressed: () => showCollection(FollowerKind.bone),
-                child: Text('骨 ${demo.boneCount} 匹'),
+                icon: Image.asset(
+                  boneFollowerAsset,
+                  width: 28,
+                  height: 28,
+                  excludeFromSemantics: true,
+                ),
+                label: Text('骨 ${demo.boneCount} 匹'),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(
@@ -374,7 +384,7 @@ class _DemoPageState extends State<DemoPage> {
           FilledButton.icon(
             key: const Key('meet-peer'),
             onPressed: () => runAction(demo.openPairing),
-            icon: const Icon(Icons.people_outline),
+            icon: const Icon(Icons.waving_hand_outlined),
             label: const Text('相手とつながる'),
           ),
           const SizedBox(height: 8),
@@ -580,8 +590,9 @@ class _DemoPageState extends State<DemoPage> {
       text,
       style: const TextStyle(
         fontSize: 23,
-        fontWeight: FontWeight.w800,
-        height: 1.35,
+        fontWeight: FontWeight.w900,
+        height: 1.4,
+        color: TsunagunColors.ink,
       ),
     ),
   );
@@ -754,11 +765,20 @@ class _DemoPageState extends State<DemoPage> {
                         width: 60,
                       ),
                       title: Text(follower.profile.nickname),
-                      subtitle: Text(
-                        follower.kind == FollowerKind.bone
-                            ? '骨の子分 · ちから1'
-                            : '子分 · ちから3',
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(follower.profile.hobby),
+                          const SizedBox(height: 4),
+                          Text(
+                            follower.kind == FollowerKind.bone
+                                ? '骨の子分 · ちから1'
+                                : '子分 · ちから3',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
                       ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => showProfile(
                         follower.profile,
                         follower.kind == FollowerKind.bone ? '骨の子分' : '子分',
@@ -791,13 +811,35 @@ class _DemoPageState extends State<DemoPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(kind),
-            heading(profile.nickname),
-            const Text('趣味', style: TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Image.asset(
+                  kind == '骨の子分' ? boneFollowerAsset : normalFollowerAsset,
+                  width: 80,
+                  excludeFromSemantics: true,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(kind),
+                      const SizedBox(height: 4),
+                      heading(profile.nickname),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text('趣味', style: TextStyle(fontWeight: FontWeight.w800)),
             Text(profile.hobby),
-            const SizedBox(height: 16),
-            const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(profile.comment.isEmpty ? 'まだひとことはありません。' : profile.comment),
+            const SizedBox(height: 18),
+            const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w800)),
+            FollowerQuote(
+              text: profile.comment.isEmpty ? 'まだひとことはありません。' : profile.comment,
+            ),
             const SizedBox(height: 16),
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -836,7 +878,7 @@ class _TugOfWar extends StatelessWidget {
               Text(
                 '赤チーム\n${snapshot.redPower}',
                 style: const TextStyle(
-                  color: Color(0xFFB53A36),
+                  color: TsunagunColors.red,
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
@@ -844,19 +886,27 @@ class _TugOfWar extends StatelessWidget {
               Text(
                 '青チーム\n${snapshot.bluePower}',
                 style: const TextStyle(
-                  color: Color(0xFF215C9B),
+                  color: TsunagunColors.blue,
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _teamCrew(Team.red)),
+              const SizedBox(width: 24),
+              Expanded(child: _teamCrew(Team.blue)),
+            ],
+          ),
           SizedBox(
-            height: 90,
+            height: 76,
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Container(height: 6, color: const Color(0xFFAC9679)),
+                const IllustratedRope(),
                 TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0, end: position),
                   duration: MediaQuery.disableAnimationsOf(context)
@@ -867,7 +917,7 @@ class _TugOfWar extends StatelessWidget {
                     alignment: Alignment(value, 0),
                     child: const Icon(
                       Icons.flag_rounded,
-                      color: Color(0xFF186964),
+                      color: TsunagunColors.red,
                       size: 48,
                     ),
                   ),
@@ -875,6 +925,37 @@ class _TugOfWar extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _teamCrew(Team team) {
+    final members = snapshot.rankings.where(
+      (entry) => entry.participant.team == team,
+    );
+    final normal = members.fold(0, (sum, entry) => sum + entry.normalCount);
+    final bone = members.fold(0, (sum, entry) => sum + entry.boneCount);
+    final icons = [
+      if (normal > 0) normalFollowerAsset,
+      if (bone > 0) boneFollowerAsset,
+      if (normal + bone > 2)
+        normal > 1 ? normalFollowerAsset : boneFollowerAsset,
+    ];
+    return SizedBox(
+      height: 48,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (final asset in icons)
+            Flexible(
+              child: Image.asset(
+                asset,
+                width: 44,
+                height: 44,
+                excludeFromSemantics: true,
+              ),
+            ),
         ],
       ),
     );
