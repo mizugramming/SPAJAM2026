@@ -111,7 +111,7 @@ void main() {
     expect(counterpart.normalCount, 1);
   });
 
-  test('協力は古い骨だけを成長させ、元の相手を保持し新しい出会いも残す', () {
+  test('協力で古い骨だけを復活し、元の相手と協力相手を同じ子分に残す', () {
     final controller = started();
     final opponent = controller.peers.firstWhere(
       (p) => p.team != controller.self.team,
@@ -125,22 +125,28 @@ void main() {
     returnToCan(controller);
     enterGame(controller, partner.id);
     expect(controller.injectOutcome(Outcome.coopSuccess), isTrue);
-    expect(controller.followers.length, 2);
+    expect(controller.followers.length, 1);
     final promoted = controller.followers.singleWhere((f) => f.id == bone.id);
     expect(promoted.kind, FollowerKind.normal);
     expect(promoted.ordinal, bone.ordinal);
     expect(promoted.profile, same(opponent.profile));
-    expect(controller.followers.last.peerId, partner.id);
-    expect(controller.followers.last.kind, FollowerKind.bone);
+    expect(promoted.peerId, opponent.id);
+    expect(promoted.revivedWith, same(partner));
+    expect(controller.lastResult!.newFollower, isNull);
     expect(controller.lastResult!.promoted!.id, bone.id);
-    expect(controller.lastResult!.delta, 3);
-    expect(controller.power, 4);
+    expect(controller.lastResult!.delta, 2);
+    expect(controller.lastResult!.rewardFollower, same(promoted));
+    expect(controller.power, 3);
+    expect(controller.injectOutcome(Outcome.coopSuccess), isFalse);
+    returnToCan(controller);
+    controller.openPairing();
+    expect(controller.selectPeer(partner.id), isFalse);
     controller.advance(controller.remaining);
-    expect(controller.finalSnapshot!.redPower, 7);
+    expect(controller.finalSnapshot!.redPower, 6);
     expect(controller.finalSnapshot!.bluePower, 3);
   });
 
-  test('骨なしの協力成功は今回の骨を成長させ、協力失敗は成長しない', () {
+  test('骨なしの協力成功は相手の普通子分を迎え、協力失敗は骨を迎える', () {
     final controller = started();
     final partners = controller.peers
         .where((p) => p.team == controller.self.team)
@@ -149,9 +155,13 @@ void main() {
     controller.injectOutcome(Outcome.coopSuccess);
     expect(controller.followers.single.kind, FollowerKind.normal);
     expect(
-      controller.lastResult!.newFollower.id,
-      controller.lastResult!.promoted!.id,
+      controller.lastResult!.newFollower,
+      same(controller.followers.single),
     );
+    expect(controller.lastResult!.promoted, isNull);
+    expect(controller.lastResult!.delta, 3);
+    expect(controller.followers.single.peerId, partners.first.id);
+    expect(controller.followers.single.revivedWith, isNull);
     returnToCan(controller);
     enterGame(controller, partners.last.id);
     controller.injectOutcome(Outcome.coopFailure);

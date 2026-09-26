@@ -1,6 +1,6 @@
 import 'models.dart';
 
-/// P06/P07/P10 are provisional demo rules, shared by both participants.
+/// Shared reward and scoring rules, evaluated for both participants together.
 class RewardRules {
   const RewardRules();
 
@@ -20,8 +20,13 @@ class RewardRules {
     if (cooperative != cooperativeOutcome) {
       throw ArgumentError('所属チームと結果の種類が一致しません。');
     }
-    if (selfFollowers.any((follower) => follower.peerId == peer.id) ||
-        peerFollowers.any((follower) => follower.peerId == self.id)) {
+    bool hasMet(List<Follower> followers, String participantId) =>
+        followers.any(
+          (follower) =>
+              follower.peerId == participantId ||
+              follower.revivedWith?.id == participantId,
+        );
+    if (hasMet(selfFollowers, peer.id) || hasMet(peerFollowers, self.id)) {
       throw StateError('この相手との交流は完了しています。');
     }
 
@@ -48,20 +53,6 @@ class RewardRules {
     List<Follower> previous,
   ) {
     final followers = [...previous];
-    var nextOrdinal = 1;
-    for (final follower in previous) {
-      if (follower.ordinal >= nextOrdinal) {
-        nextOrdinal = follower.ordinal + 1;
-      }
-    }
-    var added = Follower(
-      id: '${owner.id}:${peer.id}',
-      ownerId: owner.id,
-      peerId: peer.id,
-      profile: peer.profile,
-      kind: outcome == Outcome.win ? FollowerKind.normal : FollowerKind.bone,
-      ordinal: nextOrdinal,
-    );
     Follower? promoted;
     if (outcome == Outcome.coopSuccess) {
       final bones =
@@ -72,16 +63,41 @@ class RewardRules {
               final order = first.ordinal.compareTo(second.ordinal);
               return order != 0 ? order : first.id.compareTo(second.id);
             });
-      if (bones.isEmpty) {
-        added = added.promote();
-        promoted = added;
-      } else {
-        promoted = bones.first.promote();
+      if (bones.isNotEmpty) {
+        promoted = bones.first.promote(helpedBy: peer);
         final index = followers.indexWhere((f) => f.id == promoted!.id);
         followers[index] = promoted;
       }
     }
-    followers.add(added);
+
+    Follower? added;
+    if (promoted == null) {
+      var nextOrdinal = 1;
+      for (final follower in previous) {
+        if (follower.ordinal >= nextOrdinal) {
+          nextOrdinal = follower.ordinal + 1;
+        }
+      }
+      added = Follower(
+        id: '${owner.id}:${peer.id}',
+        ownerId: owner.id,
+        peerId: peer.id,
+        profile: peer.profile,
+        kind: outcome == Outcome.win || outcome == Outcome.coopSuccess
+            ? FollowerKind.normal
+            : FollowerKind.bone,
+        ordinal: nextOrdinal,
+      );
+      followers.add(added);
+    }
+    final previousPower = previous.fold(
+      0,
+      (sum, follower) => sum + follower.power,
+    );
+    final updatedPower = followers.fold(
+      0,
+      (sum, follower) => sum + follower.power,
+    );
     return (
       followers: List.unmodifiable(followers),
       result: EncounterResult(
@@ -89,7 +105,7 @@ class RewardRules {
         peer: peer,
         newFollower: added,
         promoted: promoted,
-        delta: outcome == Outcome.coopSuccess ? 3 : added.power,
+        delta: updatedPower - previousPower,
       ),
     );
   }
