@@ -21,6 +21,7 @@ class _DemoPageState extends State<DemoPage> {
   final hobby = TextEditingController();
   final comment = TextEditingController();
   final roomCode = TextEditingController();
+  final sceneScroll = ScrollController();
   Timer? returnTimer;
   String? error;
   int durationMinutes = 3;
@@ -35,9 +36,24 @@ class _DemoPageState extends State<DemoPage> {
   }
 
   void handlePhase() {
+    final changed = demo.phase != observedPhase;
     final reachedFinale =
         demo.phase == AppPhase.finale && observedPhase != AppPhase.finale;
     observedPhase = demo.phase;
+    if (changed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !sceneScroll.hasClients) return;
+        if (MediaQuery.disableAnimationsOf(context)) {
+          sceneScroll.jumpTo(0);
+        } else {
+          sceneScroll.animateTo(
+            0,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOutCubic,
+          );
+        }
+      });
+    }
     if (reachedFinale && openSheets > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && demo.phase == AppPhase.finale && openSheets > 0) {
@@ -55,6 +71,7 @@ class _DemoPageState extends State<DemoPage> {
     hobby.dispose();
     comment.dispose();
     roomCode.dispose();
+    sceneScroll.dispose();
     if (widget.controller == null) demo.dispose();
     super.dispose();
   }
@@ -103,6 +120,7 @@ class _DemoPageState extends State<DemoPage> {
             body: SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) => SingleChildScrollView(
+                  controller: sceneScroll,
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
@@ -122,17 +140,11 @@ class _DemoPageState extends State<DemoPage> {
                               letterSpacing: 2,
                             ),
                           ),
-                          Chip(
+                          TextButton.icon(
+                            key: const Key('demo-info'),
+                            onPressed: showDemoInfo,
+                            icon: const Icon(Icons.info_outline, size: 16),
                             label: const Text('1台用 DEMO'),
-                            avatar: const Icon(
-                              Icons.science_outlined,
-                              size: 16,
-                            ),
-                            visualDensity: VisualDensity.compact,
-                            side: BorderSide.none,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.secondaryContainer,
                           ),
                         ],
                       ),
@@ -167,6 +179,7 @@ class _DemoPageState extends State<DemoPage> {
                             phase: phase,
                             profile: demo.profileDraft,
                             result: demo.lastResult,
+                            team: inEvent ? demo.self.team : null,
                           ),
                         ),
                       const SizedBox(height: 24),
@@ -194,13 +207,6 @@ class _DemoPageState extends State<DemoPage> {
                           ),
                         ),
                       const SizedBox(height: 20),
-                      const Text(
-                        'このデモの相手は仮想の参加者です。端末間通信・保存は行わず、アプリを閉じるとリセットされます。',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF65716C),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -216,14 +222,6 @@ class _DemoPageState extends State<DemoPage> {
     switch (phase) {
       case AppPhase.entry:
         return [
-          heading('今日の出会いを、ひとつの缶に。'),
-          const Text('一緒に遊んだ相手が、あなたの子分に。\n集まった仲間と、最後はチームで綱引き。'),
-          const SizedBox(height: 20),
-          const Text(
-            '主催者として始める',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
           DropdownButtonFormField<int>(
             initialValue: durationMinutes,
             decoration: const InputDecoration(labelText: '交流する時間'),
@@ -246,11 +244,6 @@ class _DemoPageState extends State<DemoPage> {
             child: const Text('ルームをつくる'),
           ),
           const SizedBox(height: 24),
-          const Text(
-            '参加者として始める',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
           TextField(
             key: const Key('room-code'),
             controller: roomCode,
@@ -270,8 +263,7 @@ class _DemoPageState extends State<DemoPage> {
         ];
       case AppPhase.profile:
         return [
-          heading('はだ缶を、あなたの缶に。'),
-          const Text('入力したことが、そのまま缶のラベルになります。'),
+          heading('あなたのラベル'),
           const SizedBox(height: 16),
           profileField(
             'ニックネーム',
@@ -326,15 +318,24 @@ class _DemoPageState extends State<DemoPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              ActionChip(
-                label: Text('子分 ${demo.normalCount} 匹'),
+              TextButton(
                 onPressed: () => showCollection(FollowerKind.normal),
+                child: Text('子分 ${demo.normalCount} 匹'),
               ),
-              ActionChip(
-                label: Text('骨 ${demo.boneCount} 匹'),
+              TextButton(
                 onPressed: () => showCollection(FollowerKind.bone),
+                child: Text('骨 ${demo.boneCount} 匹'),
               ),
-              Chip(label: Text('ちから ${demo.power}')),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+                child: Text(
+                  'ちから ${demo.power}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -352,19 +353,19 @@ class _DemoPageState extends State<DemoPage> {
         final peer = demo.activePeer;
         return [
           heading('仮想の相手を選ぶ'),
-          const Text('本番の接続方法は今後実装します。まずは出会ってからの流れを体験。'),
           const SizedBox(height: 12),
           ...demo.peers.map((person) {
             final completed = demo.completedPeerIds.contains(person.id);
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: OutlinedButton(
+              child: TextButton.icon(
                 key: Key('peer-${person.id}'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
-                  backgroundColor: peer?.id == person.id
-                      ? Theme.of(context).colorScheme.secondaryContainer
-                      : Colors.white,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 4,
+                  ),
+                  alignment: Alignment.centerLeft,
                 ),
                 onPressed: () {
                   if (completed) {
@@ -373,7 +374,13 @@ class _DemoPageState extends State<DemoPage> {
                     runAction(() => demo.selectPeer(person.id));
                   }
                 },
-                child: Align(
+                icon: Icon(
+                  peer?.id == person.id
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  size: 20,
+                ),
+                label: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '${person.profile.nickname}  ·  ${person.team.label}\n${completed ? '交流済み — プロフィールを見る' : person.profile.hobby}',
@@ -409,13 +416,15 @@ class _DemoPageState extends State<DemoPage> {
           if (demo.isClosing)
             const Text('新しい交流は終了しました。このゲームは終了後30秒まで結果を反映できます。'),
           const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
+          Padding(
+            padding: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Text('ミニゲーム準備中'),
+                  const SizedBox(height: 8),
                   const Text(
                     'デモ操作：ゲームの結果を選ぶ',
                     style: TextStyle(fontWeight: FontWeight.bold),
@@ -502,8 +511,8 @@ class _DemoPageState extends State<DemoPage> {
         );
         return [
           heading('今日、つながった仲間。'),
-          Card(
-            margin: EdgeInsets.zero,
+          Padding(
+            padding: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -628,6 +637,34 @@ class _DemoPageState extends State<DemoPage> {
     ),
   );
 
+  void showDemoInfo() {
+    openSheets++;
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            heading('1台用の体験デモ'),
+            const Text('相手は仮想の参加者です。ミニゲームは結果を選んで体験できます。'),
+            const SizedBox(height: 12),
+            const Text('端末間通信・保存は行いません。アプリを閉じると、入力や仲間はリセットされます。'),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('閉じる'),
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(() => openSheets--);
+  }
+
   void showCollection(FollowerKind? kind) {
     final followers = demo.followers
         .where((follower) => kind == null || follower.kind == kind)
@@ -731,12 +768,8 @@ class _TugOfWar extends StatelessWidget {
     final position = total == 0
         ? 0.0
         : (snapshot.bluePower - snapshot.redPower) / total * .7;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
       child: Column(
         children: [
           Wrap(

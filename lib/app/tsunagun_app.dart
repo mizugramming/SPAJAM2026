@@ -22,15 +22,13 @@ class TsunagunApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF186964),
-          surface: const Color(0xFFF5F5F2),
+          surface: Colors.white,
         ),
-        scaffoldBackgroundColor: const Color(0xFFF5F5F2),
+        scaffoldBackgroundColor: Colors.white,
         inputDecorationTheme: const InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(16)),
-          ),
+          filled: false,
+          border: UnderlineInputBorder(),
+          contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 4),
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
