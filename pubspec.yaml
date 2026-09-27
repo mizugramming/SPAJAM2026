@@ -14,6 +14,13 @@ dependencies:
     sdk: flutter
   characters: ^1.4.1
   cupertino_icons: ^1.0.8
+  shared_preferences: ^2.5.5
+  audioplayers: 6.7.1
+  http: 1.6.0
+  web_socket_channel: 3.0.3
+  qr_flutter: 4.1.0
+  mobile_scanner: 7.4.2
+  flutter_secure_storage: 10.0.0
 
 dev_dependencies:
   flutter_test:
@@ -24,9 +31,16 @@ flutter:
   uses-material-design: true
   assets:
     - assets/characters/
+    - assets/home/
+    - assets/audio/
+    - assets/fonts/OFL-KaiseiTokumin.txt
+    - assets/fonts/OFL-MPlusRounded1c.txt
   fonts:
-    # Kaisei Tokumin Medium（SIL OFL 1.1、assets/fonts/OFL.txt）。アプリ全体の標準フォント。
     - family: KaiseiTokumin
       fonts:
         - asset: assets/fonts/KaiseiTokumin-Medium.ttf
+          weight: 500
+    - family: MPlusRounded1c
+      fonts:
+        - asset: assets/fonts/MPLUSRounded1c-Medium.ttf
           weight: 500

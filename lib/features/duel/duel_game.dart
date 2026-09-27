@@ -27,13 +27,20 @@ class DuelGame extends StatefulWidget {
     required this.self,
     required this.peer,
     required this.onCompleted,
+    this.onResolved,
     @visibleForTesting this.debugCourse,
     @visibleForTesting this.debugPeerDecision,
   });
 
   final Participant self;
   final Participant peer;
+
+  /// Presentation completion; existing callers may continue to use this alone.
   final ValueChanged<DuelGameResult> onCompleted;
+
+  /// Reports the immutable race decision before the result/dance presentation.
+  /// The host can preserve an earned reward if its settlement deadline expires.
+  final ValueChanged<DuelGameResult>? onResolved;
 
   /// テストで落下時間を固定するための差し替え。本番では常に null。
   final RaceCourse? debugCourse;
@@ -69,6 +76,7 @@ class _DuelGameState extends State<DuelGame>
   RaceDecision? _selfDecision;
   Duration? _bothSettledAt;
   bool _reported = false;
+  DuelGameResult? _resolvedResult;
 
   @override
   void initState() {
@@ -104,10 +112,10 @@ class _DuelGameState extends State<DuelGame>
       _decide(const RaceDecision.fell());
     }
 
-    final selfDecision = _selfDecision;
-    if (selfDecision != null && _peerSettled(raw)) {
-      final settledAt = _bothSettledAt ??= elapsed;
-      final wins = selfWinsRace(selfDecision, _peerDecision);
+    final resolved = _resolveIfSettled(raw);
+    if (resolved != null) {
+      final settledAt = _bothSettledAt!;
+      final wins = resolved == DuelGameResult.win;
       // 勝ったときは % を少しだけ見せてから親方を出し、負けたときはそのまま結果へ。
       final showResultFor = wins ? _winResultDelay : _settleDelay;
       if (!_reported && elapsed - settledAt >= showResultFor) {
@@ -125,7 +133,20 @@ class _DuelGameState extends State<DuelGame>
     setState(() {});
   }
 
-  /// 結果を一度だけ親へ知らせる。
+  DuelGameResult? _resolveIfSettled(double raw) {
+    if (_resolvedResult != null) return _resolvedResult;
+    final selfDecision = _selfDecision;
+    if (selfDecision == null || !_peerSettled(raw)) return null;
+    final result = selfWinsRace(selfDecision, _peerDecision)
+        ? DuelGameResult.win
+        : DuelGameResult.loss;
+    _bothSettledAt = _elapsed;
+    _resolvedResult = result;
+    widget.onResolved?.call(result);
+    return result;
+  }
+
+  /// 演出の完了を一度だけ親へ知らせる。
   void _report(DuelGameResult result) {
     if (_reported) return;
     _reported = true;
@@ -156,6 +177,9 @@ class _DuelGameState extends State<DuelGame>
             : RaceDecision.stopped(raw.clamp(0.0, 1.0)),
       ),
     );
+    // A stop tap may settle both racers between ticker frames. Reserve that
+    // result immediately, rather than waiting for the next animation frame.
+    _resolveIfSettled(raw);
   }
 
   /// 自分の結果を一度だけ決める。線を越えて落ちたら、スマホを強く一度震わせる。
@@ -255,7 +279,7 @@ class _StartGuide extends StatelessWidget {
                   'タップでスタート！',
                   style: TextStyle(
                     fontSize: 52,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w500,
                     color: _color,
                   ),
                 ),
@@ -267,7 +291,7 @@ class _StartGuide extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 26,
                   height: 1.35,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w500,
                   color: _color,
                 ),
               ),

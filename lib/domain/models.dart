@@ -71,6 +71,7 @@ class Follower {
     required this.profile,
     required this.kind,
     required this.ordinal,
+    this.revivedWith,
   });
 
   final String id;
@@ -80,15 +81,19 @@ class Follower {
   final FollowerKind kind;
   final int ordinal;
 
+  /// The participant who helped revive this follower; its original peer stays.
+  final Participant? revivedWith;
+
   int get power => kind == FollowerKind.normal ? 3 : 1;
 
-  Follower promote() => Follower(
+  Follower promote({required Participant helpedBy}) => Follower(
     id: id,
     ownerId: ownerId,
     peerId: peerId,
     profile: profile,
     kind: FollowerKind.normal,
     ordinal: ordinal,
+    revivedWith: helpedBy,
   );
 }
 
@@ -100,13 +105,17 @@ class EncounterResult {
     required this.newFollower,
     required this.delta,
     this.promoted,
-  });
+  }) : assert(newFollower != null || promoted != null);
 
   final Outcome outcome;
   final Participant peer;
-  final Follower newFollower;
+
+  /// Null when an existing bone was revived without adding a new follower.
+  final Follower? newFollower;
   final Follower? promoted;
   final int delta;
+
+  Follower get rewardFollower => promoted ?? newFollower!;
 }
 
 @immutable

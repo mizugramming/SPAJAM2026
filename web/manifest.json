@@ -1,11 +1,11 @@
 {
-    "name": "つなぐん DEMO",
-    "short_name": "つなぐん DEMO",
+    "name": "つなぐん",
+    "short_name": "つなぐん",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "一台で再現する、出会いが仲間になる体験。",
+    "description": "目の前の人とツナがり、出会いが仲間になる体験。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

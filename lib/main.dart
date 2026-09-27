@@ -1,5 +1,36 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app/tsunagun_app.dart';
+import 'data/conveyor_settings.dart';
+import 'data/online_controller.dart';
+import 'data/online_session_store.dart';
+import 'features/demo/result_sound_player.dart';
 
-void main() => runApp(const TsunagunApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    for (final font in [
+      ('Kaisei Tokumin', 'assets/fonts/OFL-KaiseiTokumin.txt'),
+      ('M PLUS Rounded 1c', 'assets/fonts/OFL-MPlusRounded1c.txt'),
+    ]) {
+      yield LicenseEntryWithLineBreaks([
+        font.$1,
+      ], await rootBundle.loadString(font.$2));
+    }
+  });
+  final conveyorSettings = ConveyorSettings(
+    store: SharedPreferencesConveyorLayoutStore(),
+  );
+  await conveyorSettings.load();
+  runApp(
+    TsunagunApp(
+      conveyorSettings: conveyorSettings,
+      onlineController: const bool.fromEnvironment('TSUNAGUN_DEMO')
+          ? null
+          : OnlineController(store: SecureOnlineSessionStore()),
+      resultSoundPlayer: AssetResultSoundPlayer(),
+    ),
+  );
+}

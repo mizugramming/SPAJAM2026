@@ -81,6 +81,7 @@ class _WavyTitleImageState extends State<WavyTitleImage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) _wave.value = 1;
     final stream = AssetImage(
       widget.asset,
     ).resolve(createLocalImageConfiguration(context));

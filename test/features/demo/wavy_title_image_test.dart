@@ -76,9 +76,10 @@ void main() {
     expect(tester.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('「アニメーションを減らす」設定でも表示でき、例外にならない', (tester) async {
+  testWidgets('動作軽減では見出しを表示し、揺れの描画更新を待たずに停止する', (tester) async {
     await tester.pumpWidget(title(reduceMotion: true));
-    await tester.pumpAndSettle();
+    final frames = await tester.pumpAndSettle();
+    expect(frames, lessThan(5));
     expect(find.byType(WavyTitleImage), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

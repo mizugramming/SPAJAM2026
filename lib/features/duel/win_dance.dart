@@ -25,7 +25,9 @@ class WinDance extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final t = (elapsed.inMicroseconds / appear.inMicroseconds).clamp(0.0, 1.0);
+    final t = reduceMotion
+        ? 1.0
+        : (elapsed.inMicroseconds / appear.inMicroseconds).clamp(0.0, 1.0);
     return LayoutBuilder(
       builder: (context, box) {
         // 踊りの動画（400×366）の左右の端を、画面の左右の端に合わせる。

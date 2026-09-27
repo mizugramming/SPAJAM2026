@@ -6,6 +6,7 @@ import 'package:spajam2026/data/demo_controller.dart';
 import 'package:spajam2026/domain/models.dart';
 import 'package:spajam2026/features/cooperative/cooperative_game.dart';
 import 'package:spajam2026/features/demo/can_stage.dart';
+import 'package:spajam2026/features/demo/parent_character.dart';
 import 'package:spajam2026/features/duel/duel_game.dart';
 
 Future<DemoController> launch(
@@ -21,7 +22,9 @@ Future<DemoController> launch(
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
   final demo = DemoController(autoTick: false);
   addTearDown(demo.dispose);
-  await tester.pumpWidget(TsunagunApp(controller: demo));
+  await tester.pumpWidget(
+    TsunagunApp(animateCharacters: false, controller: demo),
+  );
   await tester.pumpAndSettle();
   return demo;
 }
@@ -80,7 +83,7 @@ Future<void> returnHome(WidgetTester tester) async {
   final parent = tester.widget<Image>(
     find.byWidgetPredicate((w) => w is Image && w.semanticLabel == '親分'),
   );
-  expect((parent.image as AssetImage).assetName, parentAsset);
+  expect((parent.image as AssetImage).assetName, parentIdlePosterAsset);
 }
 
 Future<void> checkProfile(
@@ -137,7 +140,7 @@ void expectFollowerResult(
 void expectBoneResult(WidgetTester tester) {
   expectFollowerResult(tester, asset: boneFollowerAsset, title: 'ショBONE');
   expect(find.text('骨の子分も、大切な仲間。'), findsOneWidget);
-  expect(find.text('同じチームと協力ゲーム！\n力を合わせて、元気にしよう。'), findsOneWidget);
+  expect(find.text('同じチームと協力して、元気にしよう！'), findsOneWidget);
 }
 
 void main() {
@@ -273,32 +276,59 @@ void main() {
     await meet(tester, partner);
     await chooseOutcome(tester, 'positive-outcome');
     expectFollowerResult(tester, asset: normalFollowerAsset, title: 'REBORN');
-    expect(find.text('${opponent.profile.nickname}の子分が、元気に！'), findsOneWidget);
-    final newBone = find.byWidgetPredicate(
-      (w) =>
-          w is Image &&
-          w.image is AssetImage &&
-          (w.image as AssetImage).assetName == boneFollowerAsset,
-    );
-    expect(newBone, findsOneWidget);
-    expect(tester.getSize(newBone).width, lessThanOrEqualTo(80));
     expect(
-      tester.getCenter(newBone).dx,
-      greaterThan(tester.getCenter(find.byType(TunaCan)).dx),
+      find.text('${opponent.profile.nickname}の子分が元気になった！'),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Image &&
+            w.image is AssetImage &&
+            (w.image as AssetImage).assetName == boneFollowerAsset,
+      ),
+      findsNothing,
     );
     expect(demo.normalCount, 1);
-    expect(demo.boneCount, 1);
+    expect(demo.boneCount, 0);
+    expect(demo.lastResult!.delta, 2);
     await returnHome(tester);
-    await checkProfile(tester, '子分 1 匹', opponent.profile);
+    await tap(tester, find.text('子分 1 匹'));
+    await tap(tester, find.text(opponent.profile.nickname));
+    expect(find.text(opponent.profile.comment), findsOneWidget);
+    expect(find.text('復活を手伝った仲間'), findsOneWidget);
+    expect(find.text(partner.profile.nickname), findsOneWidget);
+    expect(find.text(partner.profile.hobby), findsOneWidget);
+    expect(find.text(partner.profile.comment), findsOneWidget);
+    await tap(tester, find.text('閉じる').last);
+    await tap(tester, find.text('閉じる'));
     await key(tester, 'expire-event');
     expect(demo.phase, AppPhase.finale);
-    expect(find.text('赤チームの勝利！'), findsOneWidget);
-    expect(demo.finalSnapshot!.redPower, 7);
+    expect(find.text('赤チームの勝利！'), findsNothing);
+    expect(demo.finalSnapshot!.redPower, 6);
     expect(demo.finalSnapshot!.bluePower, 3);
+    await key(tester, 'start-tug-button');
     await key(tester, 'show-results');
     expect(find.text('このルームのランキング'), findsOneWidget);
     expect(find.text('わたし（あなた）'), findsOneWidget);
     expect(find.text('今日のMVP'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('骨なしの協力成功は相手の子分を迎え、REBORNと表示しない', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final partner = demo.peers.firstWhere((p) => p.team == demo.self.team);
+    await meet(tester, partner);
+    await chooseOutcome(tester, 'positive-outcome');
+    expectFollowerResult(tester, asset: normalFollowerAsset, title: 'ツナがった！');
+    expect(find.text('REBORN'), findsNothing);
+    expect(find.text('${partner.profile.nickname}の子分が仲間入り！'), findsOneWidget);
+    expect(demo.normalCount, 1);
+    expect(demo.boneCount, 0);
+    expect(demo.lastResult!.delta, 3);
+    await returnHome(tester);
+    await checkProfile(tester, '子分 1 匹', partner.profile);
     expect(tester.takeException(), isNull);
   });
 
@@ -374,6 +404,7 @@ void main() {
     await returnHome(tester);
     await checkProfile(tester, '骨 1 匹', peer.profile);
     await key(tester, 'expire-event');
+    await key(tester, 'start-tug-button');
     await key(tester, 'show-results');
     expect(tester.takeException(), isNull);
   });
@@ -408,10 +439,11 @@ void main() {
     expect(demo.phase, AppPhase.result);
     expect(demo.lastResult!.outcome, Outcome.coopFailure);
     expect(demo.followers, hasLength(2));
-    expect(demo.lastResult!.newFollower.kind, FollowerKind.bone);
+    expect(demo.lastResult!.rewardFollower.kind, FollowerKind.bone);
     await returnHome(tester);
     await key(tester, 'expire-event');
     expect(demo.phase, AppPhase.finale);
+    await key(tester, 'start-tug-button');
     await key(tester, 'show-results');
     expect(demo.phase, AppPhase.results);
     expect(demo.followers, hasLength(2));
@@ -427,6 +459,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(BottomSheet), findsNothing);
     expect(demo.phase, AppPhase.finale);
+    expect(find.text('引き分け！'), findsNothing);
+    await key(tester, 'start-tug-button');
     expect(find.text('引き分け！'), findsOneWidget);
     await key(tester, 'show-results');
     expect(find.text('今回は該当者なし'), findsOneWidget);
@@ -485,6 +519,75 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('対戦の早期確定を受付し、演出中の期限でも報酬を残して遅延完了を拒否する', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final opponent = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    await meet(tester, opponent);
+    final duel = tester.widget<DuelGame>(find.byType(DuelGame));
+    demo.advance(demo.remaining + const Duration(seconds: 29));
+    await tester.pumpAndSettle();
+    expect(demo.settlementRemaining, const Duration(seconds: 1));
+
+    duel.onResolved!(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.game);
+    expect(demo.followers, isEmpty);
+    // 確定後にDEMOで負けを選んでも、勝利の予約は変わらない。
+    await chooseOutcome(tester, 'negative-outcome');
+    expect(demo.phase, AppPhase.game);
+    expect(demo.followers, isEmpty);
+    demo.advance(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.finale);
+    expect(find.byType(DuelGame), findsNothing);
+    final snapshot = demo.finalSnapshot;
+    expect(snapshot!.redPower, 3);
+    expect(snapshot.bluePower, 1);
+
+    duel.onCompleted(DuelGameResult.win);
+    duel.onResolved!(DuelGameResult.loss);
+    await tester.pumpAndSettle();
+    expect(demo.normalCount, 1);
+    expect(demo.boneCount, 0);
+    expect(demo.finalSnapshot, same(snapshot));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('予約中に再開始して同じ相手と対戦しても旧世代の確定・完了通知を拒否する', (tester) async {
+    final demo = await launch(tester);
+    await start(tester);
+    final opponent = demo.peers.firstWhere((p) => p.team != demo.self.team);
+    await meet(tester, opponent);
+    final previousDuel = tester.widget<DuelGame>(find.byType(DuelGame));
+    previousDuel.onResolved!(DuelGameResult.win);
+    demo.reset();
+    await tester.pumpAndSettle();
+    // 管理側のresetでも旧ゲームを無効化する。新しい部屋も同じControllerで作る。
+    demo.createRoom(const Duration(minutes: 3));
+    demo.setProfile(nickname: '再開始', hobby: '散歩');
+    expect(demo.saveProfile(), isNull);
+    demo.startEvent();
+    await tester.pumpAndSettle();
+    await meet(tester, opponent);
+    final currentDuel = tester.widget<DuelGame>(find.byType(DuelGame));
+
+    previousDuel.onResolved!(DuelGameResult.win);
+    previousDuel.onCompleted(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.game);
+    expect(demo.followers, isEmpty);
+    currentDuel.onResolved!(DuelGameResult.loss);
+    currentDuel.onCompleted(DuelGameResult.loss);
+    previousDuel.onCompleted(DuelGameResult.win);
+    await tester.pumpAndSettle();
+    expect(demo.phase, AppPhase.result);
+    expect(demo.boneCount, 1);
+    expect(demo.normalCount, 0);
+    expect(demo.completedPeerIds, {opponent.id});
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('ゲーム差込口の完了でメニューを閉じ、重複と別相手への遅延通知を拒否する', (tester) async {
     final demo = await launch(tester);
     await start(tester);
@@ -520,7 +623,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(demo.phase, AppPhase.result);
     expect(demo.normalCount, 1);
-    expect(demo.boneCount, 1);
+    expect(demo.boneCount, 0);
     expect(demo.completedPeerIds, {opponent.id, partner.id});
     expect(tester.takeException(), isNull);
   });
@@ -534,7 +637,7 @@ void main() {
     final previousDuel = tester.widget<DuelGame>(find.byType(DuelGame));
     previousDuel.onCompleted(DuelGameResult.win);
     await tester.pumpAndSettle();
-    expectFollowerResult(tester, asset: normalFollowerAsset, title: 'やった！');
+    expectFollowerResult(tester, asset: normalFollowerAsset, title: 'ツナがった！');
     expect(demo.normalCount, 1);
     expect(demo.boneCount, 0);
     await returnHome(tester);
@@ -549,6 +652,7 @@ void main() {
     expectBoneResult(tester);
     await returnHome(tester);
     await key(tester, 'expire-event');
+    await key(tester, 'start-tug-button');
     await key(tester, 'show-results');
     await key(tester, 'reset-demo');
     await start(tester);

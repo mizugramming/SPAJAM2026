@@ -15,6 +15,7 @@ class GameScene extends StatelessWidget {
     required this.remainingLabel,
     required this.onDemoMenu,
     required this.onCompleted,
+    this.onResolved,
   });
 
   final Participant self;
@@ -22,6 +23,7 @@ class GameScene extends StatelessWidget {
   final String remainingLabel;
   final VoidCallback onDemoMenu;
   final ValueChanged<Outcome> onCompleted;
+  final ValueChanged<Outcome>? onResolved;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +54,7 @@ class GameScene extends StatelessWidget {
                             Text(
                               '${peer.profile.nickname}さんと${cooperative ? '協力' : '対戦'}',
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                             Text(
@@ -96,6 +98,11 @@ class GameScene extends StatelessWidget {
                       : DuelGame(
                           self: self,
                           peer: peer,
+                          onResolved: (result) => onResolved?.call(
+                            result == DuelGameResult.win
+                                ? Outcome.win
+                                : Outcome.loss,
+                          ),
                           onCompleted: (result) => onCompleted(
                             result == DuelGameResult.win
                                 ? Outcome.win

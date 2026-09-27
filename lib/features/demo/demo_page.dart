@@ -1,24 +1,40 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/tsunagun_theme.dart';
+import '../../app/conveyor_settings_scope.dart';
+import '../../domain/conveyor_layout.dart';
+import 'conveyor_editor.dart';
 import '../../data/demo_controller.dart';
 import '../../domain/models.dart';
 import 'can_stage.dart';
 import 'game_scene.dart';
+import 'factory_backdrop.dart';
+import 'final_awards.dart';
+import 'font_comparison_controls.dart';
 import 'illustrated_details.dart';
+import 'result_sound_player.dart';
 import 'tug_of_war_finale.dart';
 
 class DemoPage extends StatefulWidget {
-  const DemoPage({super.key, this.controller});
+  const DemoPage({super.key, this.controller, this.resultSoundPlayer});
   final DemoController? controller;
+
+  /// Owned and disposed by this page; omitted players keep previews silent.
+  final ResultSoundPlayer? resultSoundPlayer;
 
   @override
   State<DemoPage> createState() => _DemoPageState();
 }
 
-class _DemoPageState extends State<DemoPage> {
+class _DemoPageState extends State<DemoPage> with WidgetsBindingObserver {
   late final DemoController demo = widget.controller ?? DemoController();
+  late final ResultSoundPlayer _resultSoundPlayer =
+      widget.resultSoundPlayer ?? const SilentResultSoundPlayer();
+  bool _foreground = true;
+  int _soundGeneration = 0;
   final nickname = TextEditingController();
   final hobby = TextEditingController();
   final comment = TextEditingController();
@@ -27,17 +43,87 @@ class _DemoPageState extends State<DemoPage> {
   String? error;
   int durationMinutes = 3;
   int openSheets = 0;
+  bool conveyorEditorOpen = false;
   int encounterGeneration = 0;
   AppPhase? observedPhase;
 
   @override
   void initState() {
     super.initState();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addObserver(this);
     observedPhase = demo.phase;
     demo.addListener(handlePhase);
+    _handleSoundPhase(null);
+  }
+
+  // Audio is optional presentation. Device/player failures must not affect
+  // outcome settlement, navigation, or disposal of the rest of the app.
+  Future<void> _guardSound(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (_) {
+      // Keep the visual result and the game flow available without sound.
+    }
+  }
+
+  void _handleSoundPhase(AppPhase? previous) {
+    final generation = ++_soundGeneration;
+    final phase = demo.phase;
+    if (previous == AppPhase.result ||
+        phase == AppPhase.returning ||
+        phase == AppPhase.finale ||
+        phase == AppPhase.results ||
+        phase == AppPhase.entry) {
+      unawaited(_guardSound(_resultSoundPlayer.stop));
+    }
+    if (phase == AppPhase.game && _foreground) {
+      unawaited(_guardSound(_resultSoundPlayer.prepare));
+    }
+    final result = demo.lastResult;
+    if (phase != AppPhase.result ||
+        result == null ||
+        !_foreground ||
+        (result.outcome != Outcome.loss &&
+            result.outcome != Outcome.coopFailure)) {
+      return;
+    }
+    final encounter = encounterGeneration;
+    // The title is present after this frame. Do not attach audio to CanStage:
+    // its conveyor-editor preview may show the same result a second time.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          generation != _soundGeneration ||
+          encounter != encounterGeneration ||
+          demo.phase != AppPhase.result ||
+          !identical(demo.lastResult, result) ||
+          !_foreground) {
+        return;
+      }
+      unawaited(_guardSound(_resultSoundPlayer.playShobone));
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    if (_foreground == foreground) return;
+    _foreground = foreground;
+    if (!foreground) {
+      _soundGeneration++;
+      unawaited(_guardSound(_resultSoundPlayer.stop));
+    }
+    // Returning to the foreground never replays an already shown result.
+  }
+
+  Future<void> _disposeSound() async {
+    await _guardSound(_resultSoundPlayer.stop);
+    await _guardSound(_resultSoundPlayer.dispose);
   }
 
   void handlePhase() {
+    final previous = observedPhase;
     final changed = demo.phase != observedPhase;
     final reachedFinale =
         demo.phase == AppPhase.finale && observedPhase != AppPhase.finale;
@@ -46,6 +132,7 @@ class _DemoPageState extends State<DemoPage> {
     if (changed && demo.phase == AppPhase.game) encounterGeneration++;
     observedPhase = demo.phase;
     if (changed) {
+      _handleSoundPhase(previous);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !sceneScroll.hasClients) return;
         if (MediaQuery.disableAnimationsOf(context)) {
@@ -59,12 +146,13 @@ class _DemoPageState extends State<DemoPage> {
         }
       });
     }
-    if ((reachedFinale || leftGame) && openSheets > 0) {
+    if ((reachedFinale || leftGame) && openSheets > 0 && !conveyorEditorOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted &&
             (demo.phase == AppPhase.finale ||
                 (leftGame && demo.phase != AppPhase.game)) &&
-            openSheets > 0) {
+            openSheets > 0 &&
+            !conveyorEditorOpen) {
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       });
@@ -73,6 +161,9 @@ class _DemoPageState extends State<DemoPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _soundGeneration++;
+    unawaited(_disposeSound());
     demo.removeListener(handlePhase);
     nickname.dispose();
     hobby.dispose();
@@ -136,114 +227,127 @@ class _DemoPageState extends State<DemoPage> {
                             ? '結果の受付 残り ${formatTime(demo.settlementRemaining)}'
                             : '残り ${formatTime(demo.remaining)}',
                         onDemoMenu: showGameDemoMenu,
+                        onResolved: (outcome) =>
+                            reserveGame(generation, peerId!, outcome),
                         onCompleted: (outcome) =>
                             completeGame(generation, peerId!, outcome),
                       )
-                    : LayoutBuilder(
-                        builder: (context, constraints) => SingleChildScrollView(
-                          controller: sceneScroll,
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: scenePadding,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: phase == AppPhase.entry
-                                  ? (constraints.maxHeight -
-                                            scenePadding.vertical)
-                                        .clamp(0.0, double.infinity)
-                                  : 0,
-                            ),
-                            child: Column(
-                              mainAxisAlignment: phase == AppPhase.entry
-                                  ? MainAxisAlignment.center
-                                  : MainAxisAlignment.start,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Wrap(
-                                  alignment: WrapAlignment.spaceBetween,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  spacing: 8,
-                                  children: [
-                                    const TsunagunWordmark(),
-                                    TextButton.icon(
-                                      key: const Key('demo-info'),
-                                      onPressed: showDemoInfo,
-                                      icon: const Icon(
-                                        Icons.info_outline,
-                                        size: 16,
-                                      ),
-                                      label: const Text('1台用 DEMO'),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                if (inEvent) ...[
+                    : FactoryBackdrop(
+                        transitionKey: phase,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) => SingleChildScrollView(
+                            controller: sceneScroll,
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: scenePadding,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: phase == AppPhase.entry
+                                    ? (constraints.maxHeight -
+                                              scenePadding.vertical)
+                                          .clamp(0.0, double.infinity)
+                                    : 0,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: phase == AppPhase.entry
+                                    ? MainAxisAlignment.center
+                                    : MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
                                   Wrap(
-                                    spacing: 12,
-                                    runSpacing: 6,
                                     alignment: WrapAlignment.spaceBetween,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    spacing: 8,
                                     children: [
-                                      Text(
-                                        '${demo.roomName} · ${demo.self.team.label}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          color: demo.self.team == Team.red
-                                              ? TsunagunColors.red
-                                              : TsunagunColors.blue,
+                                      const TsunagunWordmark(),
+                                      TextButton.icon(
+                                        key: const Key('demo-info'),
+                                        onPressed: showDemoInfo,
+                                        icon: const Icon(
+                                          Icons.info_outline,
+                                          size: 16,
                                         ),
-                                      ),
-                                      Text(
-                                        demo.isClosing
-                                            ? '終了処理中'
-                                            : '残り ${formatTime(demo.remaining)}',
-                                        key: const Key('remaining-time'),
+                                        label: const Text('1台用 DEMO'),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
-                                ],
-                                if (phase != AppPhase.finale &&
-                                    phase != AppPhase.results)
-                                  AnimatedSize(
-                                    duration: const Duration(milliseconds: 350),
-                                    curve: Curves.easeInOut,
-                                    child: CanStage(
-                                      phase: phase,
-                                      profile: demo.profileDraft,
-                                      result: demo.lastResult,
-                                      team: inEvent ? demo.self.team : null,
-                                      onReturnComplete: demo.finishReturn,
+                                  const SizedBox(height: 8),
+                                  if (inEvent) ...[
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 6,
+                                      alignment: WrapAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '${demo.roomName} · ${demo.self.team.label}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                            color: demo.self.team == Team.red
+                                                ? TsunagunColors.red
+                                                : TsunagunColors.blue,
+                                          ),
+                                        ),
+                                        Text(
+                                          demo.isClosing
+                                              ? '終了処理中'
+                                              : '残り ${formatTime(demo.remaining)}',
+                                          key: const Key('remaining-time'),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                  if (phase != AppPhase.finale &&
+                                      phase != AppPhase.results)
+                                    AnimatedSize(
+                                      duration: const Duration(
+                                        milliseconds: 350,
+                                      ),
+                                      curve: Curves.easeInOut,
+                                      child: CanStage(
+                                        conveyorLayout:
+                                            ConveyorSettingsScope.maybeOf(
+                                              context,
+                                            )?.value ??
+                                            const ConveyorLayout(),
+                                        phase: phase,
+                                        profile: demo.profileDraft,
+                                        result: demo.lastResult,
+                                        team: inEvent ? demo.self.team : null,
+                                        onReturnComplete: demo.finishReturn,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 20),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 250),
+                                    switchInCurve: Curves.easeOut,
+                                    child: Column(
+                                      key: ValueKey(phase),
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: panel(phase),
                                     ),
                                   ),
-                                const SizedBox(height: 20),
-                                AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 250),
-                                  switchInCurve: Curves.easeOut,
-                                  child: Column(
-                                    key: ValueKey(phase),
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: panel(phase),
-                                  ),
-                                ),
-                                if (error != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 12),
-                                    child: Semantics(
-                                      liveRegion: true,
-                                      child: Text(
-                                        error!,
-                                        key: const Key('form-error'),
-                                        style: TextStyle(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.error,
+                                  if (error != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: Semantics(
+                                        liveRegion: true,
+                                        child: Text(
+                                          error!,
+                                          key: const Key('form-error'),
+                                          style: TextStyle(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.error,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                const SizedBox(height: 20),
-                              ],
+                                  const SizedBox(height: 20),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -383,7 +487,7 @@ class _DemoPageState extends State<DemoPage> {
                 ),
                 child: Text(
                   'ちから ${demo.power}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
               ),
             ],
@@ -393,7 +497,7 @@ class _DemoPageState extends State<DemoPage> {
             key: const Key('meet-peer'),
             onPressed: () => runAction(demo.openPairing),
             icon: const Icon(Icons.waving_hand_outlined),
-            label: const Text('相手とつながる'),
+            label: const Text('ツナがる'),
           ),
           const SizedBox(height: 8),
           const Text('同じチームなら協力。違うチームなら対戦。'),
@@ -443,7 +547,7 @@ class _DemoPageState extends State<DemoPage> {
             const SizedBox(height: 8),
             Text(
               '${peer.profile.nickname}さんと${peer.team == demo.self.team ? '協力' : '対戦'}します',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 8),
             FilledButton(
@@ -465,11 +569,11 @@ class _DemoPageState extends State<DemoPage> {
         final isSetback =
             result.outcome == Outcome.loss ||
             result.outcome == Outcome.coopFailure;
-        final title = switch (result.outcome) {
-          Outcome.win => '新しい仲間が、缶にやってきた！',
-          Outcome.loss || Outcome.coopFailure => '骨の子分も、大切な仲間。',
-          Outcome.coopSuccess => '力を合わせて、元気いっぱい！',
-        };
+        final title = isSetback
+            ? '骨の子分も、大切な仲間。'
+            : result.promoted != null
+            ? '${result.promoted!.profile.nickname}の子分が元気になった！'
+            : '${result.peer.profile.nickname}の子分が仲間入り！';
         return [
           Text(
             title,
@@ -477,31 +581,24 @@ class _DemoPageState extends State<DemoPage> {
             style: const TextStyle(
               fontSize: 20,
               height: 1.4,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            isSetback
-                ? '同じチームと協力ゲーム！\n力を合わせて、元気にしよう。'
-                : result.promoted != null
-                ? '${result.promoted!.profile.nickname}の子分が、元気に！'
-                : '${result.peer.profile.nickname}と、ツナがった！',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15, height: 1.7),
-          ),
-          if (result.promoted != null &&
-              result.promoted!.id != result.newFollower.id)
+          if (isSetback || result.promoted != null) ...[
+            const SizedBox(height: 10),
             Text(
-              '${result.peer.profile.nickname}の骨の子分も仲間入り！',
+              isSetback
+                  ? '同じチームと協力して、元気にしよう！'
+                  : '${result.peer.profile.nickname}と力を合わせて復活！',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 15, height: 1.7),
             ),
+          ],
           const SizedBox(height: 12),
           Text(
             'ちから +${result.delta}',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 20),
           FilledButton(
@@ -521,69 +618,9 @@ class _DemoPageState extends State<DemoPage> {
         ];
       case AppPhase.results:
         final snapshot = demo.finalSnapshot!;
-        final mvps = snapshot.rankings.where(
-          (entry) => snapshot.mvpIds.contains(entry.participant.id),
-        );
         return [
           heading('今日、つながった仲間。'),
-          Padding(
-            padding: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.emoji_events_outlined, size: 36),
-                  const Text(
-                    '今日のMVP',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    mvps.isEmpty
-                        ? '今回は該当者なし'
-                        : mvps
-                              .map(
-                                (entry) => entry.participant.profile.nickname,
-                              )
-                              .join(' ・ '),
-                    style: const TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    mvps.isEmpty
-                        ? 'まだ交流結果がないため、MVPはいません。'
-                        : 'いちばん多くのちからを集めた人。\n同点のときは、みんながMVP。',
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'このルームのランキング',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          ...snapshot.rankings.map(
-            (entry) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Text(
-                '${entry.rank}',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              title: Text(
-                '${entry.participant.profile.nickname}${entry.participant.isSelf ? '（あなた）' : ''}',
-              ),
-              subtitle: Text(
-                '${entry.participant.team.label} · 子分${entry.normalCount} / 骨${entry.boneCount} · ちから${entry.power}',
-              ),
-            ),
-          ),
+          FinalAwards(snapshot: snapshot),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: () => showCollection(null),
@@ -604,7 +641,7 @@ class _DemoPageState extends State<DemoPage> {
       text,
       style: const TextStyle(
         fontSize: 23,
-        fontWeight: FontWeight.w900,
+        fontWeight: FontWeight.w500,
         height: 1.4,
         color: TsunagunColors.ink,
       ),
@@ -653,15 +690,22 @@ class _DemoPageState extends State<DemoPage> {
     ),
   );
 
+  bool isCurrentGame(int generation, String peerId) =>
+      mounted &&
+      generation == encounterGeneration &&
+      demo.phase == AppPhase.game &&
+      demo.activePeer?.id == peerId;
+
+  void reserveGame(int generation, String peerId, Outcome outcome) {
+    // Both decision and presentation callbacks use the same encounter guard.
+    if (!isCurrentGame(generation, peerId)) return;
+    demo.reserveOutcome(outcome);
+  }
+
   void completeGame(int generation, String peerId, Outcome outcome) {
     // Ignore duplicate, expired, and previous-game callbacks, including
     // callbacks from a room that was reset and started again.
-    if (!mounted ||
-        generation != encounterGeneration ||
-        demo.phase != AppPhase.game ||
-        demo.activePeer?.id != peerId) {
-      return;
-    }
+    if (!isCurrentGame(generation, peerId)) return;
     runAction(() => demo.injectOutcome(outcome));
   }
 
@@ -705,6 +749,7 @@ class _DemoPageState extends State<DemoPage> {
                 child: Text(cooperative ? '協力に失敗' : '対戦に負ける'),
               ),
               demoTimeControls(),
+              const FontComparisonControls(),
               TextButton(
                 onPressed: () => Navigator.pop(sheetContext),
                 child: const Text('ゲームへ戻る'),
@@ -719,9 +764,9 @@ class _DemoPageState extends State<DemoPage> {
     if (outcome != null) completeGame(generation, peer.id, outcome);
   }
 
-  void showDemoInfo() {
+  Future<void> showDemoInfo() async {
     openSheets++;
-    showModalBottomSheet<void>(
+    final editConveyor = await showModalBottomSheet<bool>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
@@ -737,8 +782,21 @@ class _DemoPageState extends State<DemoPage> {
               '相手は仮想の参加者です。タップ操作で対戦・協力ゲームを遊べます。DEMOメニューから結果を選んで、続きを確認することもできます。',
             ),
             const SizedBox(height: 12),
-            const Text('端末間通信・保存は行いません。アプリを閉じると、入力や仲間はリセットされます。'),
+            const Text(
+              '端末間通信は行いません。アプリを閉じると、入力や仲間はリセットされます。コンベアの配置はこの端末に保存できます。',
+            ),
             const SizedBox(height: 16),
+            const FontComparisonControls(),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const Key('edit-conveyor'),
+              onPressed:
+                  ConveyorSettingsScope.maybeOf(context)?.isLoaded == true
+                  ? () => Navigator.pop(context, true)
+                  : null,
+              icon: const Icon(Icons.tune),
+              label: const Text('ベルトコンベアを編集'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('閉じる'),
@@ -746,7 +804,46 @@ class _DemoPageState extends State<DemoPage> {
           ],
         ),
       ),
-    ).whenComplete(() => openSheets--);
+    );
+    openSheets--;
+    if (editConveyor == true && mounted) await showConveyorEditor();
+  }
+
+  Future<void> showConveyorEditor() async {
+    final settings = ConveyorSettingsScope.maybeOf(context);
+    if (settings == null || !settings.isLoaded) return;
+    openSheets++;
+    conveyorEditorOpen = true;
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: .96,
+        child: SafeArea(
+          top: false,
+          child: ConveyorEditor(
+            settings: settings,
+            phase: demo.phase,
+            profile: demo.profileDraft,
+            result: demo.lastResult,
+            team: switch (demo.phase) {
+              AppPhase.entry || AppPhase.profile || AppPhase.lobby => null,
+              _ => demo.self.team,
+            },
+          ),
+        ),
+      ),
+    );
+    openSheets--;
+    conveyorEditorOpen = false;
+    if (mounted && saved == true) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('配置を保存しました')));
+    }
   }
 
   void showCollection(FollowerKind? kind) {
@@ -798,6 +895,7 @@ class _DemoPageState extends State<DemoPage> {
                       onTap: () => showProfile(
                         follower.profile,
                         follower.kind == FollowerKind.bone ? '骨の子分' : '子分',
+                        revivedWith: follower.revivedWith,
                       ),
                     );
                   },
@@ -814,7 +912,7 @@ class _DemoPageState extends State<DemoPage> {
     ).whenComplete(() => openSheets--);
   }
 
-  void showProfile(Profile profile, String kind) {
+  void showProfile(Profile profile, String kind, {Participant? revivedWith}) {
     openSheets++;
     showModalBottomSheet<void>(
       context: context,
@@ -849,13 +947,33 @@ class _DemoPageState extends State<DemoPage> {
               ],
             ),
             const SizedBox(height: 12),
-            const Text('趣味', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text('趣味', style: TextStyle(fontWeight: FontWeight.w500)),
             Text(profile.hobby),
             const SizedBox(height: 18),
-            const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w500)),
             FollowerQuote(
               text: profile.comment.isEmpty ? 'まだひとことはありません。' : profile.comment,
             ),
+            if (revivedWith != null) ...[
+              const SizedBox(height: 22),
+              const Divider(),
+              const SizedBox(height: 10),
+              const Text(
+                '復活を手伝った仲間',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 8),
+              heading(revivedWith.profile.nickname),
+              const Text('趣味', style: TextStyle(fontWeight: FontWeight.w500)),
+              Text(revivedWith.profile.hobby),
+              const SizedBox(height: 12),
+              const Text('ひとこと', style: TextStyle(fontWeight: FontWeight.w500)),
+              FollowerQuote(
+                text: revivedWith.profile.comment.isEmpty
+                    ? 'まだひとことはありません。'
+                    : revivedWith.profile.comment,
+              ),
+            ],
             const SizedBox(height: 16),
             TextButton(
               onPressed: () => Navigator.pop(context),
