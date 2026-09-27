@@ -2,7 +2,7 @@
 
 目の前の人と遊び、出会った相手が子分として自分のツナ缶に残る、イベント向けのアイスブレイクアプリです。最後は普通の子分＝3・骨＝1の戦力で二チームの綱引きを行います。
 
-**通常起動は、コードで同じルームへ参加し、ゲーム相手とQRでツナがる通信版です。** Android2台での発表用ルームと、通常の参加者ルームを用意しています。通信サーバーと[Web確認版](https://tsunagun.tsunagun-room-server.workers.dev)はCloudflareへ公開済みです。Android実機2台の確認は未実施です。起動には同じ公開HTTPS接続先を指定します。[2台での準備・使い方](docs/online.md)を参照してください。旧一台デモはビルド時に選べます。
+**通常起動は、コードで同じルームへ参加し、ゲーム相手とQRでツナがる通信版です。** PC上の2つの独立したブラウザーで撮影できる発表用ルームと、通常の参加者ルームを用意しています。通信サーバーと[Web確認版](https://tsunagun.tsunagun-room-server.workers.dev)はCloudflareへ公開済みです。Android実機2台の確認は未実施です。起動には同じ公開HTTPS接続先を指定します。[PCでの撮影・接続手順](docs/online.md)を参照してください。旧一台デモはビルド時に選べます。
 
 ## 最初に読むもの
 
@@ -11,7 +11,7 @@
 3. [確定した画面文言](docs/ui_copy.md)：今回承認された言葉と、表示する場面の正本です。
 4. [端末と共通画面条件](docs/app_design.md)：REDMI Note 15 5G、スマホ縦向き・タッチ操作が基準です。
 5. [提供された v2 設計原本](docs/tsunagun/APP_DESIGN.md)：原本を保持しているため、親分骨化など撤回済みの記述が残っています。
-6. [2台で使う通信版と発表手順](docs/online.md)／[通信サーバー](server/README.md)
+6. [通信版の接続とPCでの発表手順](docs/online.md)／[通信サーバー](server/README.md)
 7. [構成・担当範囲と共通接続](docs/feature_integration.md)／[環境・検証・PR手順](docs/development.md)／[素材管理](docs/assets.md)
 
 `docs/tsunagun/` は受領原本です。原本や `templates/project/` の雛形で、上記の最新決定や実装を上書きしません。
@@ -30,7 +30,15 @@ fvm flutter run -d chrome --dart-define=TSUNAGUN_SERVER_URL=https://tsunagun-roo
 
 上記は公開済み通信APIのURLです。未設定のビルドではルームへ接続できません。Androidでは環境チェックに `--android` を付け、`fvm flutter run -d 端末ID --dart-define=TSUNAGUN_SERVER_URL=https://tsunagun-rooms.tsunagun-room-server.workers.dev` で起動します。固定SDKは [.fvmrc](.fvmrc) と [tool/toolchain.json](tool/toolchain.json) が正本です。異なるSDKに合わせて制約やロックを変更しません。
 
-## 2台で一周する
+## PCで発表用の2画面を準備する
+
+[公開アプリ](https://tsunagun.tsunagun-room-server.workers.dev)をChromeとEdge、または別々のブラウザープロファイルで開き、左右に並べます。同じプロファイルの別タブでは参加情報が共有されるため、二人分には使いません。1画面の紹介部分も二つのウィンドウは表示したまま、録画範囲だけを片側に絞ります。
+
+Windowsでは、リポジトリを開いたPowerShellで `.\tool\open_presentation_windows.ps1` を実行すると、参加者A・B専用の保存領域で2画面を開けます。既定のブラウザー設定や参加情報は変更しません。
+
+撮影は **プロフィール・ホームの1画面録画 → QRを読み取る実写 → 相手確認・ミニゲームの2画面録画 → 結果・REBORN・綱引きの1画面録画** です。[撮影と接続の手順](docs/online.md#pcでの撮影手順)に従ってください。Webの表示中ウィンドウは選択が外れても通信を保ち、タブの非表示・最小化では未確定ゲームを中断します。
+
+## 2人で一周する
 
 1. 端末Aで「発表用ルーム」をONにして作成し、プロフィールを入力する。
 2. 端末Bで「ルームに参加する」を開き、Aが伝えた5桁のルームコードを入力してプロフィールを作る。入室ではカメラを使わない。

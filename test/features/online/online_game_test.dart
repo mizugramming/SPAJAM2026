@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spajam2026/data/online_controller.dart';
@@ -378,6 +379,65 @@ void main() {
     expect(completed, 0);
   });
 
+  testWidgets('only visible web windows keep ticking while inactive', (
+    tester,
+  ) async {
+    final c = _Controller()..snapshot();
+    await _mount(tester, c);
+    await _advance(tester, c, 1000);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await _advance(tester, c, 1000);
+    expect(c.sent, hasLength(kIsWeb ? 1 : 0));
+    if (kIsWeb) {
+      expect(c.sent.single['fell'], isTrue);
+      expect(c.sent.single['at'], 2800);
+    }
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  });
+
+  testWidgets(
+    'web focus changes preserve observations before a water crossing',
+    (tester) async {
+      final c = _Controller()..snapshot();
+      await _mount(tester, c);
+      await _advance(tester, c, 900);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await _advance(tester, c, 300);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await _advance(tester, c, 700);
+      expect(c.sent, hasLength(kIsWeb ? 1 : 0));
+      if (kIsWeb) expect(c.sent.single['fell'], isTrue);
+    },
+  );
+
+  testWidgets('a frame gap across focus changes never fabricates a fall', (
+    tester,
+  ) async {
+    final c = _Controller()..snapshot();
+    await _mount(tester, c);
+    await _advance(tester, c, 100);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    c.now += 2000;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(milliseconds: 2000));
+    await _advance(tester, c, 100);
+    expect(c.sent, isEmpty);
+  });
+
+  testWidgets(
+    'initially inactive visible web game still accepts a human input',
+    (tester) async {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      final c = _Controller()..snapshot();
+      await _mount(tester, c);
+      await _advance(tester, c, 300);
+      await _tap(tester);
+      expect(c.sent, hasLength(kIsWeb ? 1 : 0));
+      if (kIsWeb) expect(c.sent.single['fell'], isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    },
+  );
+
   testWidgets('background and disconnection never send a missed input', (
     tester,
   ) async {
@@ -385,6 +445,7 @@ void main() {
     await _mount(tester, c);
     await _advance(tester, c, 1000);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     await _advance(tester, c, 1500);
     expect(c.sent, isEmpty);
     c.isConnected = false;

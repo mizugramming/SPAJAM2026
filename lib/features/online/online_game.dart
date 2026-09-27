@@ -15,6 +15,7 @@ import '../duel/race_field.dart';
 import '../duel/sea_background.dart';
 import '../duel/win_dance.dart';
 import 'online_game_timing.dart';
+import 'online_lifecycle.dart';
 
 /// Two game actors, one server clock. This widget sends the human inputs only;
 /// results and rewards always come from the authoritative room snapshot.
@@ -58,9 +59,7 @@ class _OnlineGameState extends State<OnlineGame>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _foreground =
-        WidgetsBinding.instance.lifecycleState == null ||
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _foreground = isOnlineForeground(WidgetsBinding.instance.lifecycleState);
     _controller.addListener(_changed);
     _synchronize();
     _ticker = createTicker(_tick)..start();
@@ -79,11 +78,14 @@ class _OnlineGameState extends State<OnlineGame>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _foreground = state == AppLifecycleState.resumed;
+    final foreground = isOnlineForeground(state);
+    if (_foreground == foreground) return;
+    _foreground = foreground;
     _observedBefore = null;
     _lastTickAt = null;
-    // OnlinePage/OnlineController closes the socket in the background. The
-    // server cancels unfinished games; never turn a pause into a local loss.
+    // Preserve observations when a visible web window merely loses focus.
+    // Real background transitions close the socket in OnlinePage/Controller;
+    // never turn a pause or a frame gap into a local loss.
     if (mounted) setState(() {});
   }
 

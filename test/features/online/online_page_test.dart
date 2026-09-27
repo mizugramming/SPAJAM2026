@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -288,6 +289,36 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets(
+    'visible web blur preserves connection and sound; hidden always suspends',
+    (tester) async {
+      final controller = ScreenController(roomJson(status: 'active'));
+      final sounds = Sounds();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(app(controller, sounds: sounds));
+      final stops = sounds.stops;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(controller.foreground.last, kIsWeb);
+      expect(sounds.stops, kIsWeb ? stops : greaterThan(stops));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      expect(controller.foreground.last, isTrue);
+      for (final state in [
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.detached,
+      ]) {
+        final before = sounds.stops;
+        tester.binding.handleAppLifecycleStateChanged(state);
+        await tester.pump();
+        expect(controller.foreground.last, isFalse);
+        expect(sounds.stops, greaterThan(before));
+      }
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      expect(controller.foreground.last, isTrue);
+    },
+  );
+
   testWidgets('通常入口は仮想操作を見せず、発表ルームを選んで空のプロフィールを作れる', (tester) async {
     final controller = ScreenController();
     addTearDown(controller.dispose);
@@ -408,7 +439,7 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     expect(sounds.plays, 1);
-    expect(controller.foreground, [false, true]);
+    expect(controller.foreground, [kIsWeb, true]);
     final stops = sounds.stops;
     await tapVisible(tester, find.byKey(const Key('return-online-home')));
     await tester.pump(const Duration(seconds: 2));

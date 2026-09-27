@@ -18,6 +18,7 @@ import '../demo/illustrated_details.dart';
 import '../demo/result_sound_player.dart';
 import '../demo/tug_of_war_finale.dart';
 import 'online_game.dart';
+import 'online_lifecycle.dart';
 import 'qr_panel.dart';
 
 /// The normal app flow. Every participant, game and reward comes from the room.
@@ -105,7 +106,7 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     final state = WidgetsBinding.instance.lifecycleState;
-    _foreground = state == null || state == AppLifecycleState.resumed;
+    _foreground = isOnlineForeground(state);
     WidgetsBinding.instance.addObserver(this);
     online.addListener(_observe);
     _observe();
@@ -203,7 +204,7 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _foreground = state == AppLifecycleState.resumed;
+    _foreground = isOnlineForeground(state);
     online.setForeground(_foreground);
     if (!_foreground) {
       _soundGeneration++;
