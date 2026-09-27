@@ -58,6 +58,20 @@ class OnlineController extends ChangeNotifier {
     return null;
   }
 
+  /// Resolve encounter actors without adding demo bots to the real membership
+  /// list, authentication, or self-followers. Results can still refer to a bot
+  /// after its UI entry becomes busy/completed, so lookup is not availability.
+  Participant? participantById(String id) {
+    for (final participant in participants) {
+      if (participant.id == id) return participant;
+    }
+    for (final demo
+        in room?.demoParticipants ?? const <OnlineDemoParticipant>[]) {
+      if (demo.participant.id == id) return demo.participant;
+    }
+    return null;
+  }
+
   List<Follower> get followers => _room?.followers ?? const [];
   OnlineEncounter? get encounter => _room?.encounter;
   EncounterResult? get result => encounter?.result;
@@ -243,21 +257,53 @@ class OnlineController extends ChangeNotifier {
 
   Future<void> _submitAdmission(PendingAdmission pending) async {
     if (_disposed) return;
-    final value = await _transport!.request(
-      'POST',
-      pending.kind == 'create' ? '/rooms' : '/rooms/${pending.roomCode}/join',
-      body: {
-        'admissionKey': pending.key,
-        if (pending.kind == 'create') ...{
-          'mode': pending.presentation! ? 'presentation' : 'standard',
-          'durationSeconds': pending.durationSeconds!,
-        },
-      },
-    );
-    if (pending.kind == 'join' && value['code'] != pending.roomCode) {
-      throw const OnlineFailure('参加先を確認できませんでした。もう一度お試しください。');
+    // A confirmed occupied short code has no room belonging to this ticket.
+    // Only that explicit response can rotate it; outages and ordinary conflicts
+    // must retain the existing key so lost successful responses remain recoverable.
+    for (var attempt = 0; !_disposed; attempt++) {
+      try {
+        final value = await _transport!.request(
+          'POST',
+          pending.kind == 'create'
+              ? '/rooms'
+              : '/rooms/${pending.roomCode}/join',
+          body: {
+            'admissionKey': pending.key,
+            if (pending.kind == 'create') ...{
+              'roomCodeDigits': 5,
+              'mode': pending.presentation! ? 'presentation' : 'standard',
+              'durationSeconds': pending.durationSeconds!,
+            },
+          },
+        );
+        if (pending.kind == 'join' && value['code'] != pending.roomCode) {
+          throw const OnlineFailure('参加先を確認できませんでした。もう一度お試しください。');
+        }
+        await _startSession(value);
+        return;
+      } on OnlineFailure catch (error) {
+        if (pending.kind != 'create' ||
+            error.status != 409 ||
+            error.code != 'ROOM_CODE_COLLISION' ||
+            attempt >= 4 ||
+            _disposed) {
+          rethrow;
+        }
+        final replacement = PendingAdmission(
+          endpoint: pending.endpoint,
+          key: _id() + _id(),
+          kind: pending.kind,
+          presentation: pending.presentation,
+          durationSeconds: pending.durationSeconds,
+        );
+        try {
+          await _store.savePending(replacement);
+        } catch (_) {
+          throw const OnlineFailure('参加情報を端末に保存できませんでした。再度お試しください。');
+        }
+        _pendingAdmission = pending = replacement;
+      }
     }
-    await _startSession(value);
   }
 
   Future<bool> createRoom({
@@ -317,6 +363,8 @@ class OnlineController extends ChangeNotifier {
       return false;
     }
   }
+
+  Future<bool> pairBot(String botId) => _action('pairBot', {'botId': botId});
 
   Future<bool> readyGame() => _action('ready', {
     'encounterId': encounter?.id,

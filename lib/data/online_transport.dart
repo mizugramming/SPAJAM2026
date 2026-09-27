@@ -6,9 +6,10 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class OnlineFailure implements Exception {
-  const OnlineFailure(this.message, {this.status = 0});
+  const OnlineFailure(this.message, {this.status = 0, this.code});
   final String message;
   final int status;
+  final String? code;
   @override
   String toString() => message;
 }
@@ -91,6 +92,7 @@ class HttpOnlineTransport implements OnlineTransport {
         throw OnlineFailure(
           value['error'] as String? ?? '接続できませんでした。もう一度お試しください。',
           status: response.statusCode,
+          code: value['code'] is String ? value['code'] as String : null,
         );
       }
       return value;

@@ -8,6 +8,7 @@ import '../../app/tsunagun_theme.dart';
 import '../../data/online_controller.dart';
 import '../../domain/conveyor_layout.dart';
 import '../../domain/models.dart';
+import '../../domain/online_room.dart';
 import '../demo/can_stage.dart';
 import '../demo/conveyor_editor.dart';
 import '../demo/factory_backdrop.dart';
@@ -73,8 +74,7 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
   );
 
   bool get _profileComplete =>
-      online.self?.profile.nickname.trim().isNotEmpty == true &&
-      online.self?.profile.hobby.trim().isNotEmpty == true;
+      online.self != null && online.room?.isProfileReady(online.self!) == true;
 
   AppPhase get _phase {
     final room = online.room;
@@ -87,6 +87,9 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
       return !_profileComplete || _profileEditing
           ? AppPhase.profile
           : AppPhase.lobby;
+    }
+    if (room.presentation && room.status == 'active' && !_profileComplete) {
+      return AppPhase.profile;
     }
     if (online.encounter != null) {
       if (_returning && online.result != null) return AppPhase.returning;
@@ -474,8 +477,8 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('2人で紹介するルーム'),
-            subtitle: const Text('同じ2人で、対戦→協力を体験できます。'),
+            title: const Text('発表用ルーム'),
+            subtitle: const Text('主催者1人でもはじめられます。2人目は開始後も参加できます。'),
             value: _presentation,
             onChanged: online.busy
                 ? null
@@ -521,39 +524,20 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
           ),
         ];
       case AppPhase.lobby:
+        final minimum = online.room!.presentation ? 1 : 2;
         final allReady =
-            online.participants.length >= 2 &&
-            online.participants.every(
-              (p) =>
-                  p.profile.nickname.trim().isNotEmpty &&
-                  p.profile.hobby.trim().isNotEmpty,
-            );
+            online.participants.length >= minimum &&
+            online.participants.every(online.room!.isProfileReady);
         return [
           _heading('まもなく、交流の時間。'),
-          const Text('ルームコード', textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          SelectableText(
-            online.room!.code
-                .replaceAllMapped(RegExp(r'.{4}'), (match) => '${match[0]} ')
-                .trim(),
-            key: const Key('room-share-code'),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 22, letterSpacing: 1.5),
-          ),
-          TextButton.icon(
-            key: const Key('copy-room-code'),
-            onPressed: _copyRoomCode,
-            icon: const Icon(Icons.copy_outlined, size: 18),
-            label: const Text('コードをコピー'),
-          ),
-          const Text('参加する人に、このコードを伝えよう。', textAlign: TextAlign.center),
+          _roomCodePanel(),
           const SizedBox(height: 16),
-          Text('${online.participants.length}人が参加中'),
+          Text('参加者 ${online.participants.length}人'),
           ...online.participants.map(
             (p) => ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(
-                p.profile.nickname.isNotEmpty && p.profile.hobby.isNotEmpty
+                online.room!.isProfileReady(p)
                     ? Icons.check_circle_outline
                     : Icons.edit_outlined,
               ),
@@ -574,14 +558,27 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
             )
           else
             const Text('主催者の開始を待っています。', textAlign: TextAlign.center),
+          if (online.room!.presentation)
+            const Text(
+              '主催者1人でもはじめられます。2人目は開始後も参加できます。',
+              textAlign: TextAlign.center,
+            ),
           if (online.isHost && !allReady)
-            const Text('2人以上のラベルがそろうと、はじめられます。', textAlign: TextAlign.center),
+            Text(
+              online.room!.presentation
+                  ? '参加者のラベルがそろうまで、お待ちください。'
+                  : '2人以上のラベルがそろうと、はじめられます。',
+              textAlign: TextAlign.center,
+            ),
           TextButton(
             onPressed: online.busy
                 ? null
                 : () => _change(() => _profileEditing = true),
             child: const Text('ラベルを編集する'),
           ),
+          if (online.room!.presentation &&
+              online.room!.demoParticipants.isNotEmpty)
+            _teamMembers(supportersOnly: true),
         ];
       case AppPhase.home:
         final followers = online.followers;
@@ -626,9 +623,33 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
           const SizedBox(height: 10),
           Text(
             online.room!.presentation
-                ? 'このルームは、同じ2人で対戦→協力。'
+                ? '同じ相手と、対戦→協力を体験できます。'
                 : '同じチームなら協力。違うチームなら対戦。',
           ),
+          if (online.room!.presentation &&
+              online.room!.status == 'active' &&
+              online.participants.length == 1) ...[
+            const SizedBox(height: 20),
+            const Text(
+              '1台でもデモの相手と遊べます。2人目もあとから参加できます。',
+              key: Key('waiting-second-player'),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            _roomCodePanel(),
+          ] else if (online.room!.presentation &&
+              online.participants.any(
+                (participant) => !online.room!.isProfileReady(participant),
+              )) ...[
+            const SizedBox(height: 12),
+            const Text(
+              '相手がラベルを作成しています。',
+              key: Key('waiting-peer-profile'),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 12),
+          _teamMembers(),
           if (online.isHost && online.room!.status == 'active')
             TextButton(
               onPressed: readyToAct ? _confirmFinish : null,
@@ -662,6 +683,53 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
                 : null,
             child: const Text('相手のコードを入力する'),
           ),
+          if (online.room!.presentation &&
+              online.room!.demoParticipants.any(
+                (participant) => participant.playable,
+              )) ...[
+            const SizedBox(height: 24),
+            _heading('デモの相手と遊ぶ'),
+            const Text('相手は自動で操作します。対戦→協力を1回ずつ遊べます。'),
+            const SizedBox(height: 12),
+            for (final demo in online.room!.demoParticipants.where(
+              (participant) => participant.playable,
+            ))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: OutlinedButton(
+                  key: ValueKey('pair-demo-${demo.participant.id}'),
+                  onPressed:
+                      readyToAct &&
+                          !demo.busy &&
+                          demo.nextKind != null &&
+                          online.room!.status == 'active'
+                      ? () => online.pairBot(demo.participant.id)
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      children: [
+                        Text(demo.participant.profile.nickname),
+                        Text(
+                          '${demo.participant.team.label}・${demo.power}pt',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        Text(
+                          demo.nextKind == null
+                              ? '交流済み'
+                              : demo.busy
+                              ? 'ほかの人と遊んでいます'
+                              : demo.nextKind == 'coop'
+                              ? '次は協力'
+                              : 'まずは対戦',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
           TextButton(
             onPressed: () => _change(() => _pairing = false),
             child: const Text('ホームへ戻る'),
@@ -756,6 +824,136 @@ class _OnlinePageState extends State<OnlinePage> with WidgetsBindingObserver {
         return const [];
     }
   }
+
+  Widget _roomCodePanel() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text('ルームコード', textAlign: TextAlign.center),
+      const SizedBox(height: 8),
+      SelectableText(
+        online.room!.code.length == 5
+            ? online.room!.code
+            : online.room!.code
+                  .replaceAllMapped(RegExp(r'.{4}'), (match) => '${match[0]} ')
+                  .trim(),
+        key: const Key('room-share-code'),
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 22, letterSpacing: 1.5),
+      ),
+      TextButton.icon(
+        key: const Key('copy-room-code'),
+        onPressed: _copyRoomCode,
+        icon: const Icon(Icons.copy_outlined, size: 18),
+        label: const Text('コードをコピー'),
+      ),
+      const Text('参加する人に、このコードを伝えよう。', textAlign: TextAlign.center),
+    ],
+  );
+
+  Widget _teamMembers({bool supportersOnly = false}) {
+    final supporters = online.room!.presentation
+        ? online.room!.demoParticipants
+        : const <OnlineDemoParticipant>[];
+    return ExpansionTile(
+      key: Key(supportersOnly ? 'lobby-demo-members' : 'online-team-members'),
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 12),
+      title: Text(supportersOnly ? '応援メンバー（デモ）' : 'チームメンバー'),
+      subtitle: Text(
+        supportersOnly
+            ? '${supporters.length}人'
+            : '参加者 ${online.participants.length}人${supporters.isEmpty ? '' : '・応援 ${supporters.length}人（デモ）'}',
+      ),
+      children: [
+        if (supporters.isNotEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: Text(
+              '応援メンバーの得点も、綱引きに加わります。デモの相手は自動で操作します。',
+              style: TextStyle(fontSize: 13, height: 1.6),
+            ),
+          ),
+        for (final team in Team.values) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              team.label,
+              style: TextStyle(
+                color: team == Team.red
+                    ? TsunagunColors.red
+                    : TsunagunColors.blue,
+                fontSize: 17,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          if (!supportersOnly)
+            for (final participant in online.participants.where(
+              (p) => p.team == team,
+            ))
+              _memberRow(participant),
+          for (final supporter in supporters.where(
+            (p) => p.participant.team == team,
+          ))
+            _memberRow(supporter.participant, supporter: supporter),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _memberRow(
+    Participant participant, {
+    OnlineDemoParticipant? supporter,
+  }) => Padding(
+    key: ValueKey('team-member-${participant.id}'),
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Image.asset(
+          supporter == null ? parentAsset : normalFollowerAsset,
+          width: 30,
+          height: 28,
+          excludeFromSemantics: true,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                participant.profile.nickname.isEmpty
+                    ? 'ラベルを作成中…'
+                    : '${participant.profile.nickname}${participant.id == online.self?.id ? '（あなた）' : ''}',
+                style: TextStyle(
+                  color: participant.team == Team.red
+                      ? TsunagunColors.red
+                      : TsunagunColors.blue,
+                ),
+              ),
+              Text(
+                supporter != null
+                    ? '応援メンバー（デモ）'
+                    : online.room!.isProfileReady(participant)
+                    ? '参加者'
+                    : 'ラベルを作成中',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        if (supporter != null) ...[
+          const SizedBox(width: 8),
+          Text(
+            '${supporter.power}pt',
+            key: ValueKey('demo-power-${participant.id}'),
+            style: const TextStyle(fontSize: 16),
+          ),
+        ],
+      ],
+    ),
+  );
 
   Widget _heading(String text) => Padding(
     padding: const EdgeInsets.only(bottom: 12),

@@ -18,6 +18,28 @@ class OnlineRoom {
           (p) => participantFromJson(p, json['selfId'] as String),
         ),
       ),
+      readyParticipantIds = Set.unmodifiable(
+        (json['participants'] as List)
+            .where(
+              (dynamic participant) =>
+                  participant['ready'] == true ||
+                  (participant['ready'] == null &&
+                      (participant['profile']['nickname'] as String)
+                          .trim()
+                          .isNotEmpty &&
+                      (participant['profile']['hobby'] as String)
+                          .trim()
+                          .isNotEmpty),
+            )
+            .map((dynamic participant) => participant['id'] as String),
+      ),
+      demoParticipants = List.unmodifiable(
+        (json['demoParticipants'] as List? ?? const []).map(
+          (dynamic participant) => OnlineDemoParticipant.fromJson(
+            Map<String, dynamic>.from(participant as Map),
+          ),
+        ),
+      ),
       followers = List.unmodifiable(
         (json['followers'] as List).map(followerFromJson),
       ),
@@ -38,10 +60,37 @@ class OnlineRoom {
   final int revision, serverTime;
   final int? endsAt, finaleStartsAt;
   final List<Participant> participants;
+  final Set<String> readyParticipantIds;
+
+  /// Presentation bots stay separate from authenticated members and followers.
+  final List<OnlineDemoParticipant> demoParticipants;
   final List<Follower> followers;
   final OnlineEncounter? encounter;
   final FinalSnapshot? finalSnapshot;
   bool get presentation => mode == 'presentation';
+
+  bool isProfileReady(Participant participant) =>
+      readyParticipantIds.contains(participant.id) &&
+      participant.profile.nickname.trim().isNotEmpty &&
+      participant.profile.hobby.trim().isNotEmpty;
+}
+
+class OnlineDemoParticipant {
+  OnlineDemoParticipant.fromJson(Map<String, dynamic> json)
+    : participant = participantFromJson(json),
+      normalCount = (json['normalCount'] as num?)?.toInt() ?? 0,
+      boneCount = (json['boneCount'] as num?)?.toInt() ?? 0,
+      power = (json['power'] as num?)?.toInt() ?? 0,
+      playable = json['playable'] == true,
+      busy = json['busy'] == true,
+      nextKind = json.containsKey('nextKind')
+          ? json['nextKind'] as String?
+          : 'duel';
+
+  final Participant participant;
+  final int normalCount, boneCount, power;
+  final bool playable, busy;
+  final String? nextKind;
 }
 
 class OnlineEncounter {
@@ -152,7 +201,7 @@ FinalSnapshot finalSnapshotFromJson(dynamic value, String selfId) {
 
 /// QR payloads contain a room/invitation code only, never session credentials.
 abstract final class OnlineCodes {
-  static final _room = RegExp(r'^[A-F0-9]{12}$');
+  static final _room = RegExp(r'^(?:[0-9]{5}|[A-F0-9]{12})$');
   static final _pair = RegExp(r'^[A-F0-9]{8}$');
   static String _clean(String input) =>
       input.trim().toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
@@ -163,7 +212,7 @@ abstract final class OnlineCodes {
         : input;
     final code = _clean(value);
     if (!_room.hasMatch(code)) {
-      throw const FormatException('ルームのQRか、12桁のルームコードを入力してください。');
+      throw const FormatException('5桁のルームコードを入力してください。');
     }
     return code;
   }

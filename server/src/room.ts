@@ -53,9 +53,19 @@ export type Encounter = {
   results: Record<string, Result>;
   message?: string;
   createdAt: number;
+  botPlan?: { botId: string; duelOffsetMs: number; duelFell: boolean };
+};
+export type DemoParticipant = Participant & {
+  isDemo: true;
+  normalCount: number;
+  boneCount: number;
+  power: number;
+  playable: boolean;
+  busy: boolean;
+  nextKind: "duel" | "coop" | null;
 };
 export type Ranking = {
-  participant: Participant;
+  participant: Participant & { isDemo?: true };
   normalCount: number;
   boneCount: number;
   power: number;
@@ -67,14 +77,17 @@ export type FinalSnapshot = {
   rankings: Ranking[];
   mvpIds: string[];
 };
-export type Member = {
+export type Actor = {
   participant: Participant;
-  token: string;
-  admissionKey?: string;
-  pairCode: string;
   followers: Follower[];
   encounterId: string | null;
 };
+export type Member = Actor & {
+  token: string;
+  admissionKey?: string;
+  pairCode: string;
+};
+export type Bot = Actor;
 export type RoomState = {
   schema: 1;
   code: string;
@@ -89,6 +102,7 @@ export type RoomState = {
   closingAt: number | null;
   finaleStartsAt: number | null;
   members: Record<string, Member>;
+  bots?: Record<string, Bot>;
   encounters: Record<string, Encounter>;
   completed: string[];
   requests: Record<string, string>;
@@ -123,6 +137,7 @@ export class RuleError extends Error {
   constructor(
     message: string,
     public status = 409,
+    public code?: "ROOM_CODE_COLLISION",
   ) {
     super(message);
   }
@@ -253,6 +268,7 @@ export function newRoom(
     closingAt: null,
     finaleStartsAt: null,
     members: { [host.participant.id]: host },
+    ...(mode === "presentation" ? { bots: initialBots(code) } : {}),
     encounters: {},
     completed: [],
     requests: {},
@@ -261,7 +277,16 @@ export function newRoom(
 }
 export function joinRoom(s: RoomState, member: Member, now: number) {
   requireRule(now < s.expiresAt, "このルームの保存期間が終了しました。", 410);
-  requireRule(s.status === "lobby", "このルームはすでに開始しています。");
+  const canJoinStartedPresentation =
+    s.mode === "presentation" &&
+    s.status === "active" &&
+    Object.keys(s.members).length === 1 &&
+    s.endsAt !== null &&
+    now < s.endsAt;
+  requireRule(
+    s.status === "lobby" || canJoinStartedPresentation,
+    "このルームの参加受付は終了しています。",
+  );
   requireRule(
     Object.keys(s.members).length <
       (s.mode === "presentation" ? 2 : MAX_MEMBERS),
@@ -272,6 +297,9 @@ export function joinRoom(s: RoomState, member: Member, now: number) {
       !Object.values(s.members).some((m) => m.pairCode === member.pairCode),
     "参加情報が重複しました。",
   );
+  // The solo presentation host is already red. A late guest fills the blue
+  // real-player slot; decorative guests never affect team allocation.
+  if (canJoinStartedPresentation) member.participant.team = "blue";
   s.members[member.participant.id] = member;
   s.revision++;
 }
@@ -284,6 +312,101 @@ export function authenticate(s: RoomState, token: unknown): string {
   const member = Object.values(s.members).find((m) => m.token === token);
   requireRule(member, "参加情報を確認できません。", 401);
   return member.participant.id;
+}
+/** Bots have persistent inventories, but no credentials or pair codes. */
+function initialBots(code: string): Record<string, Bot> {
+  const bots: Record<string, Bot> = {};
+  for (const [teamIndex, team] of (["red", "blue"] as const).entries()) {
+    for (let index = 0; index < 2; index++) {
+      const id = `demo:${code}:${team}:${index + 1}`;
+      const kinds: Follower["kind"][] =
+        index === 0 ? ["normal", "bone"] : ["bone", "bone"];
+      bots[id] = {
+        participant: {
+          id,
+          team,
+          ready: true,
+          connected: true,
+          profile: {
+            nickname: `デモ参加者${teamIndex * 3 + index + 1}`,
+            hobby: "",
+            comment: "",
+          },
+        },
+        followers: kinds.map((kind, n) => ({
+          id: `seed:${id}:${n + 1}`,
+          ownerId: id,
+          peerId: `demo:seed:${n + 1}`,
+          profile: { nickname: "デモの仲間", hobby: "", comment: "" },
+          kind,
+          ordinal: n + 1,
+          revivedWith: null,
+        })),
+        encounterId: null,
+      };
+    }
+  }
+  return bots;
+}
+function botsFor(s: RoomState): Record<string, Bot> {
+  return s.mode === "presentation" ? (s.bots ?? initialBots(s.code)) : {};
+}
+function actorFor(s: RoomState, id: string): Actor | undefined {
+  return (
+    s.members[id] ?? (s.mode === "presentation" ? s.bots?.[id] : undefined)
+  );
+}
+function nextKindFor(
+  s: RoomState,
+  selfId: string,
+  botId: string,
+): "duel" | "coop" | null {
+  const key = pairKey(selfId, botId);
+  return s.completed.includes(`${key}:coop`)
+    ? null
+    : s.completed.includes(`${key}:duel`)
+      ? "coop"
+      : "duel";
+}
+function counts(actor: Actor) {
+  const normalCount = actor.followers.filter((f) => f.kind === "normal").length;
+  const boneCount = actor.followers.filter((f) => f.kind === "bone").length;
+  return { normalCount, boneCount, power: normalCount * 3 + boneCount };
+}
+function demoParticipants(s: RoomState, selfId?: string): DemoParticipant[] {
+  if (s.mode !== "presentation") return [];
+  const demos: DemoParticipant[] = Object.values(botsFor(s)).map((bot) => ({
+    ...clone(bot.participant),
+    ...counts(bot),
+    isDemo: true,
+    playable: true,
+    busy: bot.encounterId !== null,
+    nextKind: selfId ? nextKindFor(s, selfId, bot.participant.id) : null,
+  }));
+  // A fifth, unplayable zero-point seat previews the second real participant.
+  for (const [teamIndex, team] of (["red", "blue"] as const).entries()) {
+    if (!Object.values(s.members).some((m) => m.participant.team === team)) {
+      demos.push({
+        id: `demo:${s.code}:${team}:3`,
+        profile: {
+          nickname: `デモ参加者${teamIndex * 3 + 3}`,
+          hobby: "",
+          comment: "",
+        },
+        team,
+        ready: false,
+        connected: false,
+        isDemo: true,
+        normalCount: 0,
+        boneCount: 0,
+        power: 0,
+        playable: false,
+        busy: false,
+        nextKind: null,
+      });
+    }
+  }
+  return demos;
 }
 export function snapshot(s: RoomState, selfId: string, now: number) {
   const me = s.members[selfId];
@@ -301,6 +424,7 @@ export function snapshot(s: RoomState, selfId: string, now: number) {
     finaleStartsAt: s.finaleStartsAt,
     pairCode: me.pairCode,
     participants: Object.values(s.members).map((m) => m.participant),
+    demoParticipants: demoParticipants(s, selfId),
     followers: me.followers,
     encounter: e
       ? {
@@ -321,17 +445,23 @@ export function snapshot(s: RoomState, selfId: string, now: number) {
     finalSnapshot: s.finalSnapshot,
   });
 }
-function cancelEncounter(e: Encounter, message: string) {
+function releaseBot(s: RoomState, e: Encounter) {
+  const bot = e.botPlan && s.bots?.[e.botPlan.botId];
+  if (bot?.encounterId === e.id) bot.encounterId = null;
+}
+function cancelEncounter(s: RoomState, e: Encounter, message: string) {
   if (!active(e)) return;
   e.status = "cancelled";
   e.readyIds = [];
   e.message = message;
+  releaseBot(s, e);
 }
 export function connectionChanged(
   s: RoomState,
   id: string,
   connected: boolean,
   now: number,
+  advanceClock = true,
 ) {
   const m = s.members[id];
   if (!m || m.participant.connected === connected) return;
@@ -340,11 +470,22 @@ export function connectionChanged(
     const e = s.encounters[m.encounterId];
     if (e)
       cancelEncounter(
+        s,
         e,
         "接続が途切れました。報酬は変わりません。ホームからもう一度ツナがれます。",
       );
   }
   s.revision++;
+  if (advanceClock) advance(s, now);
+}
+/** Reconcile every socket before advancing any pending automated turn. */
+export function reconcileConnections(
+  s: RoomState,
+  connectedIds: ReadonlySet<string>,
+  now: number,
+) {
+  for (const id of Object.keys(s.members))
+    connectionChanged(s, id, connectedIds.has(id), now, false);
   advance(s, now);
 }
 function reward(
@@ -353,8 +494,8 @@ function reward(
   id: string,
   outcome: Outcome,
 ): Result {
-  const m = s.members[id]!;
-  const peer = s.members[e.playerIds.find((p) => p !== id)!]!.participant;
+  const m = actorFor(s, id)!;
+  const peer = actorFor(s, e.playerIds.find((p) => p !== id)!)!.participant;
   if (outcome === "coopSuccess") {
     const bone = m.followers
       .filter((f) => f.kind === "bone")
@@ -398,9 +539,11 @@ function settle(s: RoomState, e: Encounter, outcomes: [Outcome, Outcome]) {
   const key =
     pairKey(...e.playerIds) + (s.mode === "presentation" ? `:${e.kind}` : "");
   if (!s.completed.includes(key)) s.completed.push(key);
+  releaseBot(s, e);
 }
 function finalise(s: RoomState) {
-  const rows: Ranking[] = Object.values(s.members)
+  const actualRows: Ranking[] = Object.values(s.members)
+    .filter((m) => m.participant.ready)
     .map((m) => {
       const normalCount = m.followers.filter((f) => f.kind === "normal").length;
       const boneCount = m.followers.filter((f) => f.kind === "bone").length;
@@ -411,11 +554,23 @@ function finalise(s: RoomState) {
         power: normalCount * 3 + boneCount,
         rank: 0,
       };
-    })
-    .sort(
-      (a, b) =>
-        b.power - a.power || a.participant.id.localeCompare(b.participant.id),
-    );
+    });
+  const demoRows: Ranking[] = demoParticipants(s).map((sample) => {
+    const {
+      normalCount,
+      boneCount,
+      power,
+      playable,
+      busy,
+      nextKind,
+      ...participant
+    } = sample;
+    return { participant, normalCount, boneCount, power, rank: 0 };
+  });
+  const rows = [...actualRows, ...demoRows].sort(
+    (a, b) =>
+      b.power - a.power || a.participant.id.localeCompare(b.participant.id),
+  );
   rows.forEach((r, i) => {
     r.rank =
       i > 0 && rows[i - 1]!.power === r.power ? rows[i - 1]!.rank : i + 1;
@@ -434,15 +589,73 @@ function finalise(s: RoomState) {
   };
   s.status = "finale";
 }
-/** Applies clock-only transitions; a missing input never becomes an automatic loss. */
+function applyDuelDecision(
+  s: RoomState,
+  e: Encounter,
+  id: string,
+  at: number,
+  fell: boolean,
+  now: number,
+) {
+  if (e.decisions[id] || e.status !== "playing") return;
+  e.decisions[id] = {
+    at,
+    fell,
+    depth: Math.min(1, ((at - e.startAt!) / e.fallMs) ** 2),
+  };
+  const [left, right] = e.playerIds.map((p) => e.decisions[p]);
+  if (!left || !right) return;
+  if (left.fell && right.fell) settle(s, e, ["loss", "loss"]);
+  else if (!left.fell && !right.fell && left.at === right.at) {
+    e.status = "draw";
+    e.readyIds = [];
+    e.createdAt = now;
+    e.message = "ぴったり同点！もう一度勝負しよう。";
+  } else {
+    const leftWins = right.fell || (!left.fell && left.at > right.at);
+    settle(s, e, leftWins ? ["win", "loss"] : ["loss", "win"]);
+  }
+}
+function applyCoopInput(
+  s: RoomState,
+  e: Encounter,
+  id: string,
+  at: number,
+  miss: boolean,
+) {
+  const hop = e.coop.hop,
+    level = LEVELS[e.coop.level]!;
+  if (miss || Math.abs(at - targetAt(e)) > level.window) {
+    e.coop.failedAt = at;
+    e.coop.failedHop = hop;
+    settle(s, e, ["coopFailure", "coopFailure"]);
+  } else {
+    e.coop.hits.push({ hop, playerId: id, at });
+    e.coop.hop++;
+    if (hop === 6)
+      e.coop.clearedAt =
+        e.coop.levelStartAt + 1.3 * level.flight + 6 * level.flight + 350 + 900;
+  }
+}
+/** Clock transitions include only server-owned bot turns; missing human inputs cancel. */
 export function advance(s: RoomState, now: number): boolean {
   let changed = false;
+  if (s.mode === "presentation" && s.bots === undefined) {
+    s.bots = initialBots(s.code);
+    changed = true;
+  }
   if (s.status === "active" && s.endsAt !== null && now >= s.endsAt) {
     s.status = "closing";
     s.closingAt = s.endsAt + 30_000;
     changed = true;
   }
   for (const e of Object.values(s.encounters)) {
+    // At the room's hard deadline, do not retrospectively settle late bot turns.
+    if (s.status === "closing" && now >= s.closingAt! && active(e)) {
+      cancelEncounter(s, e, "交流の時間が終了しました。");
+      changed = true;
+      continue;
+    }
     if (e.status === "countdown" && e.startAt !== null && now >= e.startAt) {
       e.status = "playing";
       changed = true;
@@ -452,20 +665,41 @@ export function advance(s: RoomState, now: number): boolean {
       now >= e.createdAt + 120_000
     ) {
       cancelEncounter(
+        s,
         e,
         "準備の時間が終了しました。もう一度ツナがってください。",
       );
       changed = true;
     }
     if (e.status !== "playing") continue;
-    if (e.kind === "duel" && now > e.startAt! + e.fallMs + INPUT_LAG) {
-      cancelEncounter(e, "操作を受信できませんでした。報酬は変わりません。");
-      changed = true;
-    } else if (e.kind === "coop") {
-      const level = LEVELS[e.coop.level]!;
+    if (e.kind === "duel") {
+      if (
+        e.botPlan &&
+        !e.decisions[e.botPlan.botId] &&
+        now >= e.startAt! + e.botPlan.duelOffsetMs
+      ) {
+        applyDuelDecision(
+          s,
+          e,
+          e.botPlan.botId,
+          e.startAt! + e.botPlan.duelOffsetMs,
+          e.botPlan.duelFell,
+          now,
+        );
+        changed = true;
+      }
+      if (e.status === "playing" && now > e.startAt! + e.fallMs + INPUT_LAG) {
+        cancelEncounter(
+          s,
+          e,
+          "操作を受信できませんでした。報酬は変わりません。",
+        );
+        changed = true;
+      }
+    } else {
       if (e.coop.clearedAt !== null && now >= e.coop.clearedAt) {
         if (e.coop.level === 2) settle(s, e, ["coopSuccess", "coopSuccess"]);
-        else {
+        else
           e.coop = {
             level: e.coop.level + 1,
             hop: 1,
@@ -473,29 +707,35 @@ export function advance(s: RoomState, now: number): boolean {
             hits: [],
             clearedAt: null,
           };
+        changed = true;
+      }
+      if (e.status === "playing" && e.coop.clearedAt === null) {
+        const due = targetAt(e);
+        if (
+          e.botPlan &&
+          e.playerIds[(e.coop.hop - 1) % 2] === e.botPlan.botId &&
+          now >= due
+        ) {
+          applyCoopInput(s, e, e.botPlan.botId, due, false);
+          changed = true;
         }
-        changed = true;
-      } else if (
-        e.coop.clearedAt === null &&
-        now > targetAt(e) + level.window + INPUT_LAG
-      ) {
-        cancelEncounter(e, "操作を受信できませんでした。報酬は変わりません。");
-        changed = true;
+        if (
+          e.coop.clearedAt === null &&
+          now > targetAt(e) + LEVELS[e.coop.level]!.window + INPUT_LAG
+        ) {
+          cancelEncounter(
+            s,
+            e,
+            "操作を受信できませんでした。報酬は変わりません。",
+          );
+          changed = true;
+        }
       }
     }
   }
-  if (s.status === "closing") {
-    if (now >= s.closingAt!) {
-      for (const e of Object.values(s.encounters))
-        if (active(e)) {
-          cancelEncounter(e, "交流の時間が終了しました。");
-          changed = true;
-        }
-    }
-    if (!Object.values(s.encounters).some(active)) {
-      finalise(s);
-      changed = true;
-    }
+  if (s.status === "closing" && !Object.values(s.encounters).some(active)) {
+    finalise(s);
+    changed = true;
   }
   if (
     s.status === "finale" &&
@@ -522,6 +762,16 @@ export function nextAlarm(s: RoomState, now: number): number {
     if (e.status === "offered" || e.status === "draw")
       times.push(e.createdAt + 120_000);
     if (e.status === "countdown") times.push(e.startAt!);
+    if (e.status === "playing" && e.botPlan) {
+      if (e.kind === "duel" && !e.decisions[e.botPlan.botId])
+        times.push(e.startAt! + e.botPlan.duelOffsetMs);
+      if (
+        e.kind === "coop" &&
+        e.coop.clearedAt === null &&
+        e.playerIds[(e.coop.hop - 1) % 2] === e.botPlan.botId
+      )
+        times.push(targetAt(e));
+    }
     if (e.status === "playing")
       times.push(
         e.kind === "duel"
@@ -589,7 +839,17 @@ export function command(
     requireRule(id === s.hostId, "主催者だけが操作できます。", 403);
   if (type === "profile") {
     exactKeys(a, ["type", "profile"]);
-    requireRule(s.status === "lobby", "開始後はプロフィールを変更できません。");
+    const canCompleteLateProfile =
+      s.mode === "presentation" &&
+      s.status === "active" &&
+      id !== s.hostId &&
+      !me.participant.ready &&
+      s.endsAt !== null &&
+      now < s.endsAt;
+    requireRule(
+      s.status === "lobby" || canCompleteLateProfile,
+      "開始後はプロフィールを変更できません。",
+    );
     me.participant.profile = validateProfile(a.profile);
     me.participant.ready = true;
   } else if (type === "start") {
@@ -598,7 +858,8 @@ export function command(
     requireRule(s.status === "lobby", "ルームはすでに開始しています。");
     const members = Object.values(s.members);
     requireRule(
-      members.length >= 2 && members.every((m) => m.participant.ready),
+      members.length >= (s.mode === "presentation" ? 1 : 2) &&
+        members.every((m) => m.participant.ready),
       "全員のプロフィールが揃うまで待ってください。",
     );
     members.forEach(
@@ -606,14 +867,25 @@ export function command(
     );
     s.status = "active";
     s.endsAt = now + s.durationSeconds * 1000;
-  } else if (type === "pair") {
-    exactKeys(a, ["type", "peerCode"]);
+  } else if (type === "pair" || type === "pairBot") {
+    exactKeys(a, type === "pairBot" ? ["type", "botId"] : ["type", "peerCode"]);
     requireRule(s.status === "active", "いまは新しい交流を始められません。");
-    const code = string(a.peerCode, 8, "相手コード");
-    const peer = Object.values(s.members).find((m) => m.pairCode === code);
+    let peer: Actor | undefined;
+    if (type === "pairBot") {
+      requireRule(s.mode === "presentation", "発表用ルームだけで遊べます。");
+      const botId = string(a.botId, 80, "デモの相手");
+      peer = s.bots?.[botId];
+    } else {
+      const code = string(a.peerCode, 8, "相手コード");
+      peer = Object.values(s.members).find((m) => m.pairCode === code);
+    }
     requireRule(
       peer && peer !== me,
       "このルームの相手コードを読み取ってください。",
+    );
+    requireRule(
+      me.participant.ready && peer.participant.ready,
+      "両方のプロフィールが揃うまで待ってください。",
     );
     requireRule(
       me.participant.connected && peer.participant.connected,
@@ -641,7 +913,16 @@ export function command(
       id: crypto.randomUUID(),
       kind,
       playerIds: [id, peer.participant.id],
-      readyIds: [],
+      readyIds: type === "pairBot" ? [peer.participant.id] : [],
+      ...(type === "pairBot"
+        ? {
+            botPlan: {
+              botId: peer.participant.id,
+              duelOffsetMs: 0,
+              duelFell: false,
+            },
+          }
+        : {}),
       status: "offered",
       round: 1,
       startAt: null,
@@ -669,14 +950,14 @@ export function command(
       "すでにゲームが始まっています。",
     );
     requireRule(
-      e.playerIds.every((p) => s.members[p]!.participant.connected),
+      e.playerIds.every((p) => actorFor(s, p)?.participant.connected),
       "相手の再接続を待ってください。",
     );
     if (e.status === "draw") {
       e.status = "offered";
       e.round++;
       e.decisions = {};
-      e.readyIds = [];
+      e.readyIds = e.botPlan ? [e.botPlan.botId] : [];
       e.startAt = null;
       e.message = undefined;
       e.createdAt = now;
@@ -686,12 +967,19 @@ export function command(
       e.status = "countdown";
       e.startAt = now + 3000;
       e.coop.levelStartAt = e.startAt;
+      if (e.botPlan && e.kind === "duel") {
+        const random = crypto.getRandomValues(new Uint32Array(2));
+        e.botPlan.duelFell = random[0]! / 0x1_0000_0000 < 0.15;
+        e.botPlan.duelOffsetMs = e.botPlan.duelFell
+          ? e.fallMs
+          : 1300 + Math.floor((random[1]! / 0x1_0000_0000) * 451);
+      }
     }
   } else if (type === "cancel") {
     exactKeys(a, ["type", "encounterId"]);
     const e = encounterFor(s, id, a);
     requireRule(active(e), "結果はすでに確定しています。");
-    cancelEncounter(e, "交流を中断しました。報酬は変わりません。");
+    cancelEncounter(s, e, "交流を中断しました。報酬は変わりません。");
   } else if (type === "duelInput") {
     exactKeys(a, ["type", "encounterId", "round", "at", "fell"]);
     const e = encounterFor(s, id, a);
@@ -708,24 +996,7 @@ export function command(
       "落下時刻と操作が一致しません。",
       400,
     );
-    e.decisions[id] = {
-      at,
-      fell,
-      depth: Math.min(1, (elapsed / e.fallMs) ** 2),
-    };
-    const [left, right] = e.playerIds.map((p) => e.decisions[p]);
-    if (left && right) {
-      if (left.fell && right.fell) settle(s, e, ["loss", "loss"]);
-      else if (!left.fell && !right.fell && left.at === right.at) {
-        e.status = "draw";
-        e.readyIds = [];
-        e.createdAt = now;
-        e.message = "ぴったり同点！もう一度勝負しよう。";
-      } else {
-        const leftWins = right.fell || (!left.fell && left.at > right.at);
-        settle(s, e, leftWins ? ["win", "loss"] : ["loss", "win"]);
-      }
-    }
+    applyDuelDecision(s, e, id, at, fell, now);
   } else if (type === "coopInput") {
     exactKeys(a, [
       "type",
@@ -755,25 +1026,11 @@ export function command(
     requireRule(e.playerIds[(hop - 1) % 2] === id, "相手が運ぶ番です。");
     const at = inputTime(a, e, now);
     const miss = flag(a.miss, "運搬の操作");
-    const target = targetAt(e);
-    const window = LEVELS[level]!.window;
     requireRule(
       at >= e.coop.levelStartAt,
       "次のレベルの開始を待ってください。",
     );
-    if (miss || Math.abs(at - target) > window) {
-      e.coop.failedAt = at;
-      e.coop.failedHop = hop;
-      settle(s, e, ["coopFailure", "coopFailure"]);
-    } else {
-      e.coop.hits.push({ hop, playerId: id, at });
-      e.coop.hop++;
-      if (hop === 6) {
-        const flight = LEVELS[level]!.flight;
-        e.coop.clearedAt =
-          e.coop.levelStartAt + 1.3 * flight + 6 * flight + 350 + 900;
-      }
-    }
+    applyCoopInput(s, e, id, at, miss);
   } else if (type === "return") {
     exactKeys(a, ["type", "encounterId"]);
     const e = encounterFor(s, id, a);
@@ -782,9 +1039,9 @@ export function command(
       "交流が終わるまで待ってください。",
     );
     if (e.status === "draw")
-      cancelEncounter(e, "交流を中断しました。報酬は変わりません。");
+      cancelEncounter(s, e, "交流を中断しました。報酬は変わりません。");
     me.encounterId = null;
-    if (e.playerIds.every((p) => s.members[p]!.encounterId !== e.id))
+    if (e.playerIds.every((p) => actorFor(s, p)?.encounterId !== e.id))
       delete s.encounters[e.id];
   } else if (type === "finish") {
     exactKeys(a, ["type"]);

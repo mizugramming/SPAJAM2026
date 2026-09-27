@@ -16,7 +16,7 @@ import '../duel/sea_background.dart';
 import '../duel/win_dance.dart';
 import 'online_game_timing.dart';
 
-/// Two real players, one server clock. This widget sends timed inputs only;
+/// Two game actors, one server clock. This widget sends the human inputs only;
 /// results and rewards always come from the authoritative room snapshot.
 class OnlineGame extends StatefulWidget {
   const OnlineGame({
@@ -326,15 +326,16 @@ class _OnlineGameState extends State<OnlineGame>
     if (encounter == null || self == null) {
       return const Center(child: Text('ルームの状態を確認しています…'));
     }
-    final peers = _controller.participants.where(
-      (participant) =>
-          encounter.playerIds.contains(participant.id) &&
-          participant.id != self.id,
-    );
-    if (peers.isEmpty) {
+    Participant? peer;
+    for (final id in encounter.playerIds) {
+      if (id != self.id) {
+        peer = _controller.participantById(id);
+        if (peer != null) break;
+      }
+    }
+    if (peer == null) {
       return const Center(child: Text('相手の接続を確認しています…'));
     }
-    final peer = peers.first;
     final now = _controller.serverNow;
     final startAt = encounter.startAt;
     final countdown = startAt != null && now < startAt;

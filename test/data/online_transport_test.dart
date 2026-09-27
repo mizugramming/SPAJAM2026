@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:spajam2026/data/online_transport.dart';
 
 class _StalledClient extends http.BaseClient {
@@ -32,6 +33,26 @@ class _StalledClient extends http.BaseClient {
 }
 
 void main() {
+  test('HTTP failure preserves the explicit room collision code', () async {
+    final transport = HttpOnlineTransport(
+      'https://example.test',
+      client: MockClient(
+        (request) async => http.Response(
+          '{"error":"occupied","code":"ROOM_CODE_COLLISION"}',
+          409,
+        ),
+      ),
+    );
+    addTearDown(transport.dispose);
+    await expectLater(
+      transport.request('POST', '/rooms', body: {}),
+      throwsA(
+        isA<OnlineFailure>()
+            .having((e) => e.status, 'status', 409)
+            .having((e) => e.code, 'code', 'ROOM_CODE_COLLISION'),
+      ),
+    );
+  });
   for (final headersArrive in [false, true]) {
     test(
       'whole HTTP deadline aborts ${headersArrive ? 'body' : 'headers'} stall',

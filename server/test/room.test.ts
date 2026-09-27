@@ -398,7 +398,7 @@ test("disconnect after settlement and one player returning preserves the other r
   assert.equal(e.status, "finished");
 });
 test("closing allows in-flight settlement and freezes consistent final ranks once", () => {
-  const s = fixture();
+  const s = fixture("standard");
   const e = pair(s);
   const t = start(s, e);
   action(s, "a", "finish", {}, t + 500);
@@ -429,7 +429,7 @@ test("closing allows in-flight settlement and freezes consistent final ranks onc
   assert.equal(JSON.stringify(s.finalSnapshot), final);
 });
 test("deadline grace never converts unfinished game or offered pair into a loss", () => {
-  const s = fixture();
+  const s = fixture("standard");
   const e = pair(s, "a", "b", s.endsAt! - 1000);
   advance(s, s.endsAt!);
   assert.equal(s.status, "closing");

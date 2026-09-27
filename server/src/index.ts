@@ -1,10 +1,17 @@
 import { DurableObject } from "cloudflare:workers";
-import { admissionKey, roomCodeForAdmission, recoveredMember } from "./admission";
+import {
+  admissionKey,
+  resolveCreation,
+  creationCodeDigits,
+  creationOwner,
+  recoveredMember,
+} from "./admission";
 import {
   advance,
   authenticate,
   command,
   connectionChanged,
+  reconcileConnections,
   joinRoom,
   newMember,
   newRoom,
@@ -18,7 +25,7 @@ import {
 export interface Env {
   ROOMS: DurableObjectNamespace<RoomObject>;
 }
-const CODE = /^[A-F0-9]{12}$/;
+const CODE = /^(?:[0-9]{5}|[A-F0-9]{12})$/;
 const MAX_BODY = 4096;
 const MAX_SOCKETS = 64;
 const hex = (bytes: number) =>
@@ -41,6 +48,7 @@ const errorResponse = (e: unknown) => {
     );
   return json(
     {
+      ...(e instanceof RuleError && e.code ? { code: e.code } : {}),
       error:
         e instanceof RuleError
           ? e.message
@@ -121,21 +129,32 @@ export default {
         return cors(json({ ok: true }));
       if (url.pathname === "/rooms" && request.method === "POST") {
         const input = await body(request);
-        allowKeys(input, ["mode", "durationSeconds", "admissionKey"]);
+        allowKeys(input, [
+          "mode",
+          "durationSeconds",
+          "admissionKey",
+          "roomCodeDigits",
+        ]);
         const key = admissionKey(input.admissionKey);
-        const code = await roomCodeForAdmission(key);
-        const target = env.ROOMS.get(env.ROOMS.idFromName(code));
-        const result = await target.fetch(
-          new Request(`https://room.internal/${code}/create`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(input),
-          }),
+        const digits = creationCodeDigits(input.roomCodeDigits);
+        const result = await resolveCreation(
+          key,
+          (code, operation) => {
+            const target = env.ROOMS.get(env.ROOMS.idFromName(code));
+            return target.fetch(
+              new Request(`https://room.internal/${code}/${operation}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(input),
+              }),
+            );
+          },
+          digits === 5 ? "short" : "legacy",
         );
         return cors(result);
       }
       const match =
-        /^\/rooms\/([A-F0-9]{12})(?:\/(join|actions|socket))?$/.exec(
+        /^\/rooms\/([0-9]{5}|[A-F0-9]{12})(?:\/(join|actions|socket))?$/.exec(
           url.pathname,
         );
       if (!match || url.search)
@@ -181,8 +200,13 @@ export class RoomObject extends DurableObject<Env> {
             .filter(Boolean),
         );
         const draft = structuredClone(this.room);
-        for (const id of Object.keys(draft.members))
-          connectionChanged(draft, id, connected.has(id), Date.now());
+        reconcileConnections(
+          draft,
+          new Set(
+            [...connected].filter((id): id is string => typeof id === "string"),
+          ),
+          Date.now(),
+        );
         if (draft.revision !== this.room.revision) await this.save(draft);
       }
     });
@@ -252,41 +276,134 @@ export class RoomObject extends DurableObject<Env> {
         const [, code, route] = new URL(request.url).pathname.split("/");
         if (!code || !CODE.test(code))
           throw new RuleError("ルームが見つかりません。", 404);
+        // Internal-only lookup used during the 12-character -> 5-digit rollout.
+        // It never allocates a room and never exposes another owner's session.
+        if (route === "recover" && request.method === "POST") {
+          const input = await body(request);
+          allowKeys(input, [
+            "mode",
+            "durationSeconds",
+            "admissionKey",
+            "roomCodeDigits",
+          ]);
+          const key = admissionKey(input.admissionKey);
+          creationCodeDigits(input.roomCodeDigits);
+          const prior =
+            this.room &&
+            creationOwner(this.room, key, input.mode, input.durationSeconds);
+          if (!prior) throw new RuleError("ルームが見つかりません。", 404);
+          const room = this.live();
+          return json(
+            {
+              code,
+              participantId: prior.participant.id,
+              token: prior.token,
+              snapshot: snapshot(room, prior.participant.id, Date.now()),
+            },
+            201,
+          );
+        }
         if (route === "create" && request.method === "POST") {
           const input = await body(request);
-          allowKeys(input, ["mode", "durationSeconds", "admissionKey"]);
+          allowKeys(input, [
+            "mode",
+            "durationSeconds",
+            "admissionKey",
+            "roomCodeDigits",
+          ]);
           const key = admissionKey(input.admissionKey);
+          creationCodeDigits(input.roomCodeDigits);
           if (this.room) {
-            const room = this.live();
-            const prior = recoveredMember(room, key, 'create');
-            if (!prior || room.mode !== input.mode || room.durationSeconds !== input.durationSeconds) {
-              throw new RuleError('同じ参加処理で異なるルームは作成できません。', 409);
+            const prior = creationOwner(
+              this.room,
+              key,
+              input.mode,
+              input.durationSeconds,
+            );
+            if (!prior) {
+              throw new RuleError(
+                "ルームコードが重なりました。新しいコードで再試行します。",
+                409,
+                "ROOM_CODE_COLLISION",
+              );
             }
-            return json({ code, participantId: prior.participant.id, token: prior.token,
-              snapshot: snapshot(room, prior.participant.id, Date.now()) }, 201);
+            const room = this.live();
+            return json(
+              {
+                code,
+                participantId: prior.participant.id,
+                token: prior.token,
+                snapshot: snapshot(room, prior.participant.id, Date.now()),
+              },
+              201,
+            );
           }
-          const host = newMember(crypto.randomUUID(), hex(32), hex(4).toUpperCase(), 'red', key);
-          await this.save(newRoom(code, input.mode, input.durationSeconds, host, Date.now()));
-          return json({ code, participantId: host.participant.id, token: host.token,
-            snapshot: snapshot(this.room!, host.participant.id, Date.now()) }, 201);
+          const host = newMember(
+            crypto.randomUUID(),
+            hex(32),
+            hex(4).toUpperCase(),
+            "red",
+            key,
+          );
+          await this.save(
+            newRoom(code, input.mode, input.durationSeconds, host, Date.now()),
+          );
+          return json(
+            {
+              code,
+              participantId: host.participant.id,
+              token: host.token,
+              snapshot: snapshot(this.room!, host.participant.id, Date.now()),
+            },
+            201,
+          );
         }
         this.live();
         if (route === "join" && request.method === "POST") {
           const input = await body(request);
           allowKeys(input, ["admissionKey"]);
           const key = admissionKey(input.admissionKey);
-          const prior = recoveredMember(this.room!, key, 'join');
+          const prior = recoveredMember(this.room!, key, "join");
           if (prior) {
-            return json({ code, participantId: prior.participant.id, token: prior.token,
-              snapshot: snapshot(this.room!, prior.participant.id, Date.now()) }, 201);
+            return json(
+              {
+                code,
+                participantId: prior.participant.id,
+                token: prior.token,
+                snapshot: snapshot(
+                  this.room!,
+                  prior.participant.id,
+                  Date.now(),
+                ),
+              },
+              201,
+            );
           }
           let pairCode: string;
-          do { pairCode = hex(4).toUpperCase(); }
-          while (Object.values(this.room!.members).some(m => m.pairCode === pairCode));
-          const member = newMember(crypto.randomUUID(), hex(32), pairCode, 'blue', key);
+          do {
+            pairCode = hex(4).toUpperCase();
+          } while (
+            Object.values(this.room!.members).some(
+              (m) => m.pairCode === pairCode,
+            )
+          );
+          const member = newMember(
+            crypto.randomUUID(),
+            hex(32),
+            pairCode,
+            "blue",
+            key,
+          );
           await this.update((draft, now) => joinRoom(draft, member, now));
-          return json({ code, participantId: member.participant.id, token: member.token,
-            snapshot: snapshot(this.room!, member.participant.id, Date.now()) }, 201);
+          return json(
+            {
+              code,
+              participantId: member.participant.id,
+              token: member.token,
+              snapshot: snapshot(this.room!, member.participant.id, Date.now()),
+            },
+            201,
+          );
         }
         if (route === "socket" && request.method === "GET") {
           if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")

@@ -13,9 +13,10 @@ const _profiles = [
 ];
 
 class _Controller extends OnlineController {
-  _Controller({this.selfId = 'a'}) : super(autoTick: false);
+  _Controller({this.selfId = 'a', this.bot = false}) : super(autoTick: false);
 
   final String selfId;
+  final bool bot;
   int now = 1000;
   bool isConnected = true;
   bool acceptInput = true;
@@ -36,8 +37,16 @@ class _Controller extends OnlineController {
   @override
   List<Participant> get participants => [
     Participant(id: 'a', profile: _profiles[0], team: Team.red),
-    Participant(id: 'b', profile: _profiles[1], team: Team.blue),
+    if (!bot) Participant(id: 'b', profile: _profiles[1], team: Team.blue),
   ];
+  @override
+  Participant? participantById(String id) => bot && id == 'bot'
+      ? const Participant(
+          id: 'bot',
+          profile: Profile(nickname: 'デモ参加者4', hobby: '', comment: ''),
+          team: Team.blue,
+        )
+      : super.participantById(id);
   @override
   Participant get self => participants.firstWhere((p) => p.id == selfId);
   @override
@@ -75,13 +84,17 @@ class _Controller extends OnlineController {
     String? outcome,
     Map<String, dynamic> decisions = const {},
   }) {
-    final peerId = selfId == 'a' ? 'b' : 'a';
+    final peerId = bot
+        ? 'bot'
+        : selfId == 'a'
+        ? 'b'
+        : 'a';
     current = OnlineEncounter.fromJson({
       'id': 'encounter',
       'kind': kind,
       'status': status,
       'round': round,
-      'playerIds': ['a', 'b'],
+      'playerIds': ['a', bot ? 'bot' : 'b'],
       'readyIds': ready,
       'startAt': startAt,
       'fallMs': 1800,
@@ -155,6 +168,67 @@ Future<void> _tap(WidgetTester tester) =>
     tester.tap(find.byKey(const Key('online-game-input')));
 
 void main() {
+  testWidgets('server bot is a peer without becoming a real participant', (
+    tester,
+  ) async {
+    final c = _Controller(bot: true)
+      ..snapshot(status: 'offered', ready: ['bot']);
+    await _mount(tester, c);
+    expect(c.participants, hasLength(1));
+    expect(find.text('相手の接続を確認しています…'), findsNothing);
+    expect(tester.widget<RaceField>(find.byType(RaceField)).peer.id, 'bot');
+    await tester.tap(find.byKey(const Key('online-game-ready')));
+    expect(c.readyCalls, 1);
+    expect(c.sent, isEmpty);
+  });
+
+  testWidgets('server bot decision is displayed but never sends a human stop', (
+    tester,
+  ) async {
+    final c = _Controller(bot: true)..snapshot();
+    var completed = 0;
+    await _mount(tester, c, onComplete: () => completed++);
+    await _advance(tester, c, 1400);
+    c.snapshot(
+      decisions: {
+        'bot': {'fell': false, 'depth': .49},
+      },
+    );
+    await tester.pump();
+    final field = tester.widget<RaceField>(find.byType(RaceField));
+    expect(field.peerDecision?.depth, .49);
+    expect(field.selfDecision, isNull);
+    expect(field.selfWins, isNull);
+    expect(c.sent, isEmpty);
+    await _tap(tester);
+    expect(c.sent, hasLength(1));
+    expect(c.sent.single['fell'], isFalse);
+    expect(completed, 0);
+  });
+
+  testWidgets('a delayed bot coop turn does not trigger a fabricated miss', (
+    tester,
+  ) async {
+    final c = _Controller(bot: true)
+      ..now = 3000
+      ..snapshot(kind: 'coop', hop: 2);
+    var completed = 0;
+    await _mount(tester, c, onComplete: () => completed++);
+    expect(find.textContaining('あなたは右の缶'), findsWidgets);
+    await _tap(tester);
+    await _advance(tester, c, 800);
+    expect(c.sent, isEmpty);
+    expect(completed, 0);
+    c.snapshot(kind: 'coop', hop: 3);
+    await tester.pump();
+    await _advance(tester, c, 500);
+    await _tap(tester);
+    expect(c.sent, hasLength(1));
+    expect(c.sent.single['hop'], 3);
+    expect(c.sent.single['miss'], isFalse);
+    expect(completed, 0);
+  });
+
   testWidgets(
     'ready waits for the partner; countdown taps are not race inputs',
     (tester) async {

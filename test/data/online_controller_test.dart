@@ -83,6 +83,7 @@ class FakeTransport implements OnlineTransport {
   final sockets = <FakeSocket>[];
   bool acknowledge = true, duplicateAck = false, authRejected = false;
   OnlineFailure? failure;
+  final failures = <OnlineFailure>[];
   Completer<Map<String, dynamic>>? actionPending;
   @override
   Future<Map<String, dynamic>> request(
@@ -92,13 +93,14 @@ class FakeTransport implements OnlineTransport {
     Map<String, Object?>? body,
   }) async {
     requests.add({'method': method, 'path': path, 'body': body});
+    if (failures.isNotEmpty) throw failures.removeAt(0);
     if (failure != null) throw failure!;
     if (path.endsWith('/actions') && actionPending != null) {
       return actionPending!.future;
     }
     if (path == '/rooms' || path.endsWith('/join')) {
       return {
-        'code': 'ABCDEF012345',
+        'code': value['code'],
         'participantId': 'p1',
         'token': 'a' * 64,
         'snapshot': value,
@@ -146,6 +148,264 @@ Future<OnlineController> launch(
 }
 
 void main() {
+  const collision = OnlineFailure(
+    'occupied',
+    status: 409,
+    code: 'ROOM_CODE_COLLISION',
+  );
+  test(
+    'confirmed creation collision rotates only after saving the replacement ticket',
+    () async {
+      final store = MemoryOnlineSessionStore();
+      final transport = FakeTransport()..failures.add(collision);
+      final controller = await launch(transport, store);
+      expect(transport.requests, hasLength(2));
+      final oldKey = (transport.requests.first['body'] as Map)['admissionKey'];
+      final newKey = (transport.requests.last['body'] as Map)['admissionKey'];
+      expect(newKey, isNot(oldKey));
+      expect(newKey, matches(RegExp(r'^[a-f0-9]{64}$')));
+      expect(store.pending, isNull);
+      expect(controller.connected, isTrue);
+    },
+  );
+
+  test(
+    'restored pending creation also handles collisions and caps attempts',
+    () async {
+      final store = MemoryOnlineSessionStore();
+      await store.savePending(
+        PendingAdmission(
+          endpoint: 'https://example.test',
+          key: 'b' * 64,
+          kind: 'create',
+          presentation: true,
+          durationSeconds: 180,
+        ),
+      );
+      final transport = FakeTransport()..failure = collision;
+      final controller = OnlineController(
+        serverUrl: 'https://example.test',
+        transport: transport,
+        store: store,
+        autoTick: false,
+      );
+      addTearDown(controller.dispose);
+      await controller.restore();
+      expect(transport.requests, hasLength(5));
+      final keys = transport.requests
+          .map((r) => (r['body'] as Map)['admissionKey'])
+          .toList();
+      expect(keys.toSet(), hasLength(5));
+      expect(keys.first, 'b' * 64);
+      expect(store.pending!.key, keys.last);
+      expect(controller.connected, isFalse);
+      transport.failure = null;
+      await controller.restore();
+      await settle();
+      expect(
+        (transport.requests.last['body'] as Map)['admissionKey'],
+        keys.last,
+      );
+      expect(controller.connected, isTrue);
+    },
+  );
+
+  for (final failure in [
+    const OnlineFailure('conflict', status: 409),
+    const OnlineFailure('expired', status: 410),
+    const OnlineFailure('timeout'),
+  ]) {
+    test('creation preserves its secret after ${failure.message}', () async {
+      final store = MemoryOnlineSessionStore();
+      final transport = FakeTransport()..failure = failure;
+      final controller = OnlineController(
+        serverUrl: 'https://example.test',
+        transport: transport,
+        store: store,
+        autoTick: false,
+      );
+      addTearDown(controller.dispose);
+      expect(
+        await controller.createRoom(
+          presentation: true,
+          duration: const Duration(minutes: 3),
+        ),
+        isFalse,
+      );
+      expect(transport.requests, hasLength(1));
+      final key = store.pending!.key;
+      transport.failure = null;
+      expect(
+        await controller.createRoom(
+          presentation: true,
+          duration: const Duration(minutes: 3),
+        ),
+        isTrue,
+      );
+      expect((transport.requests.last['body'] as Map)['admissionKey'], key);
+    });
+  }
+
+  test('a failed replacement save prevents another creation request', () async {
+    final store = _FailingRotationStore();
+    final transport = FakeTransport()..failure = collision;
+    final controller = OnlineController(
+      serverUrl: 'https://example.test',
+      transport: transport,
+      store: store,
+      autoTick: false,
+    );
+    addTearDown(controller.dispose);
+    expect(
+      await controller.createRoom(
+        presentation: true,
+        duration: const Duration(minutes: 3),
+      ),
+      isFalse,
+    );
+    expect(transport.requests, hasLength(1));
+    expect(
+      store.pending!.key,
+      (transport.requests.single['body'] as Map)['admissionKey'],
+    );
+    expect(controller.error, contains('保存'));
+  });
+
+  test(
+    'join never rotates its admission ticket on a collision response',
+    () async {
+      final store = MemoryOnlineSessionStore();
+      final transport = FakeTransport()..failure = collision;
+      final controller = OnlineController(
+        serverUrl: 'https://example.test',
+        transport: transport,
+        store: store,
+        autoTick: false,
+      );
+      addTearDown(controller.dispose);
+      expect(await controller.joinRoom('01234'), isFalse);
+      expect(transport.requests, hasLength(1));
+      expect(
+        store.pending!.key,
+        (transport.requests.single['body'] as Map)['admissionKey'],
+      );
+    },
+  );
+
+  test(
+    'five-digit codes preserve leading zeroes through admission and restore',
+    () async {
+      final transport = FakeTransport()..value['code'] = '01234';
+      final store = MemoryOnlineSessionStore();
+      final first = OnlineController(
+        serverUrl: 'https://example.test',
+        transport: transport,
+        store: store,
+        autoTick: false,
+      );
+      expect(await first.joinRoom('tsunagun:room:01234'), isTrue);
+      await settle();
+      expect(transport.requests.single['path'], '/rooms/01234/join');
+      expect(first.roomQr, 'tsunagun:room:01234');
+      expect(first.pairQr, 'tsunagun:pair:01234:AABBCCDD');
+      final saved = OnlineSession.fromJson(store.value!.toJson());
+      expect(saved.code, '01234');
+      first.dispose();
+      await store.save(saved);
+      final restoredTransport = FakeTransport()..value['code'] = '01234';
+      final restored = OnlineController(
+        serverUrl: 'https://example.test',
+        transport: restoredTransport,
+        store: store,
+        autoTick: false,
+      );
+      addTearDown(restored.dispose);
+      await restored.restore();
+      await settle();
+      expect(restoredTransport.requests.single['path'], '/rooms/01234');
+      expect(restored.connected, isTrue);
+      expect(restored.room?.code, '01234');
+      expect(await restored.pair('tsunagun:pair:01234:AABBCCDD'), isTrue);
+      final count = restoredTransport.requests.length;
+      expect(await restored.pair('tsunagun:pair:01235:AABBCCDD'), isFalse);
+      expect(restoredTransport.requests, hasLength(count));
+    },
+  );
+
+  test(
+    'a lost five-digit admission resumes the same durable ticket after restart',
+    () async {
+      final store = MemoryOnlineSessionStore();
+      final failed = FakeTransport()
+        ..value['code'] = '01234'
+        ..failure = const OnlineFailure('lost response');
+      final first = OnlineController(
+        serverUrl: 'https://example.test',
+        transport: failed,
+        store: store,
+        autoTick: false,
+      );
+      expect(await first.joinRoom('01234'), isFalse);
+      final pending = PendingAdmission.fromJson(store.pending!.toJson());
+      first.dispose();
+      expect(pending.roomCode, '01234');
+      await store.savePending(pending);
+      final transport = FakeTransport()..value['code'] = '01234';
+      final restored = OnlineController(
+        serverUrl: 'https://example.test',
+        transport: transport,
+        store: store,
+        autoTick: false,
+      );
+      addTearDown(restored.dispose);
+      await restored.restore();
+      await settle();
+      expect(transport.requests.single['path'], '/rooms/01234/join');
+      expect(
+        (transport.requests.single['body'] as Map)['admissionKey'],
+        pending.key,
+      );
+      expect(store.pending, isNull);
+      expect(store.value?.code, '01234');
+      expect(restored.connected, isTrue);
+      expect(restored.roomQr, isNot(contains(pending.key)));
+    },
+  );
+
+  test(
+    'bot lookup stays separate from real members and pairing sends only its ID',
+    () async {
+      const botId = 'demo:ABCDEF012345:blue:1';
+      final transport = FakeTransport();
+      transport.value['demoParticipants'] = [
+        {
+          'id': botId,
+          'profile': {'nickname': 'デモ参加者4', 'hobby': '', 'comment': ''},
+          'team': 'blue',
+          'ready': true,
+          'connected': true,
+          'isDemo': true,
+          'normalCount': 1,
+          'boneCount': 1,
+          'power': 4,
+          'playable': true,
+        },
+      ];
+      final controller = await launch(transport);
+      expect(controller.participants, hasLength(2));
+      expect(controller.participantById(botId)?.profile.nickname, 'デモ参加者4');
+      expect(controller.participantById('p1')?.id, 'p1');
+      expect(controller.participantById('missing'), isNull);
+      expect(controller.followers, isEmpty);
+      expect(await controller.pairBot(botId), isTrue);
+      final body = transport.requests.last['body'] as Map;
+      expect(body['type'], 'pairBot');
+      expect(body['botId'], botId);
+      expect(body.keys.toSet(), {'requestId', 'type', 'botId'});
+      expect(controller.followers, isEmpty);
+    },
+  );
+
   test(
     'real session is saved and QR never contains its bearer token',
     () async {
@@ -154,6 +414,7 @@ void main() {
       final controller = await launch(transport, store);
       expect(store.value?.token, 'a' * 64);
       expect(controller.self?.profile.nickname, 'あか');
+      expect((transport.requests.single['body'] as Map)['roomCodeDigits'], 5);
       expect(controller.roomQr, 'tsunagun:room:ABCDEF012345');
       expect(controller.pairQr, 'tsunagun:pair:ABCDEF012345:AABBCCDD');
       expect(controller.pairQr, isNot(contains(store.value!.token)));
@@ -470,6 +731,7 @@ void main() {
       await second.restore();
       await settle();
       expect(transport.requests.single['path'], '/rooms');
+      expect((transport.requests.single['body'] as Map)['roomCodeDigits'], 5);
       expect((transport.requests.single['body'] as Map)['admissionKey'], key);
       expect(second.connected, isTrue);
       expect(store.pending, isNull);
@@ -525,4 +787,12 @@ class _FailingPendingStore extends MemoryOnlineSessionStore {
   @override
   Future<void> savePending(PendingAdmission value) async =>
       throw StateError('disk unavailable');
+}
+
+class _FailingRotationStore extends MemoryOnlineSessionStore {
+  @override
+  Future<void> savePending(PendingAdmission value) async {
+    if (pending != null) throw StateError('disk unavailable');
+    await super.savePending(value);
+  }
 }

@@ -8,9 +8,11 @@ import 'package:qr_flutter/qr_flutter.dart';
 enum QrPurpose { room, pair }
 
 bool isTsunagunQr(String value, QrPurpose purpose) => switch (purpose) {
-  QrPurpose.room => RegExp(r'^tsunagun:room:[A-F0-9]{12}$').hasMatch(value),
+  QrPurpose.room => RegExp(
+    r'^tsunagun:room:(?:[0-9]{5}|[A-F0-9]{12})$',
+  ).hasMatch(value),
   QrPurpose.pair => RegExp(
-    r'^tsunagun:pair:[A-F0-9]{12}:[A-F0-9]{8}$',
+    r'^tsunagun:pair:(?:[0-9]{5}|[A-F0-9]{12}):[A-F0-9]{8}$',
   ).hasMatch(value),
 };
 
@@ -143,11 +145,16 @@ class _QrInputPageState extends State<QrInputPage> with WidgetsBindingObserver {
   void _submit() {
     final value = _code.text.trim();
     final code = value.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
-    final length = widget.purpose == QrPurpose.room ? 12 : 8;
+    final isRoom = widget.purpose == QrPurpose.room;
+    final codePattern = isRoom
+        ? RegExp(r'^(?:[0-9]{5}|[A-F0-9]{12})$')
+        : RegExp(r'^[A-F0-9]{8}$');
     final pairQr =
         widget.purpose == QrPurpose.pair && isTsunagunQr(value, QrPurpose.pair);
-    if (!pairQr && !RegExp('^[A-F0-9]{$length}\$').hasMatch(code)) {
-      setState(() => _error = '$length桁のコードを確かめてください。');
+    if (!pairQr && !codePattern.hasMatch(code)) {
+      setState(
+        () => _error = isRoom ? '5桁のルームコードを確かめてください。' : '8桁のコードを確かめてください。',
+      );
       return;
     }
     _accept(pairQr ? value : code);
@@ -221,10 +228,10 @@ class _QrInputPageState extends State<QrInputPage> with WidgetsBindingObserver {
               maxLength: 100,
               decoration: InputDecoration(
                 labelText: widget.purpose == QrPurpose.room
-                    ? 'ルームコード'
+                    ? '5桁のルームコード'
                     : '相手のコード',
                 helperText: widget.purpose == QrPurpose.room
-                    ? '主催者から教えてもらった12桁のコードを入力してください。'
+                    ? '主催者から教えてもらった5桁のルームコードを入力してください。'
                     : '相手のQRの下にある8桁のコードを入力してください。',
                 counterText: '',
               ),

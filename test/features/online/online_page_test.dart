@@ -71,20 +71,76 @@ Map<String, dynamic> finished({String outcome = 'loss'}) => {
   },
 };
 
+Map<String, dynamic> supporter(
+  String id,
+  String team,
+  int power, {
+  bool playable = true,
+  bool busy = false,
+  String? nextKind = 'duel',
+}) => {
+  ...person(id, '$id（デモ）'),
+  'team': team,
+  'isDemo': true,
+  'normalCount': power ~/ 3,
+  'boneCount': power % 3,
+  'power': power,
+  'playable': playable,
+  'busy': busy,
+  'nextKind': nextKind,
+  'ready': false,
+};
+
+Map<String, dynamic> presentationRoom({
+  String status = 'lobby',
+  int realCount = 1,
+  bool hostReady = true,
+  bool peerReady = true,
+}) => {
+  ...roomJson(status: status),
+  'participants': [
+    {...person('self', '自分'), 'ready': hostReady},
+    if (realCount == 2)
+      {
+        ...person('peer', peerReady ? '相手' : '', hobby: peerReady ? '音楽' : ''),
+        'ready': peerReady,
+      },
+  ],
+  'demoParticipants': [
+    supporter('red-demo-1', 'red', 4),
+    supporter('red-demo-2', 'red', 2),
+    supporter('blue-demo-1', 'blue', 4),
+    supporter('blue-demo-2', 'blue', 2),
+    if (realCount == 1)
+      supporter(
+        'second-player-slot',
+        'blue',
+        0,
+        playable: false,
+        nextKind: null,
+      ),
+  ],
+};
+
 class ScreenController extends OnlineController {
   ScreenController([Map<String, dynamic>? initial]) : super(autoTick: false) {
-    if (initial != null) data = OnlineRoom.fromJson(initial);
+    if (initial != null) {
+      raw = initial;
+      data = OnlineRoom.fromJson(initial);
+    }
   }
   OnlineRoom? data;
+  Map<String, dynamic>? raw;
   bool available = true;
   bool saveSucceeds = true;
   bool? presentation;
   Profile? savedProfile;
-  String? joinedCode, pairedCode;
+  String? joinedCode, pairedCode, pairedBot;
   String? failure;
   final foreground = <bool>[];
   int starts = 0;
   void emit(Map<String, dynamic> value) {
+    raw = value;
     data = OnlineRoom.fromJson(value);
     notifyListeners();
   }
@@ -102,7 +158,8 @@ class ScreenController extends OnlineController {
   @override
   List<Participant> get participants => data?.participants ?? [];
   @override
-  Participant? get self => data?.participants.first;
+  Participant? get self =>
+      data?.participants.firstWhere((p) => p.id == data!.selfId);
   @override
   List<Follower> get followers => data?.followers ?? [];
   @override
@@ -140,10 +197,17 @@ class ScreenController extends OnlineController {
       notifyListeners();
       return false;
     }
-    final value = roomJson();
+    final value = {...?raw};
     value['participants'] = [
-      person('self', profile.nickname, hobby: profile.hobby),
-      person('peer', '相手'),
+      for (final dynamic participant in value['participants'] as List)
+        if (participant['id'] == value['selfId'])
+          {
+            ...Map<String, Object?>.from(participant as Map),
+            'profile': profileToJson(profile),
+            'ready': true,
+          }
+        else
+          participant,
     ];
     emit(value);
     return true;
@@ -163,9 +227,15 @@ class ScreenController extends OnlineController {
   }
 
   @override
+  Future<bool> pairBot(String id) async {
+    pairedBot = id;
+    return true;
+  }
+
+  @override
   Future<bool> startRoom() async {
     starts++;
-    emit(roomJson(status: 'active'));
+    emit({...?raw, 'status': 'active'});
     return true;
   }
 
@@ -295,19 +365,16 @@ void main() {
     expect(find.text('ツナがる'), findsOneWidget);
   });
 
-  testWidgets('コード入力で実ルームへ参加し、相手コードでペアを要求する', (tester) async {
+  testWidgets('5桁コード入力で実ルームへ参加し、8桁相手コードでペアを要求する', (tester) async {
     final controller = ScreenController();
     addTearDown(controller.dispose);
     await tester.pumpWidget(app(controller));
     await tapVisible(tester, find.byKey(const Key('join-online-room')));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('qr-manual-code')),
-      'abcd ef01 2345',
-    );
+    await tester.enterText(find.byKey(const Key('qr-manual-code')), '01234');
     await tester.tap(find.byKey(const Key('submit-qr-code')));
     await tester.pumpAndSettle();
-    expect(controller.joinedCode, 'ABCDEF012345');
+    expect(controller.joinedCode, '01234');
     controller.emit(roomJson(status: 'active'));
     await tester.pumpAndSettle();
     await tapVisible(tester, find.byKey(const Key('online-connect')));
@@ -444,5 +511,234 @@ void main() {
       'tsunagun:pair:ABCDEF012345:1234ABCD',
     );
     expect(find.text('相手のQRを読み取る'), findsOneWidget);
+  });
+
+  testWidgets('5桁ルームコードを分割せず表示・コピーし、相手QRでも先頭0を保つ', (tester) async {
+    final state = {...roomJson(), 'code': '01234'};
+    final controller = ScreenController(state);
+    addTearDown(controller.dispose);
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.pumpWidget(app(controller));
+    expect(find.byType(QrImageView), findsNothing);
+    expect(
+      tester
+          .widget<SelectableText>(find.byKey(const Key('room-share-code')))
+          .data,
+      '01234',
+    );
+    await tapVisible(tester, find.byKey(const Key('copy-room-code')));
+    expect(copied, '01234');
+    controller.emit({...state, 'status': 'active'});
+    await tester.pumpAndSettle();
+    await tapVisible(tester, find.byKey(const Key('online-connect')));
+    expect(
+      tester.widget<SharedQrPanel>(find.byType(SharedQrPanel)).data,
+      'tsunagun:pair:01234:1234ABCD',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('発表用は準備済みの主催者1人で開始し、コード共有とQR導線を維持する', (tester) async {
+    final controller = ScreenController(presentationRoom());
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(app(controller));
+    expect(find.text('参加者 1人'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('start-online-room')))
+          .onPressed,
+      isNotNull,
+    );
+    await tapVisible(tester, find.byKey(const Key('start-online-room')));
+    expect(controller.starts, 1);
+    expect(find.byKey(const Key('waiting-second-player')), findsOneWidget);
+    expect(find.byKey(const Key('room-share-code')), findsOneWidget);
+    expect(find.byKey(const Key('copy-room-code')), findsOneWidget);
+    expect(find.byType(QrImageView), findsNothing);
+    expect(controller.participants, hasLength(1));
+    expect(controller.followers, isEmpty);
+    await tapVisible(tester, find.byKey(const Key('online-connect')));
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text('相手のQRを読み取る'), findsOneWidget);
+    expect(
+      tester.widget<SharedQrPanel>(find.byType(SharedQrPanel)).data,
+      'tsunagun:pair:ABCDEF012345:1234ABCD',
+    );
+  });
+
+  testWidgets('通常ルームは1人で開始できず、発表用も実参加者全員の準備が必要', (tester) async {
+    final controller = ScreenController({
+      ...presentationRoom(),
+      'mode': 'standard',
+    });
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(app(controller));
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('start-online-room')))
+          .onPressed,
+      isNull,
+    );
+    expect(find.text('2人以上のラベルがそろうと、はじめられます。'), findsOneWidget);
+    expect(find.byKey(const Key('lobby-demo-members')), findsNothing);
+    controller.emit(presentationRoom(realCount: 2, peerReady: false));
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('start-online-room')))
+          .onPressed,
+      isNull,
+    );
+    expect(find.text('参加者のラベルがそろうまで、お待ちください。'), findsOneWidget);
+    controller.emit(presentationRoom(hostReady: false));
+    await tester.pump();
+    expect(find.byKey(const Key('start-online-room')), findsNothing);
+    expect(find.text('あなたのラベル'), findsOneWidget);
+  });
+
+  testWidgets('開始後に入った実参加者はプロフィール登録後ホームへ進み、更新中も入力を保つ', (tester) async {
+    final state = presentationRoom(
+      status: 'active',
+      realCount: 2,
+      peerReady: false,
+    )..['selfId'] = 'peer';
+    final controller = ScreenController(state);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(app(controller));
+    expect(find.text('あなたのラベル'), findsOneWidget);
+    expect(find.byKey(const Key('online-connect')), findsNothing);
+    await tester.enterText(find.byKey(const Key('online-nickname')), '後から参加');
+    await tester.enterText(find.byKey(const Key('online-hobby')), '音楽');
+    controller.emit({...state, 'revision': 2});
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('online-nickname')))
+          .controller!
+          .text,
+      '後から参加',
+    );
+    await tapVisible(tester, find.byKey(const Key('save-online-profile')));
+    expect(controller.savedProfile!.nickname, '後から参加');
+    expect(find.byKey(const Key('online-connect')), findsOneWidget);
+    expect(find.text('まもなく、交流の時間。'), findsNothing);
+    expect(controller.room!.status, 'active');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(app(controller));
+    expect(find.byKey(const Key('online-connect')), findsOneWidget);
+    expect(find.text('あなたのラベル'), findsNothing);
+  });
+
+  testWidgets('開始後の未登録プロフィール中に期限が来ても最終画面へ移る', (tester) async {
+    final state = presentationRoom(
+      status: 'active',
+      realCount: 2,
+      peerReady: false,
+    )..['selfId'] = 'peer';
+    final controller = ScreenController(state);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(app(controller));
+    expect(find.text('あなたのラベル'), findsOneWidget);
+    controller.emit({
+      ...state,
+      'status': 'finale',
+      'finalSnapshot': {
+        'redPower': 6,
+        'bluePower': 6,
+        'rankings': [],
+        'mvpIds': [],
+      },
+    });
+    await tester.pump();
+    expect(find.text('最後の大綱引き'), findsOneWidget);
+    expect(find.byKey(const Key('save-online-profile')), findsNothing);
+  });
+
+  testWidgets('応援メンバーは実人数・所持子分と別に、チーム色と現在得点を表示する', (tester) async {
+    final controller = ScreenController(presentationRoom());
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(app(controller));
+    await tapVisible(tester, find.byKey(const Key('lobby-demo-members')));
+    await tester.pumpAndSettle();
+    expect(find.text('4pt'), findsNWidgets(2));
+    expect(find.text('2pt'), findsNWidgets(2));
+    expect(find.text('0pt'), findsOneWidget);
+    expect(find.text('参加者 1人'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('red-demo-1（デモ）')).style!.color,
+      TsunagunColors.red,
+    );
+    expect(
+      tester.widget<Text>(find.text('blue-demo-1（デモ）')).style!.color,
+      TsunagunColors.blue,
+    );
+    controller.emit(presentationRoom(status: 'active', realCount: 2));
+    await tester.pumpAndSettle();
+    expect(find.text('子分 0 匹'), findsOneWidget);
+    expect(find.text('骨 0 匹'), findsOneWidget);
+    expect(find.text('ちから 0'), findsOneWidget);
+    expect(find.byKey(const Key('room-share-code')), findsNothing);
+    await tapVisible(tester, find.byKey(const Key('online-team-members')));
+    await tester.pumpAndSettle();
+    expect(find.text('参加者 2人・応援 4人（デモ）'), findsOneWidget);
+    expect(find.byKey(const ValueKey('team-member-self')), findsOneWidget);
+    expect(find.byKey(const ValueKey('team-member-peer')), findsOneWidget);
+    expect(find.text('4pt'), findsNWidgets(2));
+    expect(
+      find.byKey(const ValueKey('team-member-second-player-slot')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('実相手がプロフィール入力中でも自分のQRとデモ相手選択を表示できる', (tester) async {
+    final state = presentationRoom(
+      status: 'active',
+      realCount: 2,
+      peerReady: false,
+    );
+    final bots = state['demoParticipants'] as List;
+    bots[0] = supporter('red-demo-1', 'red', 7, busy: true);
+    bots[1] = supporter('red-demo-2', 'red', 5, nextKind: null);
+    bots[2] = supporter('blue-demo-1', 'blue', 5, nextKind: 'coop');
+    final controller = ScreenController(state);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(app(controller));
+    expect(find.byKey(const Key('waiting-peer-profile')), findsOneWidget);
+    await tapVisible(tester, find.byKey(const Key('online-connect')));
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text('相手のQRを読み取る'), findsOneWidget);
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const Key('pair-demo-red-demo-1')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const Key('pair-demo-red-demo-2')))
+          .onPressed,
+      isNull,
+    );
+    expect(find.text('交流済み'), findsOneWidget);
+    expect(find.text('次は協力'), findsOneWidget);
+    await tapVisible(tester, find.byKey(const Key('pair-demo-blue-demo-1')));
+    expect(controller.pairedBot, 'blue-demo-1');
+    expect(controller.pairedCode, isNull);
+    expect(find.byKey(const Key('pair-demo-second-player-slot')), findsNothing);
   });
 }
