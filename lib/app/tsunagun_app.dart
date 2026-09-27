@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -94,8 +95,9 @@ class _TsunagunAppState extends State<TsunagunApp> {
   );
 }
 
-/// All scenes and overlays share this viewport. 412 x 900 is a desktop
-/// preview limit, not the target phone's measured logical resolution.
+/// All scenes and overlays share this viewport. Desktop previews keep a
+/// provisional 412 x 900 canvas and shrink it to fit without changing its ratio.
+/// Android/iOS, including their browsers, retain the actual device constraints.
 class PhoneViewport extends StatelessWidget {
   const PhoneViewport({super.key, required this.child});
 
@@ -105,30 +107,61 @@ class PhoneViewport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final desktop =
-        kIsWeb ||
-        switch (defaultTargetPlatform) {
-          TargetPlatform.linux ||
-          TargetPlatform.macOS ||
-          TargetPlatform.windows => true,
-          _ => false,
-        };
+    final desktop = switch (defaultTargetPlatform) {
+      TargetPlatform.linux ||
+      TargetPlatform.macOS ||
+      TargetPlatform.windows => true,
+      _ => false,
+    };
+    if (!desktop) return child;
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (!desktop || constraints.maxWidth < 600) return child;
+        final width = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : previewWidth;
+        final height = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : previewHeight;
+        final scale = math.min(
+          1.0,
+          math.min(width / previewWidth, height / previewHeight),
+        );
+        final offset = Offset(
+          (width - previewWidth * scale) / 2,
+          (height - previewHeight * scale) / 2,
+        );
+        // System insets are measured from the outer window. Remove the gutters
+        // and convert the overlap to canvas coordinates before SafeArea/Scaffold
+        // consume it. Text scaling and other accessibility settings stay intact.
+        EdgeInsets canvasInsets(EdgeInsets insets) {
+          final divisor = scale > 0 ? scale : 1.0;
+          return EdgeInsets.fromLTRB(
+            ((insets.left - offset.dx) / divisor).clamp(0.0, previewWidth),
+            ((insets.top - offset.dy) / divisor).clamp(0.0, previewHeight),
+            ((insets.right - offset.dx) / divisor).clamp(0.0, previewWidth),
+            ((insets.bottom - offset.dy) / divisor).clamp(0.0, previewHeight),
+          );
+        }
+
+        final media = MediaQuery.of(context);
         return ColoredBox(
           color: const Color(0xFFE1E4E2),
           child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: previewWidth,
-                maxHeight: previewHeight,
-              ),
-              child: LayoutBuilder(
-                builder: (context, viewport) => ClipRect(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+                width: previewWidth,
+                height: previewHeight,
+                child: ClipRect(
                   child: MediaQuery(
-                    data: MediaQuery.of(context).copyWith(
-                      size: Size(viewport.maxWidth, viewport.maxHeight),
+                    data: media.copyWith(
+                      size: const Size(previewWidth, previewHeight),
+                      padding: canvasInsets(media.padding),
+                      viewPadding: canvasInsets(media.viewPadding),
+                      viewInsets: canvasInsets(media.viewInsets),
+                      systemGestureInsets: canvasInsets(
+                        media.systemGestureInsets,
+                      ),
                     ),
                     child: child,
                   ),

@@ -10,6 +10,7 @@ import 'package:spajam2026/domain/online_room.dart';
 import 'package:spajam2026/features/demo/can_stage.dart';
 import 'package:spajam2026/features/demo/parent_character.dart';
 import 'package:spajam2026/features/demo/result_sound_player.dart';
+import 'package:spajam2026/features/demo/tug_of_war_finale.dart';
 import 'package:spajam2026/features/online/online_game.dart';
 import 'package:spajam2026/features/online/online_page.dart';
 import 'package:spajam2026/features/online/qr_panel.dart';
@@ -270,17 +271,24 @@ class Sounds implements ResultSoundPlayer {
   }
 }
 
-Widget app(ScreenController controller, {Sounds? sounds, double scale = 1}) =>
-    MaterialApp(
-      theme: tsunagunTheme(),
-      home: MediaQuery(
-        data: MediaQueryData(textScaler: TextScaler.linear(scale)),
-        child: CharacterPlaybackScope(
-          enabled: false,
-          child: OnlinePage(controller: controller, resultSoundPlayer: sounds),
-        ),
-      ),
-    );
+Widget app(
+  ScreenController controller, {
+  Sounds? sounds,
+  double scale = 1,
+  double keyboardInset = 0,
+}) => MaterialApp(
+  theme: tsunagunTheme(),
+  home: MediaQuery(
+    data: MediaQueryData(
+      textScaler: TextScaler.linear(scale),
+      viewInsets: EdgeInsets.only(bottom: keyboardInset),
+    ),
+    child: CharacterPlaybackScope(
+      enabled: false,
+      child: OnlinePage(controller: controller, resultSoundPlayer: sounds),
+    ),
+  ),
+);
 
 Future<void> tapVisible(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
@@ -289,6 +297,117 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets('412×900の通常文字では各場面の主要操作まで1画面に収まる', (tester) async {
+    tester.view.physicalSize = const Size(412, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    void expectFits(String scene, Key control) {
+      final scroll = tester.widget<SingleChildScrollView>(
+        find.byKey(const Key('online-page-scroll')),
+      );
+      expect(scroll.controller!.position.maxScrollExtent, 0, reason: scene);
+      final bounds = tester.getRect(find.byKey(control));
+      expect(bounds.top, greaterThanOrEqualTo(0), reason: scene);
+      expect(bounds.bottom, lessThanOrEqualTo(900), reason: scene);
+      expect(find.byKey(control).hitTestable(), findsOneWidget, reason: scene);
+      expect(tester.takeException(), isNull, reason: scene);
+    }
+
+    for (final scene in [
+      'entry',
+      'profile',
+      'lobby',
+      'home',
+      'home-alone',
+      'pairing',
+      'loss',
+      'win',
+      'reborn',
+      'finale',
+      'finale-finished',
+      'results',
+    ]) {
+      Map<String, dynamic>? state = switch (scene) {
+        'entry' => null,
+        'profile' => roomJson(profile: false),
+        'lobby' => presentationRoom(realCount: 2),
+        'home-alone' => presentationRoom(status: 'active'),
+        _ => presentationRoom(status: 'active', realCount: 2),
+      };
+      if (['loss', 'win', 'reborn'].contains(scene)) {
+        final encounter = finished(
+          outcome: scene == 'reborn' ? 'coopSuccess' : scene,
+        );
+        final result = encounter['result'] as Map<String, dynamic>;
+        if (scene != 'loss') {
+          final follower = {...result['newFollower'] as Map, 'kind': 'normal'};
+          result['delta'] = scene == 'reborn' ? 2 : 3;
+          result['newFollower'] = scene == 'reborn' ? null : follower;
+          result['promoted'] = scene == 'reborn' ? follower : null;
+        }
+        state!['encounter'] = encounter;
+      }
+      if (scene.startsWith('finale') || scene == 'results') {
+        state!['status'] = 'finale';
+        if (scene == 'finale-finished') state['finaleStartsAt'] = -13000;
+        state['finalSnapshot'] = {
+          'redPower': 7,
+          'bluePower': 5,
+          'rankings': [
+            for (var rank = 1; rank <= 4; rank++)
+              {
+                'participant': person(
+                  rank == 4 ? 'self' : 'demo-$rank',
+                  rank == 4 ? '自分' : 'デモ$rank',
+                ),
+                'normalCount': rank < 3 ? 1 : 0,
+                'boneCount': rank.isEven ? 1 : 0,
+                'power': 5 - rank,
+                'rank': rank,
+              },
+          ],
+          'mvpIds': ['demo-1'],
+        };
+      }
+      final controller = ScreenController(state);
+      await tester.pumpWidget(app(controller));
+      await tester.pumpAndSettle();
+      if (scene == 'pairing') {
+        await tester.tap(find.byKey(const Key('online-connect')));
+        await tester.pumpAndSettle();
+      }
+      if (['loss', 'win', 'reborn'].contains(scene) &&
+          find.byType(OnlineGame).evaluate().isNotEmpty) {
+        tester
+            .widget<OnlineGame>(find.byType(OnlineGame))
+            .onPresentationComplete();
+        await tester.pumpAndSettle();
+      }
+      if (scene == 'results') {
+        tester
+            .widget<TugOfWarFinale>(find.byType(TugOfWarFinale))
+            .onShowResults();
+        await tester.pumpAndSettle();
+      }
+      final control = switch (scene) {
+        'entry' => const Key('join-online-room'),
+        'profile' => const Key('save-online-profile'),
+        'lobby' => const Key('start-online-room'),
+        'home-alone' => const Key('invite-second-player'),
+        'home' => const Key('online-team-members'),
+        'pairing' => const Key('choose-demo-peer'),
+        'finale' => const Key('start-tug-button'),
+        'finale-finished' => const Key('show-results'),
+        'results' => const Key('view-final-followers'),
+        _ => const Key('return-online-home'),
+      };
+      expectFits(scene, control);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    }
+  });
   testWidgets(
     'visible web blur preserves connection and sound; hidden always suspends',
     (tester) async {
@@ -318,6 +437,35 @@ void main() {
       expect(controller.foreground.last, isTrue);
     },
   );
+
+  testWidgets('長いプロフィール・文字2倍・キーボード表示ではスクロールして保存できる', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = ScreenController(roomJson(profile: false));
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(app(controller, scale: 2, keyboardInset: 280));
+    await tester.enterText(find.byKey(const Key('online-nickname')), 'つな' * 10);
+    await tester.enterText(find.byKey(const Key('online-hobby')), '海' * 60);
+    await tester.enterText(find.byKey(const Key('online-comment')), '魚' * 80);
+    await tester.pumpAndSettle();
+    final scroll = tester.widget<SingleChildScrollView>(
+      find.byKey(const Key('online-page-scroll')),
+    );
+    expect(scroll.controller!.position.maxScrollExtent, greaterThan(0));
+    final save = find.byKey(const Key('save-online-profile'));
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    expect(save.hitTestable(), findsOneWidget);
+    expect(tester.getRect(save).bottom, lessThanOrEqualTo(520));
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(controller.savedProfile!.nickname, 'つな' * 10);
+    expect(controller.savedProfile!.hobby, '海' * 60);
+    expect(controller.savedProfile!.comment, '魚' * 80);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('通常入口は仮想操作を見せず、発表ルームを選んで空のプロフィールを作れる', (tester) async {
     final controller = ScreenController();
@@ -598,11 +746,15 @@ void main() {
     await tapVisible(tester, find.byKey(const Key('start-online-room')));
     expect(controller.starts, 1);
     expect(find.byKey(const Key('waiting-second-player')), findsOneWidget);
+    await tapVisible(tester, find.byKey(const Key('invite-second-player')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('room-share-code')), findsOneWidget);
     expect(find.byKey(const Key('copy-room-code')), findsOneWidget);
     expect(find.byType(QrImageView), findsNothing);
     expect(controller.participants, hasLength(1));
     expect(controller.followers, isEmpty);
+    await tapVisible(tester, find.byKey(const Key('close-online-details')));
+    await tester.pumpAndSettle();
     await tapVisible(tester, find.byKey(const Key('online-connect')));
     expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('相手のQRを読み取る'), findsOneWidget);
@@ -718,6 +870,8 @@ void main() {
       tester.widget<Text>(find.text('blue-demo-1（デモ）')).style!.color,
       TsunagunColors.blue,
     );
+    await tapVisible(tester, find.byKey(const Key('close-online-details')));
+    await tester.pumpAndSettle();
     controller.emit(presentationRoom(status: 'active', realCount: 2));
     await tester.pumpAndSettle();
     expect(find.text('子分 0 匹'), findsOneWidget);
@@ -753,6 +907,9 @@ void main() {
     await tapVisible(tester, find.byKey(const Key('online-connect')));
     expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('相手のQRを読み取る'), findsOneWidget);
+    expect(find.byType(CanStage), findsNothing);
+    await tapVisible(tester, find.byKey(const Key('choose-demo-peer')));
+    await tester.pumpAndSettle();
     expect(
       tester
           .widget<OutlinedButton>(find.byKey(const Key('pair-demo-red-demo-1')))

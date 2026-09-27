@@ -15,7 +15,7 @@ import '../duel/race_field.dart';
 import '../duel/sea_background.dart';
 import '../duel/win_dance.dart';
 import 'online_game_timing.dart';
-import 'online_lifecycle.dart';
+import '../../app/online_lifecycle.dart';
 
 /// Two game actors, one server clock. This widget sends the human inputs only;
 /// results and rewards always come from the authoritative room snapshot.

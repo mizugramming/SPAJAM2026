@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../app/tsunagun_theme.dart';
+import '../../app/online_lifecycle.dart';
 import '../../domain/models.dart';
 import 'can_stage.dart';
 
@@ -48,6 +49,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
   bool _reduceMotion = false;
   bool _resultsOpened = false;
   Timer? _sharedClock;
+  bool _foreground = isOnlineForeground(WidgetsBinding.instance.lifecycleState);
   bool get _shared => widget.serverNow != null;
 
   @override
@@ -84,7 +86,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
 
   void _resumeSharedClock() {
     _sharedClock?.cancel();
-    if (!_shared) return;
+    if (!_shared || !_foreground) return;
     _syncSharedClock();
     if (widget.serverStartAt != null && _motion.value < 1) {
       _sharedClock = Timer.periodic(const Duration(milliseconds: 33), (_) {
@@ -105,8 +107,9 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = isOnlineForeground(state);
     if (!_shared) return;
-    if (state == AppLifecycleState.resumed) {
+    if (_foreground) {
       setState(_resumeSharedClock);
     } else {
       _sharedClock?.cancel();
@@ -363,10 +366,31 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
             ),
           ),
           if (finished) ...[
-            _score(Team.red),
-            const SizedBox(height: 18),
-            _score(Team.blue),
-            const SizedBox(height: 22),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final sideBySide =
+                    constraints.maxWidth >= 340 &&
+                    MediaQuery.textScalerOf(context).scale(14) <= 17;
+                if (!sideBySide) {
+                  return Column(
+                    children: [
+                      _score(Team.red),
+                      const SizedBox(height: 18),
+                      _score(Team.blue),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _score(Team.red, compact: true)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _score(Team.blue, compact: true)),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 16),
             FilledButton(
               key: const Key('show-results'),
               onPressed: _resultsOpened ? null : _showResults,
@@ -418,7 +442,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
     ),
   );
 
-  Widget _score(Team team) {
+  Widget _score(Team team, {bool compact = false}) {
     final members = widget.snapshot.rankings.where(
       (row) => row.participant.team == team,
     );
@@ -432,22 +456,35 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 12,
           children: [
-            _teamName(team),
+            compact
+                ? Text(
+                    team.label,
+                    style: TextStyle(
+                      color: team == Team.red
+                          ? TsunagunColors.red
+                          : TsunagunColors.blue,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                : _teamName(team),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'ちから ',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
+                if (!compact)
+                  const Text(
+                    'ちから ',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
                 Text(
                   '${team == Team.red ? widget.snapshot.redPower : widget.snapshot.bluePower}',
                   key: Key('tug-${team.name}-power'),
-                  style: const TextStyle(
-                    fontSize: 34,
+                  style: TextStyle(
+                    fontSize: compact ? 28 : 34,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (compact) const Text(' pt', style: TextStyle(fontSize: 13)),
               ],
             ),
           ],
@@ -457,6 +494,7 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
           normalFollowerAsset,
           'normal',
           '子分 $normal匹 × 3pt = ${normal * 3}pt',
+          compact: compact,
         ),
         const SizedBox(height: 4),
         _breakdown(
@@ -464,22 +502,34 @@ class _TugOfWarFinaleState extends State<TugOfWarFinale>
           boneFollowerAsset,
           'bone',
           '骨 $bone匹 × 1pt = ${bone}pt',
+          compact: compact,
         ),
       ],
     );
   }
 
-  Widget _breakdown(Team team, String asset, String kind, String text) => Row(
+  Widget _breakdown(
+    Team team,
+    String asset,
+    String kind,
+    String text, {
+    bool compact = false,
+  }) => Row(
     children: [
       ExcludeSemantics(
-        child: Image.asset(asset, width: 32, height: 28, fit: BoxFit.contain),
+        child: Image.asset(
+          asset,
+          width: compact ? 24 : 32,
+          height: compact ? 22 : 28,
+          fit: BoxFit.contain,
+        ),
       ),
       const SizedBox(width: 8),
       Expanded(
         child: Text(
           text,
           key: Key('tug-${team.name}-$kind-breakdown'),
-          style: const TextStyle(fontSize: 15, height: 1.5),
+          style: TextStyle(fontSize: compact ? 13 : 15, height: 1.5),
         ),
       ),
     ],

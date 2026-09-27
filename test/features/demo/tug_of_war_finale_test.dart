@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spajam2026/app/tsunagun_theme.dart';
 import 'package:spajam2026/domain/models.dart';
@@ -98,6 +99,101 @@ void expectSpectatorsSeated(Map<String, Rect> actual, Map<String, Rect> seats) {
 }
 
 void main() {
+  testWidgets('スマホの通常表示では綱引き開始から内訳と次の操作までスクロール不要', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(412, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: tsunagunTheme(),
+        home: Scaffold(
+          body: Column(
+            children: [
+              const SizedBox(height: 90),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scroll,
+                  padding: const EdgeInsets.all(20),
+                  child: TugOfWarFinale(
+                    snapshot: snapshot(10, 7),
+                    onShowResults: () {},
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(scroll.position.maxScrollExtent, 0);
+    await tester.tap(find.byKey(const Key('start-tug-button')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    expect(scroll.position.maxScrollExtent, 0);
+    await tester.pump(const Duration(seconds: 3));
+    expect(scroll.position.maxScrollExtent, 0);
+    await tester.pumpAndSettle();
+    expect(scroll.position.maxScrollExtent, 0);
+    expect(find.byKey(const Key('show-results')).hitTestable(), findsOneWidget);
+    expect(find.byKey(const Key('tug-red-normal-breakdown')), findsOneWidget);
+    expect(find.byKey(const Key('tug-blue-bone-breakdown')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('表示中のWebだけ非選択でも綱引き時計を進め、背景の再buildでは再開しない', (tester) async {
+    narrowScreen(tester);
+    var now = 2000;
+    var clockReads = 0;
+    final result = snapshot(7, 3);
+    Widget sharedScene() => MaterialApp(
+      theme: tsunagunTheme(),
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: TugOfWarFinale(
+            snapshot: result,
+            serverStartAt: 1000,
+            serverNow: () {
+              clockReads++;
+              return now;
+            },
+            onShowResults: () {},
+          ),
+        ),
+      ),
+    );
+    addTearDown(() {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+    await tester.pumpWidget(sharedScene());
+    expect(find.byKey(const Key('tug-countdown')), findsOneWidget);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    now = 4500;
+    // A parent clock may rebuild while the app is inactive.
+    await tester.pumpWidget(sharedScene());
+    final inactiveReads = clockReads;
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(clockReads, kIsWeb ? greaterThan(inactiveReads) : inactiveReads);
+    expect(find.text('ぐぐぐ…！'), kIsWeb ? findsOneWidget : findsNothing);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    now = 15000;
+    // Force one test frame to exercise didUpdateWidget even in the background.
+    // A rebuild must not restart a cancelled shared timer or reveal results.
+    tester.binding.scheduleForcedFrame();
+    await tester.pumpWidget(sharedScene());
+    final hiddenReads = clockReads;
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(clockReads, hiddenReads);
+    expect(find.byKey(const Key('show-results')), findsNothing);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(find.byKey(const Key('show-results')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('開始ボタンまでは静止し、カウント・途中の点数・勝敗を先に出さない', (tester) async {
     narrowScreen(tester);
     final result = snapshot(7, 3);

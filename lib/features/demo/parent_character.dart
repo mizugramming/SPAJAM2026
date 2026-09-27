@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/online_lifecycle.dart';
+
 const parentIdleAsset = 'assets/characters/oyabun_idle.webp';
 const parentIdlePosterAsset = 'assets/characters/oyabun_idle_poster.png';
 
@@ -43,14 +45,14 @@ class _ParentCharacterState extends State<ParentCharacter>
   void initState() {
     super.initState();
     final state = WidgetsBinding.instance.lifecycleState;
-    _foreground = state == null || state == AppLifecycleState.resumed;
+    _foreground = isOnlineForeground(state);
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (mounted) {
-      setState(() => _foreground = state == AppLifecycleState.resumed);
+      setState(() => _foreground = isOnlineForeground(state));
     }
   }
 

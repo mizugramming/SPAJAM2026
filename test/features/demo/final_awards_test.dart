@@ -200,18 +200,97 @@ void main() {
     }
   });
 
+  testWidgets('幅412の通常表示は共同MVPと自分4位を含めても高さ620以内に収まる', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(412, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    for (final typeface in TsunagunTypeface.values) {
+      for (final sharedMvp in [false, true]) {
+        final result = _snapshot(
+          [
+            _entry('たこやき好き', rank: 1, power: 20),
+            _entry(
+              '散歩の達人',
+              rank: sharedMvp ? 1 : 2,
+              power: sharedMvp ? 20 : 17,
+            ),
+            _entry('ゲーム仲間', rank: 3, power: 14),
+            _entry('わたし', rank: 4, power: 11, isSelf: true),
+          ],
+          mvps: ['たこやき好き', if (sharedMvp) '散歩の達人'],
+        );
+        await tester.pumpWidget(_scene(result, typeface: typeface));
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.getSize(find.byType(FinalAwards)).height,
+          lessThanOrEqualTo(620),
+        );
+        expect(_row('わたし'), findsOneWidget);
+        expect(find.text('たこやき好き'), findsNWidgets(2));
+        expect(find.text('散歩の達人'), findsNWidgets(sharedMvp ? 2 : 1));
+        final scrollable = tester.state<ScrollableState>(
+          find.byType(Scrollable),
+        );
+        expect(scrollable.position.maxScrollExtent, 0);
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+
+  testWidgets('多数の共同MVPと同率順位は全員を残して親でスクロールできる', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(412, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final entries = [
+      for (var i = 0; i < 12; i++)
+        _entry('同率の仲間$i', rank: 1, power: 12, isSelf: i == 11),
+    ];
+    await tester.pumpWidget(
+      _scene(
+        _snapshot(
+          entries,
+          mvps: entries.map((entry) => entry.participant.id).toList(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (var i = 0; i < entries.length; i++) {
+      expect(_row('同率の仲間$i'), findsOneWidget);
+      expect(find.text('同率の仲間$i'), findsNWidgets(i == 11 ? 1 : 2));
+    }
+    expect(find.text('今日のMVP'), findsOneWidget);
+    expect(find.text('あなたの順位'), findsNothing);
+    expect(
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .maxScrollExtent,
+      greaterThan(0),
+    );
+    await tester.ensureVisible(_row('同率の仲間11'));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(_row('同率の仲間11')).bottom, lessThanOrEqualTo(900));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('幅320・文字2倍・4桁順位でも両フォントで全文を表示してスクロールできる', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(320, 640);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
     const name = 'つながる仲間と一緒に歩くプロフィール';
+    const leader = '一緒に楽しむ仲間とツナがる親分';
     final result = _snapshot(
       [
-        _entry('トップ', rank: 1, power: 999),
+        _entry(leader, rank: 1, power: 999),
         _entry(name, rank: 1234, power: 302, isSelf: true),
       ],
-      mvps: ['トップ'],
+      mvps: [leader],
     );
 
     for (final typeface in TsunagunTypeface.values) {
@@ -221,7 +300,10 @@ void main() {
       expect(find.text('子分 100匹 × 3pt = 300pt'), findsOneWidget);
       expect(find.text('骨 2匹 × 1pt = 2pt'), findsOneWidget);
       final paragraphs = tester.renderObjectList<RenderParagraph>(
-        find.descendant(of: _row(name), matching: find.byType(RichText)),
+        find.descendant(
+          of: find.byType(FinalAwards),
+          matching: find.byType(RichText),
+        ),
       );
       for (final paragraph in paragraphs) {
         final origin = paragraph.localToGlobal(Offset.zero);
