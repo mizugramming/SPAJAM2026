@@ -8,7 +8,7 @@
 - FVMを導入し、ルートの [.fvmrc](../.fvmrc) が指定するFlutterを `fvm install` で用意します。
 - Flutter同梱DartとAndroid用Javaの固定値は [tool/toolchain.json](../tool/toolchain.json) にあります。
 - Android確認には対応するAndroid SDK・JDKを用意し、`fvm flutter doctor -v` でFlutterが使うJDKを確認します。PATH上のJavaとFlutterが使うJavaは異なる場合があります。
-- 発表用のAndroid EmulatorはWindows側へSDK・システムイメージ・独立したAVD A/Bを準備します。WSL側だけのSDKや実機用ARM64 APKでは代用できません。WHPX有効化には管理者操作・再起動が伴うため、準備状況を確認し、[エミュレーターの撮影手順](online.md#android-emulatorを2台準備する)に従います。
+- 今回の発表はFlutter Webを使い、Chrome・Edgeなど保存領域の異なる2ブラウザーで操作します。公開版を開くだけならFlutterのインストールは不要です。
 - Windows/WSLでは、USB接続した実機が実行環境から見える必要があります。`fvm flutter devices` に出ない場合は接続環境を整え、プロジェクトのSDK制約を緩めて回避しません。
 - 文書チェックはPython 3.12以降・標準ライブラリだけで動きます。旧一台デモだけならサーバー設定は不要です。通信サーバーの開発にはNode.js 22以上と `server/package-lock.json` に従う依存取得が必要です。
 
@@ -28,7 +28,13 @@ Androidを扱う場合は `fvm dart tool/check_environment.dart --android` も�
 fvm flutter run -d chrome --dart-define=TSUNAGUN_SERVER_URL=https://tsunagun-rooms.tsunagun-room-server.workers.dev
 ```
 
-Android実機・エミュレーターは `-d 端末ID` に置き換え、2台とも同じ公開HTTPS URLを指定します。公開先が未設定のビルドでは接続できません。通信サーバーはCloudflare Workers＋Durable Objectsで、管理者の認証を経て公開済みです。[Web確認版](https://tsunagun.tsunagun-room-server.workers.dev)も利用できます。[サーバー手順](../server/README.md)と[2台の手順](online.md)に従います。通信版は作成から24時間サーバーへ状態を保持し、端末のsecure storageへ参加情報を保存して再接続します。
+公開Flutter Webは[公開アプリ](https://tsunagun.tsunagun-room-server.workers.dev)をChrome・Edgeなどで開けば使えます。ローカルで独立した2ブラウザーへ同じ画面を配信する場合は、次を起動したまま両方で `http://127.0.0.1:8080` を開きます。同じプロファイルの別タブは参加情報が共有されるため使いません。
+
+```bash
+fvm flutter run -d web-server --web-hostname 127.0.0.1 --web-port 8080 --dart-define=TSUNAGUN_SERVER_URL=https://tsunagun-rooms.tsunagun-room-server.workers.dev
+```
+
+Android実機を確認する場合は `-d 端末ID` に置き換え、2台とも同じ公開HTTPS URLを指定します。公開先が未設定のビルドでは接続できません。通信サーバーはCloudflare Workers＋Durable Objectsで、管理者の認証を経て公開済みです。[Web確認版](https://tsunagun.tsunagun-room-server.workers.dev)も利用できます。[サーバー手順](../server/README.md)と[2台の手順](online.md)に従います。通信版は作成から24時間サーバーへ状態を保持し、端末のsecure storageへ参加情報を保存して再接続します。
 
 旧一台デモは `fvm flutter run -d chrome --dart-define=TSUNAGUN_DEMO=true` で起動します。こちらだけは仮想相手を使い、プロフィール・結果は再起動やリセットで消えます。通常画面の操作と混同しません。
 
@@ -66,7 +72,7 @@ git diff --name-only
 git diff --exit-code -- pubspec.lock
 ```
 
-上記の接続先未指定ビルドはコンパイル検証用です。Android 15／API 35・x86_64のエミュレーターには `--target-platform android-x64` を付けたAPK、またはx64を含むAPKを使い、ARM64限定APKを流用しません。2台へインストールするAPKには `--dart-define=TSUNAGUN_SERVER_URL=https://tsunagun-rooms.tsunagun-room-server.workers.dev` を付けて再ビルドします。依存追加を意図した作業では `pubspec.lock` の変更内容をレビューし、固定SDKでの `pub get --enforce-lockfile` が追加変更を生じないことを確認します。
+上記の接続先未指定ビルドはコンパイル検証用です。2台へインストールするAPKには `--dart-define=TSUNAGUN_SERVER_URL=https://tsunagun-rooms.tsunagun-room-server.workers.dev` を付けて再ビルドします。依存追加を意図した作業では `pubspec.lock` の変更内容をレビューし、固定SDKでの `pub get --enforce-lockfile` が追加変更を生じないことを確認します。
 
 通信サーバーを変更した場合も次を実行します。統合テストは別ターミナルで `npm run dev` を起動してから実行し、実HTTPと2本のWebSocketを使います。
 
@@ -98,6 +104,6 @@ APKはデバッグ用のビルド検証で、配布署名済み成果物では�
 
 ## 引き渡し・発表前
 
-全員が同じ基盤コミットを固定SDKで起動し、担当表を埋め、小さなPRを順に統合して接続を確認します。今回の発表はWindows上の独立したAndroid Emulator2台を第一候補とし、重い場合は1台＋デモ相手で収録・実演します。2ブラウザーは補助・予備として残します。[撮影手順](online.md#pcでの撮影手順)に従い、同じコミット・公開APIで入口から綱引きまで操作し、AVD設定・実表示領域・1画面内の主操作・録画負荷・2つの対戦操作と協力の交互タップを記録します。アプリ側の画面寸法を独自に変更せず、ウィンドウ選択切替と背景化・停止の中断は別々に確認します。Windows側SDK・AVD導入と実起動、WHPX有効化は未実施です。Android実機検証は後続として残します。
+全員が同じ基盤コミットを固定SDKで起動し、担当表を埋め、小さなPRを順に統合して接続を確認します。今回の発表はFlutter WebをChrome・Edgeなどの独立した2画面で動かし、操作や録画が難しい場合は1画面＋デモ相手を使います。[撮影手順](online.md#pcでの撮影手順)に従い、同じコミット・公開APIで入口から綱引きまで操作し、ブラウザーと保存領域の分離・共通の暫定412×900キャンバスの等比表示・1画面内の主操作・録画負荷・2つの対戦操作と協力の交互タップを記録します。アプリ側の画面寸法を独自に変更せず、ウィンドウ選択切替と背景化・停止の中断は別々に確認します。Android実機検証は後続として残します。
 
 REDMI Note 15 5G（Android 15）1台への導入・起動は確認済みです。各開発者の起動確認とAndroid2台のゲーム操作は未実施です。CIの定義が存在するだけで成功と扱わず、各PRの結果を確認してください。公開した通信版で、入室コード・ゲーム相手QR・カメラ許可/拒否、二人の実操作・切断復帰・保存復元・綱引きの同期を実機2台で別途検証します。PC上の複数接続やテストの成功は実機確認の代用にしません。
