@@ -81,12 +81,13 @@ void main() {
         throwsA(isA<MatchRuleViolation>().having((e) => e.rule, 'rule', MatchRule.requiredNotCleared)),
       );
 
-      // 写真の判定（結果は AI 次第なので、合格・不合格のどちらかが記録されることだけ確認する）。
+      // 無地の画像は AI に送る前にサーバーで不合格になる（AI の揺らぎに左右されない）。
       final outcome = await player.submitPhoto(roomId: room.id, checkpointId: cp.id, photo: _grayJpeg);
-      expect(outcome, anyOf(isA<JudgePassed>(), isA<JudgeRejected>()));
+      expect(outcome, isA<JudgeRejected>().having((o) => o.reason, 'reason', '何も写っていないようです。対象を撮り直してください。'));
       final judged = await _until(ownerView, (s) => s.submissions.isNotEmpty, '提出');
       final submission = judged.submissions.single;
-      expect(submission.reason, isNotEmpty);
+      expect(submission.status, JudgeStatus.rejected);
+      expect(judged.scoreOf(player.currentUserId), 0);
       final photo = await owner.loadPhoto(roomId: room.id, photoRef: submission.photoRef);
       expect(photo, isNotEmpty);
 
