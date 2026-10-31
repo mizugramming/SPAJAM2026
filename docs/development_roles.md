@@ -62,7 +62,9 @@ ref.invalidate(activeSessionProvider);
 // ホームの「続きから」は AppRoutes.playerEntry を arguments: roomId（String）で開く
 ```
 
-撮影写真は、送る前に長辺 1280px 程度の JPEG に縮小する（例：image_picker の `maxWidth: 1280, maxHeight: 1280, imageQuality: 80`）。原寸の写真は AI 判定が遅くなる。カメラ用パッケージの追加は嶋本に依頼する。
+QR読取は `mobile_scanner`、撮影は `image_picker` を使う（追加済み。Android のカメラ権限も設定済み）。ほかのパッケージが必要なら嶋本に依頼する。
+
+撮影写真は、送る前に長辺 1280px 程度の JPEG に縮小する（例：`ImagePicker().pickImage(source: ImageSource.camera, maxWidth: 1280, maxHeight: 1280, imageQuality: 80)` → `await file.readAsBytes()` を `submitPhoto` へ）。原寸の写真は AI 判定が遅くなる。
 
 `sessionStoreProvider` などは `package:mayoi_quest/core/session/session_store.dart`。
 
