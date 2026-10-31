@@ -27,16 +27,52 @@ Android専用、Flutter、Android Studio。オーナーも同じアプリを使�
 
 案内図のAI解析、通路の高度な編集、自作コース保存、PDF取込、NFCは後続。正式な要件から削除したわけではない。初版では実装できていない機能を使えるように表示しない。
 
+## 決定事項（2026-10-31）
+
+| 項目 | 決定 |
+|---|---|
+| リポジトリ | https://github.com/mizugramming/SPAJAM2026 |
+| 統合ブランチ（PR先） | `test-1`。作業ブランチ（例：`nagisa`）から `test-1` へPR。`main` は共通キット用なのでアプリを入れない |
+| Flutter | 3.44.5 stable（Dart 3.12.2）。`.fvmrc` で固定 |
+| バックエンド | Supabase（接続は未実装。今はモックで動く） |
+| AI判定 | OpenAI。Supabase Edge Function から呼び、鍵はアプリに入れない（未実装） |
+| 状態管理 | flutter_riverpod 3 |
+
 ## 開発環境・起動・検証
 
-実リポジトリは今回未提供。以下は構成案であり、存在するファイルの説明ではない。Flutter/Dart/Android SDK/JDKの数値、パッケージ、バックエンド、AI提供元、リポジトリURL、統合先・リリース先、承認数・マージ方式は未確定。嶋本が実環境を確認してREADMEと機械可読設定へ記録する。既存設定があればそれを優先し、SDKや依存関係を勝手に更新しない。
+```bash
+fvm flutter pub get --enforce-lockfile   # fvm がなければ 3.44.5 の flutter を直接使う
+fvm flutter run                          # Android 端末・エミュレーター
+fvm flutter analyze
+fvm flutter test
+dart format lib test                     # 行幅120（analysis_options.yaml）
+```
 
-起動コマンド、依存取得コマンド、CI必須チェックはリポジトリ確認後に確定。検証候補はflutter analyze、flutter test、実機での起動・カメラ・QR・2端末同期。現時点ではいずれも未実施。
+CI（`.github/workflows/check.yml` の `check`）は、依存取得・整形・analyze・test・空白チェックを実行する。実機での起動・カメラ・QR・複数端末の同期は未検証。
+
+## 構成
+
+```text
+lib/main.dart                 起動（ProviderScope）
+lib/app/                      ルート・入口・共通レイアウト（嶋本）
+lib/app/dev/                  開発用モック参加者パネル（嶋本）
+lib/core/models/              共通モデル・エラー（嶋本）
+lib/core/repository/          MatchRepository 契約（嶋本）
+lib/core/rules/               得点・ゴール・順位の判定（嶋本）
+lib/core/mock/                モックのサーバー・AI判定・仮コース（嶋本）
+lib/core/providers.dart       画面が使う Provider（嶋本）
+lib/features/owner/           オーナー画面（嶋本）
+lib/features/player/          プレイヤー画面（松本）
+test/core/, test/features/owner/   嶋本のテスト
+test/features/player/         松本のテスト
+```
+
+接続方法と使用例は [担当と進め方](docs/development_roles.md)、データと規則は [システム設計](docs/system_design.md)。
 
 ## 初版着手前の最小確認
 
-- バックエンド・AI提供元・費用と鍵の管理方法。
-- 使用する固定コースの案内図、フロア、通路、撮影対象、正解写真、設置可能なQR。
-- 両者のFlutter環境と統合ブランチ。
+- Supabase プロジェクトの作成者と URL・匿名キーの共有方法、OpenAI の費用上限と鍵の管理者。
+- 使用する固定コースの案内図、フロア、通路、撮影対象、正解写真、設置可能なQR。今は仮コース（`lib/core/mock/sample_course.dart`）。
+- 松本の Flutter 環境が 3.44.5 であること。
 
 細かな推奨設計はsystem_design.mdに明示し、決定済み要件と混同しない。

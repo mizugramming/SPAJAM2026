@@ -8,3 +8,19 @@
 __pycache__/
 *.py[cod]
 .venv/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+*.iml
+.fvm/
+coverage/
+
+# Secrets (keys live in Supabase secrets, never in the app repo)
+.env
+.env.*
+supabase/.temp/
