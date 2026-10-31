@@ -1,0 +1,4 @@
+# flutter test のタグ
+tags:
+  # 実際の Supabase に接続するテスト。接続設定（--dart-define-from-file）がなければスキップされる。
+  live: {}
