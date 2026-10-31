@@ -166,6 +166,9 @@ end $$;
 revoke all on function public._judge_context(uuid,text,uuid) from public, anon, authenticated;
 revoke all on function public._record_judgement(uuid,text,uuid,text,boolean,text) from public, anon, authenticated;
 grant execute on function public._judge_context(uuid,text,uuid), public._record_judgement(uuid,text,uuid,text,boolean,text) to service_role;
+revoke all on function public.require_user(), public.expire_rooms() from public, anon, authenticated;
+revoke all on function public.is_room_viewer(uuid,uuid) from public, anon;
+grant execute on function public.is_room_viewer(uuid,uuid) to authenticated;
 revoke all on function public.create_room(text), public.start_room(uuid), public.finish_room(uuid), public.find_room_by_code(text), public.join_room(uuid,text), public.scan_start(uuid,text), public.scan_checkpoint(uuid,text), public.scan_goal(uuid,text) from public, anon;
 grant execute on function public.create_room(text), public.start_room(uuid), public.finish_room(uuid), public.find_room_by_code(text), public.join_room(uuid,text), public.scan_start(uuid,text), public.scan_checkpoint(uuid,text), public.scan_goal(uuid,text) to authenticated;
 
