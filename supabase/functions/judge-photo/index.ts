@@ -23,13 +23,23 @@ Deno.serve(async (request) => {
   if (context.error) return context.error.message.startsWith("MQ:") ? mq(context.error.message) : json({ error: "judge_unavailable" }, 503);
   const photo = await caller.storage.from("photos").download(photoPath);
   if (photo.error) return mq("MQ:notFound");
+  const photoBytes = new Uint8Array(await photo.data.arrayBuffer());
+  const dimensions = jpegDimensions(photoBytes);
+  if (dimensions === null || Math.min(dimensions.width, dimensions.height) < 480) {
+    const reason = dimensions === null
+      ? "画像サイズを確認できません。撮り直してください。"
+      : "画像が小さすぎます。近づいて撮り直してください。";
+    const recorded = await admin.rpc("_record_judgement", { p_room_id: roomId, p_checkpoint_id: checkpointId, p_user_id: user.id, p_photo_path: photoPath, p_passed: false, p_reason: reason });
+    if (recorded.error) return recorded.error.message.startsWith("MQ:") ? mq(recorded.error.message) : json({ error: "judge_unavailable" }, 503);
+    return json(recorded.data);
+  }
   let verdict: { passed: boolean; reason: string; evidence?: string };
   try {
-    const image = await blobToDataUrl(photo.data);
+    const image = dataUrlFromBytes(photoBytes, photo.data.type);
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST", headers: { "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "gpt-4.1-mini", temperature: 0, response_format: { type: "json_object" }, messages: [
-        { role: "system", content: "You are a strict visual verifier for a scavenger-hunt mission. Inspect the actual image, never infer a target from the mission text. Return JSON only: {passed:boolean,reason:string,evidence:string}. Set passed=true only when the image directly and unambiguously shows the exact mission target. A uniform, blank, solid-color, unrelated, blurred, obstructed, or uncertain image MUST be rejected. For a pass, evidence must name the concrete visible target. For a rejection, explain what required visual evidence is absent." },
+        { role: "system", content: "あなたはスタンプラリー写真の厳格な視覚判定者です。実際の画像だけを確認し、ミッション文から対象を推測してはいけません。JSONのみを返してください: {passed:boolean,reason:string,evidence:string}。passed=trueにできるのは、画像にミッションの正確な対象が直接かつ明確に写っている場合だけです。無地、単色、無関係、不鮮明、遮蔽、または確信できない画像は必ず不合格にしてください。合格時のevidenceには見えている具体的な対象を、不合格時のreasonには不足している視覚的根拠を書いてください。reasonとevidenceは必ず自然な日本語のみで返してください。" },
         { role: "user", content: [{ type: "text", text: `Mission: ${context.data.mission}` }, { type: "image_url", image_url: { url: image, detail: "high" } }] },
       ] }),
     });
@@ -47,7 +57,7 @@ Deno.serve(async (request) => {
     const payload = await response.json();
     const parsed = JSON.parse(payload.choices?.[0]?.message?.content ?? "");
     if (typeof parsed.passed !== "boolean" || typeof parsed.reason !== "string" || (parsed.passed && (typeof parsed.evidence !== "string" || parsed.evidence.trim() === ""))) throw new Error("invalid judge response");
-    verdict = parsed;
+    verdict = { ...parsed, reason: japaneseReason(parsed.reason, parsed.passed) };
   } catch (error) {
     console.error(JSON.stringify({
       event: "openai_request_error",
@@ -61,9 +71,8 @@ Deno.serve(async (request) => {
   return json(recorded.data);
 });
 
-async function blobToDataUrl(blob: Blob): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  return `data:${blob.type || "image/jpeg"};base64,${encodeBase64(bytes)}`;
+function dataUrlFromBytes(bytes: Uint8Array, mimeType: string): string {
+  return `data:${mimeType || "image/jpeg"};base64,${encodeBase64(bytes)}`;
 }
 
 function safeErrorMessage(value: unknown): string | null {
@@ -72,4 +81,28 @@ function safeErrorMessage(value: unknown): string | null {
       .replace(/sk-[A-Za-z0-9_-]+/g, "[redacted-openai-key]")
       .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
       .slice(0, 500);
+}
+
+function japaneseReason(reason: string, passed: boolean): string {
+  return /[A-Za-z]/.test(reason)
+      ? passed ? "写真にミッションの対象が確認できました。" : "写真に必要な対象を確認できませんでした。"
+      : reason;
+}
+
+function jpegDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length < 10 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  for (let offset = 2; offset + 8 < bytes.length;) {
+    if (bytes[offset] !== 0xff) { offset += 1; continue; }
+    while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
+    const marker = bytes[offset++];
+    if (marker === 0xd8 || marker === 0xd9 || marker === 0x01) continue;
+    if (offset + 1 >= bytes.length) return null;
+    const length = (bytes[offset] << 8) | bytes[offset + 1];
+    if (length < 2 || offset + length > bytes.length) return null;
+    if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+      return { height: (bytes[offset + 3] << 8) | bytes[offset + 4], width: (bytes[offset + 5] << 8) | bytes[offset + 6] };
+    }
+    offset += length;
+  }
+  return null;
 }

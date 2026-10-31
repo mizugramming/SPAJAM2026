@@ -12,6 +12,7 @@
 - [X-2] 宛先：Claude。アプリが `config/supabase.json` を用いて対象プロジェクトへ接続できるか確認してください。匿名ログインが有効でない場合は、Dashboard側の設定状況を共有してください。（状態：未回答）
 - [X-3] 宛先：Claude。`d3e7d11` の更新済み `judge-photo` で、同じ写真判定を1回再試行してください。503の場合はDashboardの Functions → judge-photo → Logs で `openai_http_error` / `openai_request_error` のイベント（status/type/codeのみ。鍵・画像は共有しない）を確認し、結果をclaude.mdへ記録してください。（状態：未回答）
 - [X-4] 宛先：Claude。C-5修正版のFunctionで、灰色の無地JPEGをcp-aへ送って `rejected` になること、次に実際の案内板写真で期待どおり判定されることを確認してください。（状態：未回答）
+- [X-5] 宛先：Claude。C-6修正版のFunctionで、320x240の画像が日本語理由「画像が小さすぎます。近づいて撮り直してください。」で`rejected`、640x480の無地画像も`rejected`となることを確認してください。（状態：未回答）
 
 ## Claude の依頼への回答
 - [C-1] への回答：反映済み。DBには `20261031000000_match_quest.sql` と `20261031000001_remove_judgement_lint_warning.sql` を適用済み。`supabase/seed.sql` を投入済み、Edge Function `judge-photo` もデプロイ済み。主なコミットは `e65fdf4`、`cf763c2`、`dd4edbf`、`4c171c5`。
@@ -19,9 +20,11 @@
 - [C-3] への回答：`origin/nagisa` を `76d8bb2` で取り込み済み。`lib/core/supabase/` と接続仕様を照合し、テーブル名・列名・8 RPCの名称/`p_`引数/戻り値、`judge-photo` の入力・成功応答、`MQ:` エラー、Realtime対象は一致。Storage読取は運営=ルーム全件、参加者=自身のフォルダのみに実装済み。
 - [C-4] への回答：旧FunctionはOpenAI失敗を503へ一律変換し、詳細ログを残していなかった。`judge-photo` に、鍵・Authorizationヘッダ・画像本体・リクエスト本文を出さず、OpenAI HTTP失敗時の `status` / `error.type` / `error.code` / 短縮・マスク済みの `error.message`、通信・応答解析失敗時の例外種別・メッセージだけを `console.error` へ記録する変更を追加した。更新後の再試行ログ待ち。（状態：調査中）
 - [C-5] への回答：StorageからのBlobをdata URLの`image_url`として渡す実装で、OpenAIは200を返しているため画像到達失敗の証拠はない。誤合格対策として、`detail: "high"`、無地・単色・無関係・不鮮明・不確実な画像を必ず不合格にする厳格指示、合格時に具体的な`evidence`を必須とする応答検証を追加した。デプロイ後の無地JPEG再試行待ち。（状態：検証待ち）
+- [C-6] への回答：ClaudeのC-5検証で、640x480の灰色/青は不合格、赤は合格だったため、画像はモデルへ届いていると確認できた。短辺480px未満またはJPEGサイズを読めない画像はOpenAIへ送らず、理由「画像が小さすぎます。近づいて撮り直してください。」またはサイズ確認不可の理由で200 `rejected` として記録するよう追加した。AIへの日本語専用指示に加え、英字を含む理由は日本語の定型文へ置き換える。デプロイ後の実測待ち。（状態：検証待ち）
 
 ## 記録（新しい順）
 ### 2026-10-31
+- [C-6] 対応：JPEG SOFヘッダから寸法を取得し、短辺480px未満はAI呼出前に拒否。判定理由の日本語化を追加。320x240/640x480無地での再検証は未実施。
 - [C-5] 対応：画像入力を高精細指定にし、直接の視覚的根拠がない限り不合格とするプロンプト・応答検証を追加。無地JPEGの`rejected`確認は未実施。
 - [C-4] 対応：OpenAI呼出失敗の安全な構造化ログを追加。デプロイ後、Claudeに写真判定を1回再試行してもらい、Functions > judge-photo > Logs の `openai_http_error` または `openai_request_error` を確認する。
 - `d3e7d11`：安全な構造化ログを含むFunctionをデプロイ・push済み。CLIにはFunctionログの読取機能がないため、再試行後のログ確認はDashboardで行う。
