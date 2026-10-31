@@ -62,6 +62,8 @@ ref.invalidate(activeSessionProvider);
 // ホームの「続きから」は AppRoutes.playerEntry を arguments: roomId（String）で開く
 ```
 
+撮影写真は、送る前に長辺 1280px 程度の JPEG に縮小する（例：image_picker の `maxWidth: 1280, maxHeight: 1280, imageQuality: 80`）。原寸の写真は AI 判定が遅くなる。カメラ用パッケージの追加は嶋本に依頼する。
+
 `sessionStoreProvider` などは `package:mayoi_quest/core/session/session_store.dart`。
 
 モック中に別の参加者として動かしたいときは、テストのように `InMemoryMatchBackend.repositoryFor('ユーザーID')` を使う（`test/core/in_memory_match_backend_test.dart` 参照）。運営画面の「開発用：モック参加者」パネルでも参加者を動かせる。
