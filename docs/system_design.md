@@ -63,7 +63,66 @@
 - AI判定の基準（正解写真と比べるか、ミッション文だけで判定するか）と、使うモデル・費用上限。
 - Supabase プロジェクトの作成者、無料枠で足りるか。
 
+## Supabase 接続仕様（アプリ ⇔ サーバー）
+
+アプリ側（`lib/core/supabase/`）とサーバー側（`supabase/`）はこの仕様だけで接続する。変更するときは両方の担当で合意し、この節を先に更新する。
+
+### 認証
+- アプリは起動時に匿名ログイン（`auth.signInAnonymously()`）。`auth.uid()` がユーザーID。
+- 運営 = `rooms.owner_id = auth.uid()`。参加者 = `participants` に自分の行がある人。
+
+### テーブル（public。列名は snake_case、時刻は timestamptz）
+
+| テーブル | 列 | 制約 |
+|---|---|---|
+| courses | id text PK, name, start_qr, goal_qr, time_limit_seconds int | |
+| checkpoints | id text PK, course_id → courses, name, floor, qr, mission, points int, required bool, sort_order int | |
+| rooms | id uuid PK, code text, course_id, owner_id uuid, status text（waiting/running/finished）, created_at, started_at, ends_at, finished_at | 進行中の code は一意 |
+| participants | room_id, user_id uuid, display_name, joined_at, start_scanned_at, goal_at | PK(room_id, user_id) |
+| submissions | id uuid PK, room_id, participant_id uuid, checkpoint_id, photo_path, submitted_at, status text（pending/passed/rejected）, reason, judged_at | |
+| checkpoint_clears | room_id, participant_id uuid, checkpoint_id, points int, cleared_at, submission_id | UNIQUE(room_id, participant_id, checkpoint_id) |
+
+### 読み取り（RLS）
+- courses / checkpoints：ログイン済みなら読める。
+- rooms / participants / checkpoint_clears：そのルームの運営と参加者が読める。
+- submissions：運営は全件、参加者は自分の分だけ。
+- アプリからの insert / update / delete は全テーブルで禁止。書き込みは下の関数だけが行う。
+- Realtime：rooms, participants, submissions, checkpoint_clears を publication に入れる。アプリは `room_id`（rooms は `id`）で絞って購読し、変更が来たら読み直す。
+
+### 書き込み（Postgres 関数。`rpc` で呼ぶ。security definer で中で権限を確認）
+
+| 関数 | 引数 | 戻り値 | 誰が |
+|---|---|---|---|
+| create_room | p_course_id | rooms の1行（json） | 誰でも（作った人が運営） |
+| start_room | p_room_id | なし。started_at=now()、ends_at=now()+制限時間 | 運営 |
+| finish_room | p_room_id | なし | 運営 |
+| find_room_by_code | p_code | rooms の1行（json） | 誰でも |
+| join_room | p_room_id, p_display_name | participants の1行（json）。再参加は既存の行を返す | 運営以外 |
+| scan_start | p_room_id, p_qr | なし | 参加者 |
+| scan_checkpoint | p_room_id, p_qr | checkpoint_id（text） | 参加者 |
+| scan_goal | p_room_id, p_qr | なし | 参加者 |
+
+時刻はすべてサーバーの `now()`。規則は上の「対戦の流れと規則」と `lib/core/mock/in_memory_match_backend.dart` と同じにする。
+
+### 写真と判定
+1. アプリが Storage バケット `photos`（非公開）の `{room_id}/{user_id}/{任意}.jpg` に写真を置く。参加者は自分のフォルダにだけ置ける。運営はルームの写真を全部読める。
+2. アプリが Edge Function `judge-photo` を呼ぶ：`{"room_id", "checkpoint_id", "photo_path"}`。
+3. Function は呼び出し元が対戦中の参加者か確認 → 写真を OpenAI で判定 → submissions に記録 → 合格なら checkpoint_clears に `on conflict do nothing` で追加。
+4. 成功時（200）：`{"outcome": "passed" | "rejected", "reason": "...", "points_awarded": 0以上, "already_cleared": bool}`
+5. OpenAI に接続できない・タイムアウト：503 `{"error": "judge_unavailable"}`。submissions に記録しない。
+6. OpenAI の鍵は Supabase secrets（`OPENAI_API_KEY`）。
+
+### エラーの返し方
+- 関数・Function のルール違反は、`MQ:` で始まる文字列で返す。関数は `raise exception 'MQ:roomNotRunning'`、Function は 4xx の `{"error": "MQ:roomNotRunning"}`。
+- コード：`MQ:permission`、`MQ:notFound`、`MQ:roomNotWaiting`、`MQ:roomNotRunning`、`MQ:timeUp`、`MQ:wrongQr`、`MQ:startNotScanned`、`MQ:alreadyFinished`、`MQ:requiredNotCleared`（アプリの `MatchRule` と同じ名前）。
+- それ以外の失敗は、アプリでは通信失敗として扱う。
+
+### 未対応・注意
+- checkpoints の qr 列は参加者からも読めるので、QRを読まずに値を知ることができる。初版では許容し、後で関数側の照合に寄せる。
+- 端末の時計とサーバー時刻のずれは補正していない（残り時間の表示が数秒ずれる可能性）。
+
 ## 保存・復帰
 
 - 今のモックはメモリ上だけなので、アプリを再起動するとデータが消える。
-- Supabase 接続後：対戦データはサーバーにある。端末には「参加中のルームID」だけを保存し、再起動時に `watchRoom` で状態を取り直す（未実装）。
+- 端末には「役割（運営/参加者）とルームID」だけを保存する（`lib/core/session/session_store.dart`）。対戦データはサーバーから `watchRoom` で取り直す。
+- Supabase の匿名ログインは端末に保持されるので、再起動しても同じユーザーIDで戻れる。

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/routes.dart';
 import '../../../core/models/models.dart';
 import '../../../core/providers.dart';
+import '../../../core/session/session_store.dart';
 import '../../../core/ui/messages.dart';
 
 /// 運営：固定コースを選んでルームを作る。
@@ -22,6 +23,8 @@ class _OwnerCreateRoomPageState extends ConsumerState<OwnerCreateRoomPage> {
     setState(() => _creating = true);
     try {
       final room = await ref.read(matchRepositoryProvider).createRoom(courseId: course.id);
+      await ref.read(sessionStoreProvider).save(ActiveSession(role: SessionRole.owner, roomId: room.id));
+      ref.invalidate(activeSessionProvider);
       if (!mounted) return;
       await Navigator.pushReplacementNamed(context, AppRoutes.ownerRoom, arguments: room.id);
     } catch (e) {
