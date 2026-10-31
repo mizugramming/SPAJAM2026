@@ -7,9 +7,11 @@ import 'package:mayoi_quest/app/app.dart';
 import 'package:mayoi_quest/core/mock/in_memory_match_backend.dart';
 import 'package:mayoi_quest/core/mock/sample_course.dart';
 import 'package:mayoi_quest/core/providers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('運営がルームを作り、参加者を待って一斉開始し、進行と写真を確認できる', (tester) async {
+    SharedPreferences.setMockInitialValues({});
     final backend = InMemoryMatchBackend(courses: const [sampleCourse]);
     await tester.pumpWidget(
       ProviderScope(
