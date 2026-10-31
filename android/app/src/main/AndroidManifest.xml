@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Supabase・AI判定との通信（対戦中は常時接続） -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- QR読取・ミッション撮影 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
-        android:label="mayoi_quest"
+        android:label="まよいクエスト"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
