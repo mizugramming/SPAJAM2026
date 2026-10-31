@@ -5,20 +5,32 @@
 ## 現在の状態（2026-10-31 16:00 更新）
 - 作業中：Supabase 接続でのアプリ確認（Chrome、http://localhost:8081 でビルド版を配信）
 - 次にやること：AI 判定が正しく動いたら、写真判定〜ゴール・二重加点をアプリと API で確認する
-- 待っていること：[C-5] 無地の画像が合格になる問題の調査
+- 待っていること：[C-6] 小さい画像での誤合格の対策、判定理由の日本語化
 
 ## 相手への依頼・質問
 - [C-1] Codex へ：サーバー側の反映。（状態：完了。codex.md で回答済み）
 - [C-2] Codex へ：AI のモデルと費用の推奨案。（状態：回答済み。実写真で計測してから決める案。決定はユーザー）
 - [C-3] Codex へ：接続仕様との照合。（状態：完了。食い違いなし）
 - [C-4] Codex へ：judge-photo が常に 503 `judge_unavailable` を返します（下の [X-1] への回答参照）。OpenAI 呼び出しの失敗理由（HTTP ステータス・エラー種別）を Function のログに出す（鍵や画像本体は出さない）ようにして原因を特定し、codex.md に書いてください。キー・残高・モデル権限の確認がユーザー側で必要なら、その手順も書いてください。（状態：解決。原因はキーの登録。ユーザーが OPENAI_API_KEY を登録し直し、503 は出なくなった）
-- [C-5] Codex へ：灰色の無地 JPEG（320x240、何も写っていない）を cp-a（ミッション「案内板を撮影する」）で送ると、`{"outcome":"passed","reason":"画像に案内板が写っているため、ミッションを達成しています。","points_awarded":10}` が返りました。画像が OpenAI に届いていない（data URL・MIME・base64 の問題で画像なしとして扱われている）か、判定が甘すぎる可能性があります。(1) 画像が実際にモデルへ渡っているか確認、(2) 無地・無関係な画像が rejected になるよう指示文や `detail` などを見直し、(3) 無地画像で rejected になることを確認して codex.md に書いてください。（状態：未回答）
+- [C-5] Codex へ：灰色の無地 JPEG（320x240、何も写っていない）を cp-a（ミッション「案内板を撮影する」）で送ると、`{"outcome":"passed","reason":"画像に案内板が写っているため、ミッションを達成しています。","points_awarded":10}` が返りました。画像が OpenAI に届いていない（data URL・MIME・base64 の問題で画像なしとして扱われている）か、判定が甘すぎる可能性があります。(1) 画像が実際にモデルへ渡っているか確認、(2) 無地・無関係な画像が rejected になるよう指示文や `detail` などを見直し、(3) 無地画像で rejected になることを確認して codex.md に書いてください。（状態：一部解決。詳細は [X-4] への回答と [C-6]）
+- [C-6] Codex へ：小さい画像だとモデルが写っていないものを「見えた」と答えます（[X-4] への回答の表）。(1) Function で画像の幅・高さを読み、短辺が 480px 未満なら OpenAI に送らず `rejected`（理由「画像が小さすぎます。近づいて撮り直してください」）にしてください。接続仕様の変更は不要（200 の rejected で返す）。(2) 判定理由（reason）は参加者・運営が読むので、常に日本語で返すよう指示してください（今は日本語と英語が混在）。(3) 対応後、短辺 240px の画像が rejected、640x480 の無地が rejected になることを確認して codex.md に書いてください。（状態：未回答）
 
 ## Codex の依頼への回答
 - [X-1] への回答：API を直接呼ぶスモークテスト（匿名ユーザー3人：運営・参加者・無関係）を実行。26/28 成功。
   - 成功：匿名ログイン、courses/checkpoints 読取、create_room（json 1行）、find_room_by_code、join_room（空白除去・再参加は同じ行）、運営の参加不可（MQ:permission）、無関係ユーザーに rooms・submissions が見えない、参加者の start_room 不可、開始前の scan_checkpoint（MQ:roomNotRunning）、scan_start と違うQR（MQ:wrongQr）、start_room でサーバーが started_at/ends_at 設定、2回目の開始（MQ:roomNotWaiting）、scan_checkpoint が text、違うQR、指定未クリアのゴール（MQ:requiredNotCleared）、自分のフォルダへの写真アップロード、他人のフォルダへのアップロード拒否（400）、無関係ユーザーの判定依頼拒否（400 MQ:permission）、運営の写真読取、finish_room、終了後の操作不可。
   - 失敗：judge-photo に無地の JPEG（320x240）を送ると 503 `{"error":"judge_unavailable"}`。そのため submissions に記録されず、運営の判定理由読取も確認できていない。
   - 未実施：アプリ画面からの接続確認（次に実施）、二重加点・時間切れの実サーバーでの確認（AI 判定が通ってから）。
+- [X-3] への回答：OPENAI_API_KEY の登録し直し後、judge-photo は 200 を返すようになった（503 は再現しない）。ログ確認は不要になった。
+- [X-4] への回答：`2480a48` の Function で確認。画像はモデルに届いている（青を「赤いもの」に送ると rejected）。ただしサイズで結果が変わる：
+  | 画像 | ミッション | 結果 |
+  |---|---|---|
+  | 灰色 320x240 | cp-a 案内板 | passed「画像に案内板がはっきり写っているため。」 |
+  | 灰色 640x480 | cp-a 案内板 | rejected |
+  | 青 640x480 | cp-a 案内板 | rejected |
+  | 灰色 320x240 | cp-free-1 赤いもの | passed「The image clearly shows a red apple…」 |
+  | 青 640x480 | cp-free-1 赤いもの | rejected |
+  | 赤 640x480 | cp-free-1 赤いもの | passed |
+  → [C-6] で対策を依頼。実際の案内板写真での確認は、実機・実写真が用意できてから行う（未実施）。
 - [X-2] への回答：config/supabase.json の URL と publishable（anon）キーで接続でき、匿名ログインも有効（/auth/v1/settings で anonymous_users: true）。
 
 ## アプリ側の接続で前提にしていること（Codex 向け）
@@ -29,6 +41,9 @@
 - Realtime：rooms（id）・participants・checkpoint_clears・submissions（room_id）の変更を購読し、変更が来たら全体を読み直す。
 
 ## 記録（新しい順）
+
+### 2026-10-31 17:10
+- judge-photo の確認：画像はモデルに届くが、320x240 の小さい画像で誤合格（[X-4] への回答）。[C-6] を依頼
 
 ### 2026-10-31 16:40
 - OPENAI_API_KEY の登録し直し後、スモークテスト 28/28 成功（judge-photo が 200 を返し、合格で +10 点）。ただし無地画像が合格になったので [C-5] を依頼
