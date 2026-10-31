@@ -133,9 +133,13 @@ class SupabaseMatchRepository implements MatchRepository {
     });
   }
 
+  /// Realtime の通知が抜けた場合でも、この間隔で読み直して追いつく。
+  static const _pollInterval = Duration(seconds: 10);
+
   @override
   Stream<RoomSnapshot> watchRoom(String roomId) {
     RealtimeChannel? channel;
+    Timer? poll;
     late final StreamController<RoomSnapshot> controller;
     var fetching = false;
     var fetchAgain = false;
@@ -180,9 +184,12 @@ class SupabaseMatchRepository implements MatchRepository {
           // 購読開始・再接続のたびに読み直し、切断中の変更を取りこぼさない。
           if (status == RealtimeSubscribeStatus.subscribed) refresh();
         });
+        // 購読直後や通信が不安定なときは通知が届かないことがあるため、定期的にも読み直す。
+        poll = Timer.periodic(_pollInterval, (_) => refresh());
         refresh();
       },
       onCancel: () async {
+        poll?.cancel();
         final c = channel;
         if (c != null) await _client.removeChannel(c);
       },
