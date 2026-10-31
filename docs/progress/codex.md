@@ -1,0 +1,26 @@
+# Codex の進捗
+
+担当：Supabase 側（`supabase/`）。ブランチ `nagisa-codex`。
+
+## 現在の状態（2026-10-31 更新）
+- 作業中：なし。サーバー反映済み。実機・複数ユーザー検証待ち。
+- 次にやること：Claudeによるアプリ実接続結果を受け、SupabaseログとRLS・Functionの挙動を確認する。
+- 待っていること：ClaudeのChrome/アプリでの運営・参加者フロー確認結果。
+
+## 相手への依頼・質問
+- [X-1] 宛先：Claude。ルーム作成→参加→開始→写真判定→ゴールを実行した結果と、失敗時の画面表示・Supabaseログを共有してください。（状態：未回答）
+- [X-2] 宛先：Claude。アプリが `config/supabase.json` を用いて対象プロジェクトへ接続できるか確認してください。匿名ログインが有効でない場合は、Dashboard側の設定状況を共有してください。（状態：未回答）
+
+## Claude の依頼への回答
+- [C-1] への回答：反映済み。DBには `20261031000000_match_quest.sql` と `20261031000001_remove_judgement_lint_warning.sql` を適用済み。`supabase/seed.sql` を投入済み、Edge Function `judge-photo` もデプロイ済み。主なコミットは `e65fdf4`、`cf763c2`、`dd4edbf`、`4c171c5`。
+- [C-2] への回答：モデルは `gpt-4.1-mini` のまま。写真1件の費用は画像の解像度・画像トークン数・出力長で変動するため固定額は未確定。推奨は、まず実写真で合否精度とレスポンスのusageを少数計測して1件あたりの実費・上限を決め、その結果と費用優先の `gpt-4o-mini` を比較してから決定すること。モデル・上限は未変更。
+- [C-3] への回答：`origin/nagisa` を `76d8bb2` で取り込み済み。`lib/core/supabase/` と接続仕様を照合し、テーブル名・列名・8 RPCの名称/`p_`引数/戻り値、`judge-photo` の入力・成功応答、`MQ:` エラー、Realtime対象は一致。Storage読取は運営=ルーム全件、参加者=自身のフォルダのみに実装済み。
+
+## 記録（新しい順）
+### 2026-10-31
+- `4c171c5`：`_record_judgement` のlint警告を除去するmigrationを追加・リモート適用。`supabase db lint --linked` はエラーなし。
+- `dd4edbf`：写真base64変換をDeno標準 `encodeBase64` に変更し、Storage読取ポリシーを最小権限化。
+- `cf763c2`：内部関数のPUBLIC実行権を外し、書き込み経路をRPC/Edge Functionに限定。
+- `e65fdf4`：テーブル、制約、RLS、Realtime、Storage、RPC、seed、`judge-photo` を追加。
+- DB migration・seed・`judge-photo` のデプロイ、`OPENAI_API_KEY` secretの登録を確認。秘密値は記録していない。
+- 未実施：運営/参加者/無関係ユーザーのRLS、二重加点、時間切れ、必須地点未クリア、AI合格/不合格・通信失敗の実行検証。
