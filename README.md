@@ -37,11 +37,13 @@ Android専用、Flutter、Android Studio。オーナーも同じアプリを使�
 | バックエンド | Supabase（東京リージョン）。アプリ側の接続は実装済み、サーバー側（`supabase/`）は作成中 |
 | AI判定 | OpenAI。Supabase Edge Function から呼び、鍵はアプリに入れない（サーバー側は作成中） |
 | 状態管理 | flutter_riverpod 3 |
+| 対象端末 | Android。`web/` は開発中に Chrome で画面を確認するためだけに置く（カメラ・QRは実機で確認） |
 
 ## 開発環境・起動・検証
 
 ```bash
 fvm flutter pub get --enforce-lockfile   # fvm がなければ 3.44.5 の flutter を直接使う
+fvm flutter run -d chrome                # 開発中の確認用：Chrome で表示（本番の対象は Android）
 fvm flutter run                          # モックで起動（Supabase に接続しない）
 fvm flutter run --dart-define-from-file=config/supabase.json   # Supabase に接続
 fvm flutter analyze
