@@ -34,19 +34,22 @@ Android専用、Flutter、Android Studio。オーナーも同じアプリを使�
 | リポジトリ | https://github.com/mizugramming/SPAJAM2026 |
 | 統合ブランチ（PR先） | `test-1`。作業ブランチ（例：`nagisa`）から `test-1` へPR。`main` は共通キット用なのでアプリを入れない |
 | Flutter | 3.44.5 stable（Dart 3.12.2）。`.fvmrc` で固定 |
-| バックエンド | Supabase（接続は未実装。今はモックで動く） |
-| AI判定 | OpenAI。Supabase Edge Function から呼び、鍵はアプリに入れない（未実装） |
+| バックエンド | Supabase（東京リージョン）。アプリ側の接続は実装済み、サーバー側（`supabase/`）は作成中 |
+| AI判定 | OpenAI。Supabase Edge Function から呼び、鍵はアプリに入れない（サーバー側は作成中） |
 | 状態管理 | flutter_riverpod 3 |
 
 ## 開発環境・起動・検証
 
 ```bash
 fvm flutter pub get --enforce-lockfile   # fvm がなければ 3.44.5 の flutter を直接使う
-fvm flutter run                          # Android 端末・エミュレーター
+fvm flutter run                          # モックで起動（Supabase に接続しない）
+fvm flutter run --dart-define-from-file=config/supabase.json   # Supabase に接続
 fvm flutter analyze
 fvm flutter test
 dart format lib test                     # 行幅120（analysis_options.yaml）
 ```
+
+`config/supabase.json` は `config/supabase.example.json` をコピーして、Project URL と publishable（anon）キーを入れる。Git には入れない。`service_role` / secret キーはアプリに入れない。
 
 CI（`.github/workflows/check.yml` の `check`）は、依存取得・整形・analyze・test・空白チェックを実行する。実機での起動・カメラ・QR・複数端末の同期は未検証。
 
@@ -60,7 +63,10 @@ lib/core/models/              共通モデル・エラー（嶋本）
 lib/core/repository/          MatchRepository 契約（嶋本）
 lib/core/rules/               得点・ゴール・順位の判定（嶋本）
 lib/core/mock/                モックのサーバー・AI判定・仮コース（嶋本）
+lib/core/supabase/            Supabase 版 MatchRepository（嶋本）
+lib/core/session/             再起動後に戻るルームの保存（嶋本）
 lib/core/providers.dart       画面が使う Provider（嶋本）
+supabase/                     テーブル・RLS・関数・Edge Function（サーバー側の担当）
 lib/features/owner/           オーナー画面（嶋本）
 lib/features/player/          プレイヤー画面（松本）
 test/core/, test/features/owner/   嶋本のテスト
