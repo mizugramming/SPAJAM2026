@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encodeBase64 } from "jsr:@std/encoding/base64";
+import jpeg from "npm:jpeg-js@0.4.4";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const mq = (message: string) => json({ error: message }, 400);
@@ -33,13 +34,18 @@ Deno.serve(async (request) => {
     if (recorded.error) return recorded.error.message.startsWith("MQ:") ? mq(recorded.error.message) : json({ error: "judge_unavailable" }, 503);
     return json(recorded.data);
   }
-  let verdict: { passed: boolean; reason: string; evidence?: string };
+  if (isNearlyUniformJpeg(photoBytes)) {
+    const recorded = await admin.rpc("_record_judgement", { p_room_id: roomId, p_checkpoint_id: checkpointId, p_user_id: user.id, p_photo_path: photoPath, p_passed: false, p_reason: "何も写っていないようです。対象を撮り直してください。" });
+    if (recorded.error) return recorded.error.message.startsWith("MQ:") ? mq(recorded.error.message) : json({ error: "judge_unavailable" }, 503);
+    return json(recorded.data);
+  }
+  let verdict: { passed: boolean; reason: string; observed?: string };
   try {
     const image = dataUrlFromBytes(photoBytes, photo.data.type);
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST", headers: { "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "gpt-4.1-mini", temperature: 0, response_format: { type: "json_object" }, messages: [
-        { role: "system", content: "あなたはスタンプラリー写真の厳格な視覚判定者です。実際の画像だけを確認し、ミッション文から対象を推測してはいけません。JSONのみを返してください: {passed:boolean,reason:string,evidence:string}。passed=trueにできるのは、画像にミッションの正確な対象が直接かつ明確に写っている場合だけです。無地、単色、無関係、不鮮明、遮蔽、または確信できない画像は必ず不合格にしてください。合格時のevidenceには見えている具体的な対象を、不合格時のreasonには不足している視覚的根拠を書いてください。reasonとevidenceは必ず自然な日本語のみで返してください。" },
+        { role: "system", content: "あなたはスタンプラリー写真の厳格な視覚判定者です。実際の画像だけを確認し、ミッション文から対象を推測してはいけません。JSONのみを返してください: {observed:string,passed:boolean,reason:string}。必ず最初に画像内で実際に確認できるものをobservedへ具体的に記述し、その記述だけを根拠にpassedを決めてください。passed=trueにできるのは、画像にミッションの正確な対象が直接かつ明確に写っている場合だけです。無地、単色、無関係、不鮮明、遮蔽、または確信できない画像は必ず不合格にしてください。observedが無地・単色・何も確認できない内容なら、passedは必ずfalseです。reasonとobservedは必ず自然な日本語のみで返してください。" },
         { role: "user", content: [{ type: "text", text: `Mission: ${context.data.mission}` }, { type: "image_url", image_url: { url: image, detail: "high" } }] },
       ] }),
     });
@@ -56,7 +62,7 @@ Deno.serve(async (request) => {
     }
     const payload = await response.json();
     const parsed = JSON.parse(payload.choices?.[0]?.message?.content ?? "");
-    if (typeof parsed.passed !== "boolean" || typeof parsed.reason !== "string" || (parsed.passed && (typeof parsed.evidence !== "string" || parsed.evidence.trim() === ""))) throw new Error("invalid judge response");
+    if (typeof parsed.passed !== "boolean" || typeof parsed.reason !== "string" || typeof parsed.observed !== "string" || parsed.observed.trim() === "") throw new Error("invalid judge response");
     verdict = { ...parsed, reason: japaneseReason(parsed.reason, parsed.passed) };
   } catch (error) {
     console.error(JSON.stringify({
@@ -87,6 +93,33 @@ function japaneseReason(reason: string, passed: boolean): string {
   return /[A-Za-z]/.test(reason)
       ? passed ? "写真にミッションの対象が確認できました。" : "写真に必要な対象を確認できませんでした。"
       : reason;
+}
+
+function isNearlyUniformJpeg(bytes: Uint8Array): boolean {
+  try {
+    const decoded = jpeg.decode(bytes, { useTArray: true });
+    const pixels = decoded.data;
+    if (pixels.length === 0) return false;
+
+    let count = 0;
+    let mean = 0;
+    let sumOfSquares = 0;
+    // 8px ごとのサンプリングで、画像全体の色のばらつきを十分低コストに確認する。
+    for (let y = 0; y < decoded.height; y += 8) {
+      for (let x = 0; x < decoded.width; x += 8) {
+        const offset = (y * decoded.width + x) * 4;
+        const luminance = (pixels[offset] * 0.2126) + (pixels[offset + 1] * 0.7152) + (pixels[offset + 2] * 0.0722);
+        count += 1;
+        const delta = luminance - mean;
+        mean += delta / count;
+        sumOfSquares += delta * (luminance - mean);
+      }
+    }
+    return count > 1 && Math.sqrt(sumOfSquares / count) < 2;
+  } catch {
+    // 画像を復号できない場合は、従来どおりAI判定へ進める。
+    return false;
+  }
 }
 
 function jpegDimensions(bytes: Uint8Array): { width: number; height: number } | null {
