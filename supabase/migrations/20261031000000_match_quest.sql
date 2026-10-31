@@ -175,4 +175,12 @@ grant execute on function public.create_room(text), public.start_room(uuid), pub
 alter publication supabase_realtime add table public.rooms, public.participants, public.submissions, public.checkpoint_clears;
 insert into storage.buckets (id, name, public) values ('photos','photos',false) on conflict (id) do update set public=false;
 create policy "participants upload own room photos" on storage.objects for insert to authenticated with check (bucket_id='photos' and (storage.foldername(name))[2]=auth.uid()::text and exists(select 1 from public.participants where room_id=(storage.foldername(name))[1]::uuid and user_id=auth.uid()));
-create policy "room viewers read photos" on storage.objects for select to authenticated using (bucket_id='photos' and public.is_room_viewer((storage.foldername(name))[1]::uuid));
+create policy "room owners or matching participants read photos" on storage.objects for select to authenticated using (
+  bucket_id = 'photos' and (
+    exists(select 1 from public.rooms where id = (storage.foldername(name))[1]::uuid and owner_id = auth.uid())
+    or (
+      (storage.foldername(name))[2] = auth.uid()::text
+      and exists(select 1 from public.participants where room_id = (storage.foldername(name))[1]::uuid and user_id = auth.uid())
+    )
+  )
+);

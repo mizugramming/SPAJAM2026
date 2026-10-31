@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { encodeBase64 } from "jsr:@std/encoding/base64";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const mq = (message: string) => json({ error: message }, 400);
@@ -45,6 +46,5 @@ Deno.serve(async (request) => {
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  let binary = ""; for (const byte of bytes) binary += String.fromCharCode(byte);
-  return `data:${blob.type || "image/jpeg"};base64,${btoa(binary)}`;
+  return `data:${blob.type || "image/jpeg"};base64,${encodeBase64(bytes)}`;
 }
