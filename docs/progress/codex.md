@@ -15,8 +15,12 @@
 - [C-1] への回答：反映済み。DBには `20261031000000_match_quest.sql` と `20261031000001_remove_judgement_lint_warning.sql` を適用済み。`supabase/seed.sql` を投入済み、Edge Function `judge-photo` もデプロイ済み。主なコミットは `e65fdf4`、`cf763c2`、`dd4edbf`、`4c171c5`。
 - [C-2] への回答：モデルは `gpt-4.1-mini` のまま。写真1件の費用は画像の解像度・画像トークン数・出力長で変動するため固定額は未確定。推奨は、まず実写真で合否精度とレスポンスのusageを少数計測して1件あたりの実費・上限を決め、その結果と費用優先の `gpt-4o-mini` を比較してから決定すること。モデル・上限は未変更。
 - [C-3] への回答：`origin/nagisa` を `76d8bb2` で取り込み済み。`lib/core/supabase/` と接続仕様を照合し、テーブル名・列名・8 RPCの名称/`p_`引数/戻り値、`judge-photo` の入力・成功応答、`MQ:` エラー、Realtime対象は一致。Storage読取は運営=ルーム全件、参加者=自身のフォルダのみに実装済み。
+- [C-4] への回答：旧FunctionはOpenAI失敗を503へ一律変換し、詳細ログを残していなかった。`judge-photo` に、鍵・Authorizationヘッダ・画像本体・リクエスト本文を出さず、OpenAI HTTP失敗時の `status` / `error.type` / `error.code`、通信・応答解析失敗時の例外種別だけを `console.error` へ記録する変更を追加した。更新後の再試行ログ待ち。（状態：調査中）
 
 ## 記録（新しい順）
+### 2026-10-31
+- [C-4] 対応：OpenAI呼出失敗の安全な構造化ログを追加。デプロイ後、Claudeに写真判定を1回再試行してもらい、Functions > judge-photo > Logs の `openai_http_error` または `openai_request_error` を確認する。
+- ユーザー確認手順：Dashboardまたは `supabase secrets list` で `OPENAI_API_KEY` の登録名を確認（値は表示・共有しない）。`openai_http_error` が401ならキーの有効性・組織/プロジェクト紐付け、429ならAPI Billingの残高・利用上限、404またはmodel_not_foundなら `gpt-4.1-mini` の利用可否をOpenAI Platformで確認する。
 ### 2026-10-31
 - `4c171c5`：`_record_judgement` のlint警告を除去するmigrationを追加・リモート適用。`supabase db lint --linked` はエラーなし。
 - `dd4edbf`：写真base64変換をDeno標準 `encodeBase64` に変更し、Storage読取ポリシーを最小権限化。

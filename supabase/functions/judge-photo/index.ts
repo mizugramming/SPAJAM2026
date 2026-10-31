@@ -33,12 +33,27 @@ Deno.serve(async (request) => {
         { role: "user", content: [{ type: "text", text: `Mission: ${context.data.mission}` }, { type: "image_url", image_url: { url: image } }] },
       ] }),
     });
-    if (!response.ok) throw new Error(`OpenAI ${response.status}`);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      console.error(JSON.stringify({
+        event: "openai_http_error",
+        status: response.status,
+        type: errorBody?.error?.type ?? null,
+        code: errorBody?.error?.code ?? null,
+      }));
+      return json({ error: "judge_unavailable" }, 503);
+    }
     const payload = await response.json();
     const parsed = JSON.parse(payload.choices?.[0]?.message?.content ?? "");
     if (typeof parsed.passed !== "boolean" || typeof parsed.reason !== "string") throw new Error("invalid judge response");
     verdict = parsed;
-  } catch { return json({ error: "judge_unavailable" }, 503); }
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "openai_request_error",
+      type: error instanceof Error ? error.name : "unknown",
+    }));
+    return json({ error: "judge_unavailable" }, 503);
+  }
   const recorded = await admin.rpc("_record_judgement", { p_room_id: roomId, p_checkpoint_id: checkpointId, p_user_id: user.id, p_photo_path: photoPath, p_passed: verdict.passed, p_reason: verdict.reason });
   if (recorded.error) return recorded.error.message.startsWith("MQ:") ? mq(recorded.error.message) : json({ error: "judge_unavailable" }, 503);
   return json(recorded.data);
