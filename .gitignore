@@ -24,3 +24,6 @@ coverage/
 .env
 .env.*
 supabase/.temp/
+
+# Supabase 接続先（公開キーだが端末ごとの設定なのでコミットしない）
+config/supabase.json

@@ -4,9 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/dev/mock_player_panel.dart';
 import '../../../core/models/models.dart';
 import '../../../core/providers.dart';
+import '../../../core/session/session_store.dart';
 import '../../../core/ui/messages.dart';
 import '../widgets/owner_progress_view.dart';
 import '../widgets/owner_waiting_view.dart';
+
+/// 運営中の記録を消してホームへ戻る。
+Future<void> leaveOwnerRoom(BuildContext context, WidgetRef ref) async {
+  await ref.read(sessionStoreProvider).clear();
+  ref.invalidate(activeSessionProvider);
+  if (context.mounted) Navigator.popUntil(context, (route) => route.isFirst);
+}
 
 /// 運営：ルームの待機・進行・結果。状態に応じて表示を切り替える。
 class OwnerRoomPage extends ConsumerWidget {
@@ -35,6 +43,8 @@ class OwnerRoomPage extends ConsumerWidget {
                     onPressed: () => ref.invalidate(roomSnapshotProvider(roomId)),
                     child: const Text('再接続'),
                   ),
+                  if (e is NotFound || e is PermissionDenied)
+                    TextButton(onPressed: () => leaveOwnerRoom(context, ref), child: const Text('ホームに戻る（このルームの記録を消す）')),
                 ],
               ),
             ),

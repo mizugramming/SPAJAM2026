@@ -55,7 +55,14 @@ try {
 
 // ゴール
 await repo.scanGoal(roomId: roomId, qr: text);
+
+// 再起動後の復帰：参加できたら保存し、終わったら消す
+await ref.read(sessionStoreProvider).save(ActiveSession(role: SessionRole.player, roomId: roomId));
+ref.invalidate(activeSessionProvider);
+// ホームの「続きから」は AppRoutes.playerEntry を arguments: roomId（String）で開く
 ```
+
+`sessionStoreProvider` などは `package:mayoi_quest/core/session/session_store.dart`。
 
 モック中に別の参加者として動かしたいときは、テストのように `InMemoryMatchBackend.repositoryFor('ユーザーID')` を使う（`test/core/in_memory_match_backend_test.dart` 参照）。運営画面の「開発用：モック参加者」パネルでも参加者を動かせる。
 
@@ -66,6 +73,10 @@ await repo.scanGoal(roomId: roomId, qr: text);
 ## 統合の段階
 
 1. 済：共通モデル・Repository 契約・モック・オーナー画面（作成・待機・一斉開始・進行・写真と判定理由の閲覧）。
-2. 次：松本のプレイヤー画面をモックのまま `/player` に接続し、1台で一連の流れを確認。
-3. Supabase 実装（匿名ログイン・テーブル・RLS・Realtime・Storage）に差し替え、2台で同期を確認。
-4. Edge Function で OpenAI 判定と加点を確定。撮影・得点・ゴール・時間切れ・再起動後の復帰を複数端末で確認。
+2. 済：アプリ側の Supabase 接続（`lib/core/supabase/`）と再起動後の復帰。サーバー側（`supabase/`）は作成中。
+3. 次：松本のプレイヤー画面をモックのまま `/player` に接続し、1台で一連の流れを確認。
+4. サーバー側ができたら `--dart-define-from-file=config/supabase.json` で接続し、2台で同期・撮影・得点・ゴール・時間切れ・再起動後の復帰を確認。
+
+| 担当 | 場所 |
+|---|---|
+| サーバー（Supabase 側。Codex で作成） | `supabase/` |

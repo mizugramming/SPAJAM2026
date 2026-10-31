@@ -7,6 +7,7 @@ import '../../../core/providers.dart';
 import '../../../core/rules/match_rules.dart';
 import '../../../core/ui/messages.dart';
 import '../pages/owner_participant_page.dart';
+import '../pages/owner_room_page.dart';
 
 /// 運営：残り時間と順位、各参加者の進行。終了後は結果として表示する。
 class OwnerProgressView extends ConsumerStatefulWidget {
@@ -94,6 +95,9 @@ class _OwnerProgressViewState extends ConsumerState<OwnerProgressView> {
             icon: const Icon(Icons.stop),
             label: const Text('対戦を終了する'),
           ),
+        ] else ...[
+          const SizedBox(height: 16),
+          FilledButton(onPressed: () => leaveOwnerRoom(context, ref), child: const Text('ホームに戻る')),
         ],
       ],
     );
