@@ -20,6 +20,7 @@ Android専用、Flutter、Android Studio。オーナーも同じアプリを使�
 3. [画面設計](docs/screen_design.md)：画面と遷移。
 4. [システム設計](docs/system_design.md)：接続・データ・状態・未確定事項。
 5. [担当と進め方](docs/development_roles.md)：担当フォルダ案と統合手順。
+6. [進捗の記録](docs/progress/README.md)：担当者ごとの進捗と依頼・質問。作業を始める前に他の担当者のファイルを読む。
 
 ## 実装の優先順位
 
