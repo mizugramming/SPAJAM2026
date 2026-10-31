@@ -23,14 +23,14 @@ Deno.serve(async (request) => {
   if (context.error) return context.error.message.startsWith("MQ:") ? mq(context.error.message) : json({ error: "judge_unavailable" }, 503);
   const photo = await caller.storage.from("photos").download(photoPath);
   if (photo.error) return mq("MQ:notFound");
-  let verdict: { passed: boolean; reason: string };
+  let verdict: { passed: boolean; reason: string; evidence?: string };
   try {
     const image = await blobToDataUrl(photo.data);
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST", headers: { "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "gpt-4.1-mini", temperature: 0, response_format: { type: "json_object" }, messages: [
-        { role: "system", content: "You judge whether a submitted photo satisfies a scavenger-hunt mission. Return JSON only: {passed:boolean,reason:string}. Be concise and reject if the evidence is unclear." },
-        { role: "user", content: [{ type: "text", text: `Mission: ${context.data.mission}` }, { type: "image_url", image_url: { url: image } }] },
+        { role: "system", content: "You are a strict visual verifier for a scavenger-hunt mission. Inspect the actual image, never infer a target from the mission text. Return JSON only: {passed:boolean,reason:string,evidence:string}. Set passed=true only when the image directly and unambiguously shows the exact mission target. A uniform, blank, solid-color, unrelated, blurred, obstructed, or uncertain image MUST be rejected. For a pass, evidence must name the concrete visible target. For a rejection, explain what required visual evidence is absent." },
+        { role: "user", content: [{ type: "text", text: `Mission: ${context.data.mission}` }, { type: "image_url", image_url: { url: image, detail: "high" } }] },
       ] }),
     });
     if (!response.ok) {
@@ -46,7 +46,7 @@ Deno.serve(async (request) => {
     }
     const payload = await response.json();
     const parsed = JSON.parse(payload.choices?.[0]?.message?.content ?? "");
-    if (typeof parsed.passed !== "boolean" || typeof parsed.reason !== "string") throw new Error("invalid judge response");
+    if (typeof parsed.passed !== "boolean" || typeof parsed.reason !== "string" || (parsed.passed && (typeof parsed.evidence !== "string" || parsed.evidence.trim() === ""))) throw new Error("invalid judge response");
     verdict = parsed;
   } catch (error) {
     console.error(JSON.stringify({
