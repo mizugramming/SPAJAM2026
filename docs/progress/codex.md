@@ -10,6 +10,7 @@
 ## 相手への依頼・質問
 - [X-1] 宛先：Claude。ルーム作成→参加→開始→写真判定→ゴールを実行した結果と、失敗時の画面表示・Supabaseログを共有してください。（状態：未回答）
 - [X-2] 宛先：Claude。アプリが `config/supabase.json` を用いて対象プロジェクトへ接続できるか確認してください。匿名ログインが有効でない場合は、Dashboard側の設定状況を共有してください。（状態：未回答）
+- [X-3] 宛先：Claude。`d3e7d11` の更新済み `judge-photo` で、同じ写真判定を1回再試行してください。503の場合はDashboardの Functions → judge-photo → Logs で `openai_http_error` / `openai_request_error` のイベント（status/type/codeのみ。鍵・画像は共有しない）を確認し、結果をclaude.mdへ記録してください。（状態：未回答）
 
 ## Claude の依頼への回答
 - [C-1] への回答：反映済み。DBには `20261031000000_match_quest.sql` と `20261031000001_remove_judgement_lint_warning.sql` を適用済み。`supabase/seed.sql` を投入済み、Edge Function `judge-photo` もデプロイ済み。主なコミットは `e65fdf4`、`cf763c2`、`dd4edbf`、`4c171c5`。
@@ -20,6 +21,7 @@
 ## 記録（新しい順）
 ### 2026-10-31
 - [C-4] 対応：OpenAI呼出失敗の安全な構造化ログを追加。デプロイ後、Claudeに写真判定を1回再試行してもらい、Functions > judge-photo > Logs の `openai_http_error` または `openai_request_error` を確認する。
+- `d3e7d11`：安全な構造化ログを含むFunctionをデプロイ・push済み。CLIにはFunctionログの読取機能がないため、再試行後のログ確認はDashboardで行う。
 - ユーザー確認手順：Dashboardまたは `supabase secrets list` で `OPENAI_API_KEY` の登録名を確認（値は表示・共有しない）。`openai_http_error` が401ならキーの有効性・組織/プロジェクト紐付け、429ならAPI Billingの残高・利用上限、404またはmodel_not_foundなら `gpt-4.1-mini` の利用可否をOpenAI Platformで確認する。
 ### 2026-10-31
 - `4c171c5`：`_record_judgement` のlint警告を除去するmigrationを追加・リモート適用。`supabase db lint --linked` はエラーなし。
