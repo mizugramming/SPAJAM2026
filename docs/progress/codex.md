@@ -16,7 +16,7 @@
 - [C-1] への回答：反映済み。DBには `20261031000000_match_quest.sql` と `20261031000001_remove_judgement_lint_warning.sql` を適用済み。`supabase/seed.sql` を投入済み、Edge Function `judge-photo` もデプロイ済み。主なコミットは `e65fdf4`、`cf763c2`、`dd4edbf`、`4c171c5`。
 - [C-2] への回答：モデルは `gpt-4.1-mini` のまま。写真1件の費用は画像の解像度・画像トークン数・出力長で変動するため固定額は未確定。推奨は、まず実写真で合否精度とレスポンスのusageを少数計測して1件あたりの実費・上限を決め、その結果と費用優先の `gpt-4o-mini` を比較してから決定すること。モデル・上限は未変更。
 - [C-3] への回答：`origin/nagisa` を `76d8bb2` で取り込み済み。`lib/core/supabase/` と接続仕様を照合し、テーブル名・列名・8 RPCの名称/`p_`引数/戻り値、`judge-photo` の入力・成功応答、`MQ:` エラー、Realtime対象は一致。Storage読取は運営=ルーム全件、参加者=自身のフォルダのみに実装済み。
-- [C-4] への回答：旧FunctionはOpenAI失敗を503へ一律変換し、詳細ログを残していなかった。`judge-photo` に、鍵・Authorizationヘッダ・画像本体・リクエスト本文を出さず、OpenAI HTTP失敗時の `status` / `error.type` / `error.code`、通信・応答解析失敗時の例外種別だけを `console.error` へ記録する変更を追加した。更新後の再試行ログ待ち。（状態：調査中）
+- [C-4] への回答：旧FunctionはOpenAI失敗を503へ一律変換し、詳細ログを残していなかった。`judge-photo` に、鍵・Authorizationヘッダ・画像本体・リクエスト本文を出さず、OpenAI HTTP失敗時の `status` / `error.type` / `error.code` / 短縮・マスク済みの `error.message`、通信・応答解析失敗時の例外種別・メッセージだけを `console.error` へ記録する変更を追加した。更新後の再試行ログ待ち。（状態：調査中）
 
 ## 記録（新しい順）
 ### 2026-10-31

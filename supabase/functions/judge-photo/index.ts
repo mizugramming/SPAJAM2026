@@ -40,6 +40,7 @@ Deno.serve(async (request) => {
         status: response.status,
         type: errorBody?.error?.type ?? null,
         code: errorBody?.error?.code ?? null,
+        message: safeErrorMessage(errorBody?.error?.message),
       }));
       return json({ error: "judge_unavailable" }, 503);
     }
@@ -51,6 +52,7 @@ Deno.serve(async (request) => {
     console.error(JSON.stringify({
       event: "openai_request_error",
       type: error instanceof Error ? error.name : "unknown",
+      message: safeErrorMessage(error instanceof Error ? error.message : null),
     }));
     return json({ error: "judge_unavailable" }, 503);
   }
@@ -62,4 +64,12 @@ Deno.serve(async (request) => {
 async function blobToDataUrl(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   return `data:${blob.type || "image/jpeg"};base64,${encodeBase64(bytes)}`;
+}
+
+function safeErrorMessage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  return value
+      .replace(/sk-[A-Za-z0-9_-]+/g, "[redacted-openai-key]")
+      .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+      .slice(0, 500);
 }
