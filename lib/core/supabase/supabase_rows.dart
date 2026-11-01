@@ -19,9 +19,10 @@ Course courseFromRows(Row course, List<Row> checkpoints) {
   return Course(
     id: course['id'] as String,
     name: course['name'] as String,
-    startQr: course['start_qr'] as String,
     goalQr: course['goal_qr'] as String,
     timeLimit: Duration(seconds: course['time_limit_seconds'] as int),
+    // 列の追加前のサーバーでも読めるよう、無ければ 0。
+    goalBonusPerMinute: course['goal_bonus_per_minute'] as int? ?? 0,
     checkpoints: [
       for (final c in sorted)
         Checkpoint(
@@ -54,8 +55,8 @@ Participant participantFromRow(Row r) => Participant(
   roomId: r['room_id'] as String,
   displayName: r['display_name'] as String,
   joinedAt: _time(r['joined_at']),
-  startScannedAt: _timeOrNull(r['start_scanned_at']),
   goalAt: _timeOrNull(r['goal_at']),
+  goalBonus: r['goal_bonus'] as int? ?? 0,
 );
 
 PhotoSubmission submissionFromRow(Row r) => PhotoSubmission(

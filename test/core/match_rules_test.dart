@@ -31,6 +31,32 @@ void main() {
     expect(hasClearedAllRequired(sampleCourse, [for (final c in required) clear('a', c.id, 10)]), isTrue);
   });
 
+  test('ゴールボーナスは残り時間（分、切り捨て）×1分あたりの点数', () {
+    final room = Room(
+      id: 'r',
+      code: '123456',
+      courseId: 'sample',
+      ownerId: 'o',
+      status: RoomStatus.running,
+      createdAt: t0,
+      startedAt: t0,
+      endsAt: t0.add(const Duration(minutes: 30)),
+    );
+    expect(goalBonusFor(sampleCourse, room, t0.add(const Duration(minutes: 10))), 20);
+    expect(goalBonusFor(sampleCourse, room, t0.add(const Duration(minutes: 10, seconds: 30))), 19);
+    expect(goalBonusFor(sampleCourse, room, t0.add(const Duration(minutes: 29, seconds: 59))), 0);
+    expect(goalBonusFor(sampleCourse, room, t0.add(const Duration(minutes: 30))), 0);
+  });
+
+  test('合計得点はチェックポイントの得点＋ゴールボーナス', () {
+    final s = snapshot(
+      [Participant(userId: 'a', roomId: 'r', displayName: 'a', joinedAt: t0, goalAt: t0, goalBonus: 7)],
+      [clear('a', 'cp-a', 10)],
+    );
+    expect(s.checkpointScoreOf('a'), 10);
+    expect(s.scoreOf('a'), 17);
+  });
+
   test('順位は得点→ゴール済み→ゴールが早い順', () {
     final s = snapshot(
       [

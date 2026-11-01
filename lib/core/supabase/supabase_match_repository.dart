@@ -65,10 +65,6 @@ class SupabaseMatchRepository implements MatchRepository {
   }
 
   @override
-  Future<void> scanStart({required String roomId, required String qr}) =>
-      _rpc('scan_start', {'p_room_id': roomId, 'p_qr': qr});
-
-  @override
   Future<Checkpoint> scanCheckpoint({required String roomId, required String qr}) async {
     final checkpointId = await _rpc('scan_checkpoint', {'p_room_id': roomId, 'p_qr': qr}) as String;
     final room = await _fetchRoom(roomId);

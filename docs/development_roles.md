@@ -34,10 +34,10 @@ await repo.joinRoom(roomId: room.id, displayName: name);
 // 状態の購読（待機・開始・時間・順位はここから）
 final snapshot = ref.watch(roomSnapshotProvider(roomId)); // AsyncValue<RoomSnapshot>
 // snapshot.room.statusAt(now) / snapshot.course / snapshot.scoreOf(repo.currentUserId)
+// 得点の内訳：snapshot.checkpointScoreOf(id) と snapshot.participant(id)?.goalBonus（ゴールボーナス）
 // 順位：standingsOf(snapshot)（lib/core/rules/match_rules.dart）
 
-// QR
-await repo.scanStart(roomId: roomId, qr: text);
+// QR（スタートQRは廃止。参加したら運営の一斉開始を待つ）
 final checkpoint = await repo.scanCheckpoint(roomId: roomId, qr: text);
 
 // 撮影 → 判定

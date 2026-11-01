@@ -30,5 +30,9 @@ class RoomSnapshot {
 
   List<PhotoSubmission> submissionsOf(String userId) => submissions.where((s) => s.participantId == userId).toList();
 
-  int scoreOf(String userId) => clearsOf(userId).fold(0, (sum, c) => sum + c.points);
+  /// チェックポイントの得点の合計。
+  int checkpointScoreOf(String userId) => clearsOf(userId).fold(0, (sum, c) => sum + c.points);
+
+  /// 合計得点：チェックポイントの得点＋ゴールボーナス。
+  int scoreOf(String userId) => checkpointScoreOf(userId) + (participant(userId)?.goalBonus ?? 0);
 }

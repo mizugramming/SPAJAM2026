@@ -63,9 +63,6 @@ void main() {
 
       await expectLater(player.startRoom(room.id), throwsA(isA<PermissionDenied>()));
 
-      await player.scanStart(roomId: room.id, qr: course.startQr);
-      await _until(ownerView, (s) => s.participants.single.isReady, 'スタートQR');
-
       await owner.startRoom(room.id);
       final running = await _until(ownerView, (s) => s.room.status == RoomStatus.running, '開始');
       expect(running.room.endsAt!.difference(running.room.startedAt!), course.timeLimit);

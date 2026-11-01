@@ -41,13 +41,13 @@ void main() {
     final alice = backend.repositoryFor('alice');
     await tester.runAsync(() async {
       await alice.joinRoom(roomId: room.id, displayName: 'アリス');
-      await alice.scanStart(roomId: room.id, qr: sampleCourse.startQr);
     });
     await tester.pumpAndSettle();
     expect(find.text('アリス'), findsOneWidget);
-    expect(find.text('スタートQR読取済み'), findsOneWidget);
 
     await tester.tap(start);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('開始する'));
     await tester.pumpAndSettle();
     expect(find.text('残り時間'), findsOneWidget);
 
