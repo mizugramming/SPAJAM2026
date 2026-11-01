@@ -16,6 +16,7 @@ import 'package:mayoi_quest/features/player/player_map_view.dart';
 import 'package:mayoi_quest/features/player/player_media.dart';
 import 'package:mayoi_quest/features/player/player_qr_view.dart';
 import 'package:mayoi_quest/features/player/player_result_view.dart';
+import 'package:mayoi_quest/features/player/player_start_waiting_view.dart';
 
 void main() {
   testWidgets('参加完了待ちに復帰先を差し替えても古いルームの復帰記録を保存しない', (tester) async {
@@ -40,7 +41,8 @@ void main() {
     h.resumeRoomId.value = resumedRoom.id;
     await tester.pump();
     await tester.pump(latency);
-    await _until(tester, () => find.byType(PlayerQrView).evaluate().isNotEmpty);
+    // スタートQRは廃止。復帰先のルームの開始待ち画面になる。
+    await _until(tester, () => find.byType(PlayerStartWaitingView).evaluate().isNotEmpty);
 
     expect(h.sessions.saveCalls, 0, reason: '古い参加処理から共有の保存先を更新しない');
     expect(h.sessions.value?.roomId, resumedRoom.id);
@@ -176,7 +178,6 @@ class _SessionHarness {
   Future<Room> runningRoom() async {
     final room = await owner.createRoom(courseId: sampleCourse.id);
     await player.joinRoom(roomId: room.id, displayName: '松本');
-    await player.scanStart(roomId: room.id, qr: sampleCourse.startQr);
     await owner.startRoom(room.id);
     return room;
   }

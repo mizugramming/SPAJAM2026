@@ -34,14 +34,11 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('playerJoinRoomCode')), room.code);
     await tester.enterText(find.byKey(const ValueKey('playerJoinDisplayName')), '松本');
     await _tapText(tester, '参加する');
-    await _until(tester, () => find.byType(PlayerQrView).evaluate().isNotEmpty);
+    // スタートQRは廃止。参加したら一斉開始を待つ。
+    await _until(tester, () => find.byType(PlayerStartWaitingView).evaluate().isNotEmpty);
     final saved = await h.sessions.load();
     expect(saved?.roomId, room.id);
     expect(saved?.role, SessionRole.player);
-
-    await _scan(tester, sampleCourse.startQr);
-    await _until(tester, () => find.byType(PlayerStartWaitingView).evaluate().isNotEmpty);
-    expect((await h.snapshot(room.id)).participant('player')!.isReady, isTrue);
     await h.owner.startRoom(room.id);
     await _until(tester, () => find.byType(PlayerMapView).evaluate().isNotEmpty);
     expect(tester.widget<PlayerMapView>(find.byType(PlayerMapView)).canScanGoal, isFalse);
@@ -56,10 +53,14 @@ void main() {
     await _tapText(tester, 'ゴールQRを読み取る');
     await _scan(tester, sampleCourse.goalQr);
     await _until(tester, () => find.byType(PlayerResultView).evaluate().isNotEmpty);
-    expect((await h.snapshot(room.id)).participant('player')!.hasFinished, isTrue);
+    final afterGoal = await h.snapshot(room.id);
+    expect(afterGoal.participant('player')!.hasFinished, isTrue);
     final provisional = tester.widget<PlayerResultView>(find.byType(PlayerResultView));
     expect(provisional.isFinal, isFalse);
-    expect(provisional.scoreLabel, contains('${afterClears.scoreOf('player')}'));
+    // 合計はチェックポイントの得点＋ゴールボーナス（共通側で確定した値）。
+    expect(afterGoal.participant('player')!.goalBonus, greaterThan(0));
+    expect(provisional.scoreLabel, contains('${afterGoal.scoreOf('player')}'));
+    expect(find.text('ゴールボーナス（残り時間）：${afterGoal.participant('player')!.goalBonus}点'), findsOneWidget);
 
     await h.owner.finishRoom(room.id);
     await _until(tester, () => tester.widget<PlayerResultView>(find.byType(PlayerResultView)).isFinal);
@@ -70,15 +71,12 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final phase in ['未読取', '開始待ち', '進行中', 'ゴール済み', '終了済み']) {
+  for (final phase in ['開始待ち', '進行中', 'ゴール済み', '終了済み']) {
     testWidgets('resumeRoomId は共通状態「$phase」へ復帰する', (tester) async {
       final h = _FlowHarness();
       addTearDown(h.dispose);
       final room = await h.owner.createRoom(courseId: sampleCourse.id);
       await h.player.joinRoom(roomId: room.id, displayName: '松本');
-      if (phase != '未読取') {
-        await h.player.scanStart(roomId: room.id, qr: sampleCourse.startQr);
-      }
       if (phase == '進行中' || phase == 'ゴール済み' || phase == '終了済み') {
         await h.owner.startRoom(room.id);
       }
@@ -93,7 +91,6 @@ void main() {
       await h.pump(tester, resumeRoomId: room.id);
 
       final expected = switch (phase) {
-        '未読取' => find.byType(PlayerQrView),
         '開始待ち' => find.byType(PlayerStartWaitingView),
         '進行中' => find.byType(PlayerMapView),
         _ => find.byType(PlayerResultView),
@@ -294,7 +291,6 @@ class _FlowHarness {
   Future<Room> runningRoom() async {
     final room = await owner.createRoom(courseId: sampleCourse.id);
     await player.joinRoom(roomId: room.id, displayName: '松本');
-    await player.scanStart(roomId: room.id, qr: sampleCourse.startQr);
     await owner.startRoom(room.id);
     return room;
   }
@@ -322,11 +318,7 @@ class _FlowHarness {
             (context, onCode, enabled) => SingleChildScrollView(
               child: Column(
                 children: [
-                  for (final qr in [
-                    sampleCourse.startQr,
-                    ...sampleCourse.checkpoints.map((c) => c.qr),
-                    sampleCourse.goalQr,
-                  ])
+                  for (final qr in [...sampleCourse.checkpoints.map((c) => c.qr), sampleCourse.goalQr])
                     TextButton(onPressed: enabled ? () => onCode(qr) : null, child: Text('テスト読取:$qr')),
                 ],
               ),

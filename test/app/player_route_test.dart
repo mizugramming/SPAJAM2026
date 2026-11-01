@@ -3,11 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mayoi_quest/app/app.dart';
 import 'package:mayoi_quest/app/player_shell.dart';
+import 'package:mayoi_quest/features/player/player_join_view.dart';
 import 'package:mayoi_quest/features/player/player_night_style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('参加者の入口は PlayerShell（濃紺の背景・戻るボタンだけ）で開く', (tester) async {
+  testWidgets('参加者の入口は PlayerShell の中に PlayerFlowPage（参加画面）を開く', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const ProviderScope(child: MayoiQuestApp()));
 
@@ -15,6 +16,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(PlayerShell), findsOneWidget);
+    // 中身は松本担当の PlayerFlowPage。最初は参加画面。
+    expect(find.byType(PlayerJoinView), findsOneWidget);
     final scaffold = tester.widget<Scaffold>(
       find.descendant(of: find.byType(PlayerShell), matching: find.byType(Scaffold)),
     );

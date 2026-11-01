@@ -17,10 +17,11 @@
 - [C-7] Codex へ：640x480 の灰色無地 JPEG を cp-a（案内板）に送ると、同じ画像でも rejected と passed（「画像に案内板がはっきりと写っているため。」）が回によって変わります。モデルが無地画像で幻覚を起こしています。提案：(1) 応答に `observed`（画像に実際に見えるものの記述）を必須にし、先に記述させてから合否を決めさせる。(2) それでも不安定なら、画素の分散（色のばらつき）がほぼない画像は OpenAI に送らず rejected（理由「何も写っていないようです。対象を撮り直してください」）にする。(3) 対応後、灰色 640x480 を5回送って5回とも rejected になることを確認してください。モデル変更（gpt-4.1 など）は費用に関わるので、必要なら選択肢として codex.md に書き、決定はユーザーに任せてください。（状態：確認済み。灰色 640x480 を5回送って5回とも rejected「何も写っていないようです。対象を撮り直してください。」。コミット・push は Codex 待ち）
 - [C-8] Codex へ：`test/live/supabase_live_test.dart` は Claude の担当です。nagisa-codex 側の未コミットの変更は `git restore test/live/supabase_live_test.dart` で戻してください（同じ確認は Claude が `nagisa` に入れました）。`supabase/` と `docs/progress/codex.md` だけをコミット・push してください。（状態：未回答）
 
-- [C-9] 松本へ：プレイヤー側の入口を `lib/features/player/player_flow_page.dart` の `PlayerFlowPage({super.key, this.resumeRoomId})`（`String? resumeRoomId`：ホームの「続きから」で渡すルームID、新規参加なら null）として作ってください。Scaffold を持たない body の Widget にし、中で `matchRepositoryProvider`・`roomSnapshotProvider`・`sessionStoreProvider` を使って各 View へ表示値とコールバックを渡してください。できたら matsumoto.md に書いてもらえれば、Claude が `/player` の仮表示と差し替えます（`lib/app/routes.dart` の1行）。（状態：未回答）
+- [C-9] 松本へ：プレイヤー側の入口を `lib/features/player/player_flow_page.dart` の `PlayerFlowPage({super.key, this.resumeRoomId})`（`String? resumeRoomId`：ホームの「続きから」で渡すルームID、新規参加なら null）として作ってください。Scaffold を持たない body の Widget にし、中で `matchRepositoryProvider`・`roomSnapshotProvider`・`sessionStoreProvider` を使って各 View へ表示値とコールバックを渡してください。できたら matsumoto.md に書いてもらえれば、Claude が `/player` の仮表示と差し替えます（`lib/app/routes.dart` の1行）。（状態：完了。PR #56 を nagisa に取り込み、`/player` を `PlayerShell(child: PlayerFlowPage(...))` に差し替え済み）
 
 - [C-10] Codex へ：仕様変更（ユーザー決定、2026-11-01）。docs/system_design.md の「接続仕様の変更履歴」の通りに supabase/ を変更してください。(1) スタートQRの廃止：scan_checkpoint・_judge_context・scan_goal から start_scanned_at の確認（MQ:startNotScanned）を外し、scan_start 関数を削除。(2) ゴールボーナス：courses.goal_bonus_per_minute int not null default 1、participants.goal_bonus int not null default 0 を追加し、scan_goal で goal_bonus = floor(extract(epoch from ends_at - now()) / 60) × goal_bonus_per_minute（0未満にしない）を設定。seed の sample は 1。既存 migration は書き換えず、新しい migration で。反映（db push）まで行ったら codex.md に書いてください。Claude 側のアプリはこの反映後に test-1 へマージします。（状態：未回答）
-- [C-11] 松本へ：スタートQRを廃止しました（ユーザー決定）。参加したら一斉開始を待つ流れです。`MatchRepository.scanStart` と `Participant.isReady` は無くなりました。スタートQR画面（`PlayerQrView` のスタート用の使い方）は不要です。ゴールボーナスを追加し、`snapshot.scoreOf` は合計（チェックポイント＋ボーナス）、内訳は `checkpointScoreOf` と `participant(id).goalBonus` です。結果画面の内訳表示に使ってください。（状態：未回答）
+- [C-11] 松本へ：スタートQRを廃止しました（ユーザー決定）。参加したら一斉開始を待つ流れです。`MatchRepository.scanStart` と `Participant.isReady` は無くなりました。スタートQR画面（`PlayerQrView` のスタート用の使い方）は不要です。ゴールボーナスを追加し、`snapshot.scoreOf` は合計（チェックポイント＋ボーナス）、内訳は `checkpointScoreOf` と `participant(id).goalBonus` です。結果画面の内訳表示に使ってください。（状態：ユーザーの指示で Claude が対応済み。下の [C-12] 参照）
+- [C-12] 松本へ：ユーザーの指示で、PR #56 を `nagisa` に取り込み、C-11 の追従を Claude が行いました（2026-11-01）。変更したのは `player_flow_page.dart` のスタートQRの部分（`_QrPurpose.start`・`scanStart`・`isReady` の除去、参加後は開始待ちへ）と結果内訳のゴールボーナス1行、テスト3ファイルのスタートQR前提の箇所だけです。`lib/features/player/README.md` の C-11 の記述は松本さんのファイルなので変えていません。PR #55（nagisa → test-1）がマージされると #56 の内容も test-1 に入ります。同じ箇所を matsumoto/player-flow で直すと競合するので、次の作業は #55 マージ後の test-1 から始めてください。（状態：未回答）
 
 ## 松本の依頼への回答
 - [M-1] への回答：`/player` は `PlayerShell`（`lib/app/player_shell.dart`）で包みます。背景は `PlayerNight.background`、AppBar はタイトルなし・同じ濃紺で戻るボタンだけ、ステータスバーは明るいアイコン、下側だけ SafeArea。各 View の見出し・背景はそのまま使えます。入口のクラスは [C-9] の形でお願いします。
@@ -61,6 +62,11 @@
 - Realtime：rooms（id）・participants・checkpoint_clears・submissions（room_id）の変更を購読し、変更が来たら全体を読み直す。
 
 ## 記録（新しい順）
+
+### 2026-11-01（3）
+- ユーザーの指示で PR #56（松本の PlayerFlowPage）を nagisa に取り込み、C-11（スタートQR廃止・ゴールボーナス）に追従：player_flow_page.dart のスタートQR部分を除去、結果内訳にゴールボーナス、テスト3ファイルを更新
+- `/player` を `PlayerShell(child: PlayerFlowPage(resumeRoomId: ...))` に差し替え、仮表示を削除
+- 検証：analyze 問題なし、test 94件成功、整形差分なし。実サーバー・実機は未確認（Codex の C-10 待ち）
 
 ### 2026-11-01（2）
 - 仕様変更（ユーザー決定）：スタートQRを廃止、ゴールボーナスは残り時間に比例（1分あたりの点数はコース設定、仮コースは1点）

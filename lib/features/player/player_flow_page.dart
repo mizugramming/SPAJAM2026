@@ -23,7 +23,7 @@ import 'player_ui.dart';
 
 enum _Screen { map, checkpointQr, capture, review, judgement, goalQr, ranking, freeMissions }
 
-enum _QrPurpose { start, checkpoint, goal }
+enum _QrPurpose { checkpoint, goal }
 
 /// Player entry body. PlayerShell and the application router own the Scaffold.
 /// Only transient navigation, the current photo and pending actions live here;
@@ -96,7 +96,7 @@ class _PlayerFlowPageState extends ConsumerState<PlayerFlowPage> {
     final data = state.value;
     if (state.isLoading || state.hasError || data == null) return false;
     final me = data.participant(ref.read(matchRepositoryProvider).currentUserId);
-    return me != null && me.isReady && !me.hasFinished && data.room.statusAt(_now) == RoomStatus.running;
+    return me != null && !me.hasFinished && data.room.statusAt(_now) == RoomStatus.running;
   }
 
   bool get _knownFinished {
@@ -190,11 +190,7 @@ class _PlayerFlowPageState extends ConsumerState<PlayerFlowPage> {
     final snapshotState = ref.read(roomSnapshotProvider(roomId));
     final data = snapshotState.value;
     if (snapshotState.isLoading || snapshotState.hasError || data == null) return;
-    if (purpose == _QrPurpose.start) {
-      if (data.room.statusAt(_now) == RoomStatus.finished) return;
-    } else if (!_canPlay) {
-      return;
-    }
+    if (!_canPlay) return;
     final repo = ref.read(matchRepositoryProvider);
     final generation = ++_generation;
     setState(() {
@@ -203,10 +199,6 @@ class _PlayerFlowPageState extends ConsumerState<PlayerFlowPage> {
     });
     try {
       switch (purpose) {
-        case _QrPurpose.start:
-          await repo.scanStart(roomId: roomId, qr: code);
-          if (!_isCurrent(generation, roomId)) return;
-          _refresh();
         case _QrPurpose.checkpoint:
           final checkpoint = await repo.scanCheckpoint(roomId: roomId, qr: code);
           if (!_isCurrent(generation, roomId) || !_canPlay) return;
@@ -364,12 +356,10 @@ class _PlayerFlowPageState extends ConsumerState<PlayerFlowPage> {
       );
     } else if (me == null) {
       body = _connectionPage('このルームへの参加を確認できません。参加コードから入り直してください。');
-    } else if (_screen == _Screen.ranking && (terminal || me.isReady)) {
+    } else if (_screen == _Screen.ranking) {
       body = _ranking(snapshot, now, terminal);
     } else if (terminal) {
       body = _result(snapshot, me, now);
-    } else if (!me.isReady) {
-      body = _qr(snapshot, _QrPurpose.start, enabled: !state.isLoading);
     } else if (snapshot.room.statusAt(now) == RoomStatus.waiting) {
       body = PlayerStartWaitingView(
         roomName: snapshot.course.name,
@@ -433,7 +423,6 @@ class _PlayerFlowPageState extends ConsumerState<PlayerFlowPage> {
   Widget _qr(RoomSnapshot snapshot, _QrPurpose purpose, {required bool enabled}) {
     final builder = ref.watch(playerQrScannerBuilderProvider);
     final (title, instruction) = switch (purpose) {
-      _QrPurpose.start => ('スタートQRを読み取る', '受付の共通スタートQRを読み取って、開始の準備をしてください。'),
       _QrPurpose.checkpoint => ('チェックポイントQR', '挑戦する地点のQRを読み取ってください。指定・自由のどちらも読み取れます。'),
       _QrPurpose.goal => ('ゴールQRを読み取る', '会場のゴールQRを読み取って、探索を完了してください。'),
     };
@@ -614,6 +603,7 @@ class _PlayerFlowPageState extends ConsumerState<PlayerFlowPage> {
       scoreBreakdown: [
         for (final clear in snapshot.clearsOf(me.userId))
           Text('${snapshot.course.checkpointById(clear.checkpointId)?.name ?? clear.checkpointId}：${clear.points}点'),
+        if (me.hasFinished) Text('ゴールボーナス（残り時間）：${me.goalBonus}点'),
       ],
       onOpenRanking: _closing ? null : () => _show(_Screen.ranking),
       onClose: _closing || _savingSession ? null : _close,
