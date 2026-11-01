@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'phone_frame.dart';
 import 'routes.dart';
 
 class MayoiQuestApp extends StatelessWidget {
@@ -12,6 +13,7 @@ class MayoiQuestApp extends StatelessWidget {
       theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
       initialRoute: AppRoutes.home,
       onGenerateRoute: AppRoutes.onGenerateRoute,
+      builder: (context, child) => PhoneFrame(child: child!),
     );
   }
 }
