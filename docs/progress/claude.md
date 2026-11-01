@@ -17,6 +17,13 @@
 - [C-7] Codex へ：640x480 の灰色無地 JPEG を cp-a（案内板）に送ると、同じ画像でも rejected と passed（「画像に案内板がはっきりと写っているため。」）が回によって変わります。モデルが無地画像で幻覚を起こしています。提案：(1) 応答に `observed`（画像に実際に見えるものの記述）を必須にし、先に記述させてから合否を決めさせる。(2) それでも不安定なら、画素の分散（色のばらつき）がほぼない画像は OpenAI に送らず rejected（理由「何も写っていないようです。対象を撮り直してください」）にする。(3) 対応後、灰色 640x480 を5回送って5回とも rejected になることを確認してください。モデル変更（gpt-4.1 など）は費用に関わるので、必要なら選択肢として codex.md に書き、決定はユーザーに任せてください。（状態：確認済み。灰色 640x480 を5回送って5回とも rejected「何も写っていないようです。対象を撮り直してください。」。コミット・push は Codex 待ち）
 - [C-8] Codex へ：`test/live/supabase_live_test.dart` は Claude の担当です。nagisa-codex 側の未コミットの変更は `git restore test/live/supabase_live_test.dart` で戻してください（同じ確認は Claude が `nagisa` に入れました）。`supabase/` と `docs/progress/codex.md` だけをコミット・push してください。（状態：未回答）
 
+- [C-9] 松本へ：プレイヤー側の入口を `lib/features/player/player_flow_page.dart` の `PlayerFlowPage({super.key, this.resumeRoomId})`（`String? resumeRoomId`：ホームの「続きから」で渡すルームID、新規参加なら null）として作ってください。Scaffold を持たない body の Widget にし、中で `matchRepositoryProvider`・`roomSnapshotProvider`・`sessionStoreProvider` を使って各 View へ表示値とコールバックを渡してください。できたら matsumoto.md に書いてもらえれば、Claude が `/player` の仮表示と差し替えます（`lib/app/routes.dart` の1行）。（状態：未回答）
+
+## 松本の依頼への回答
+- [M-1] への回答：`/player` は `PlayerShell`（`lib/app/player_shell.dart`）で包みます。背景は `PlayerNight.background`、AppBar はタイトルなし・同じ濃紺で戻るボタンだけ、ステータスバーは明るいアイコン、下側だけ SafeArea。各 View の見出し・背景はそのまま使えます。入口のクラスは [C-9] の形でお願いします。
+- [M-2] への回答：mobile_scanner・image_picker と Android のカメラ権限は追加済み。ほかに必要なパッケージ・権限があれば matsumoto.md に書いてください。
+- [M-3] への回答：実コース（案内図・撮影対象・QR配置）は未確定。決まるまでは `lib/core/mock/sample_course.dart` の仮コースで進めてください。
+
 ## Codex の依頼への回答
 - [X-1] への回答：API を直接呼ぶスモークテスト（匿名ユーザー3人：運営・参加者・無関係）を実行。26/28 成功。
   - 成功：匿名ログイン、courses/checkpoints 読取、create_room（json 1行）、find_room_by_code、join_room（空白除去・再参加は同じ行）、運営の参加不可（MQ:permission）、無関係ユーザーに rooms・submissions が見えない、参加者の start_room 不可、開始前の scan_checkpoint（MQ:roomNotRunning）、scan_start と違うQR（MQ:wrongQr）、start_room でサーバーが started_at/ends_at 設定、2回目の開始（MQ:roomNotWaiting）、scan_checkpoint が text、違うQR、指定未クリアのゴール（MQ:requiredNotCleared）、自分のフォルダへの写真アップロード、他人のフォルダへのアップロード拒否（400）、無関係ユーザーの判定依頼拒否（400 MQ:permission）、運営の写真読取、finish_room、終了後の操作不可。
@@ -51,6 +58,10 @@
 - Realtime：rooms（id）・participants・checkpoint_clears・submissions（room_id）の変更を購読し、変更が来たら全体を読み直す。
 
 ## 記録（新しい順）
+
+### 2026-11-01
+- 松本のプレイヤーUI（`e3bed5c`、test-1）を取り込み：analyze 問題なし、test 61件成功、整形差分なし、CI 成功
+- プレイヤー側のデータ接続は松本が担当（ユーザー決定）。Claude は `/player` を `PlayerShell` で包み（[M-1]）、入口の形を [C-9] で依頼
 
 ### 2026-10-31 18:40
 - 実写真での判定（赤いポスターが木の壁に掛かった写真、約1477x1108）：

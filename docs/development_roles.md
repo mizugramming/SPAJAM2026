@@ -7,7 +7,7 @@
 | 松本（プレイヤー） | `lib/features/player/`、`test/features/player/`、`assets/player/` |
 | 嶋本（オーナー・共通・統合） | `lib/features/owner/`、`lib/app/`、`lib/core/`、`test/core/`、`test/features/owner/`、`pubspec.yaml`、`pubspec.lock`、`android/`、CI、資料 |
 
-プレイヤー画面を `AppRoutes` に組み込むのは嶋本が行う。松本はプレイヤーの最初の画面のクラス名を伝える（今は `/player` が仮画面）。
+プレイヤー画面を `AppRoutes` に組み込むのは嶋本が行う。各 View と `MatchRepository`・Provider をつなぐのは松本が行う。入口は `lib/features/player/player_flow_page.dart` の `PlayerFlowPage({String? resumeRoomId})`（Scaffold を持たない body）。`/player` では `PlayerShell`（`lib/app/player_shell.dart`、濃紺の背景と戻るボタンだけ）で包む。今は `/player` が仮表示。
 
 ## ブランチ
 
