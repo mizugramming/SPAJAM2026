@@ -275,4 +275,31 @@ void main() {
     expect(retakes, 1);
     expect(retries, 1);
   });
+
+  testWidgets('a long mission scrolls with photo review on a short screen', (tester) async {
+    tester.view.physicalSize = const Size(320, 480);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final instruction = List.filled(8, '案内板の全体とフロア名が読めるように撮影してください。').join();
+    var submits = 0;
+    await tester.pumpWidget(
+      _host(
+        PlayerPhotoReviewView(
+          photo: const SizedBox(),
+          instruction: instruction,
+          onSubmit: () async {
+            submits++;
+          },
+          onRetake: () {},
+        ),
+        textScale: 2,
+      ),
+    );
+    expect(find.text('撮影するもの：$instruction'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await _tap(tester, 'この写真で判定する');
+    expect(submits, 1);
+    expect(tester.takeException(), isNull);
+  });
 }
