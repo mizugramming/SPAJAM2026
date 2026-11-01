@@ -32,8 +32,6 @@ abstract interface class MatchRepository {
 
   Future<Participant> joinRoom({required String roomId, required String displayName});
 
-  Future<void> scanStart({required String roomId, required String qr});
-
   /// チェックポイントQRを読み、撮影するチェックポイントを返す。
   Future<Checkpoint> scanCheckpoint({required String roomId, required String qr});
 

@@ -94,10 +94,6 @@ class _MockPlayerPanelState extends ConsumerState<MockPlayerPanel> {
         spacing: 8,
         children: [
           TextButton(
-            onPressed: () => _run(() => repo.scanStart(roomId: roomId, qr: s.course.startQr)),
-            child: const Text('スタートQR'),
-          ),
-          TextButton(
             onPressed: next == null ? null : () => _run(() => submit(pass: true)),
             child: Text(next == null ? '全CP済み' : '${next.name}を合格'),
           ),

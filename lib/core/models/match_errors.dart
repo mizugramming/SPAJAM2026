@@ -22,7 +22,7 @@ class NotFound extends MatchException {
   const NotFound([super.message = '見つかりません']);
 }
 
-enum MatchRule { roomNotWaiting, roomNotRunning, timeUp, wrongQr, startNotScanned, alreadyFinished, requiredNotCleared }
+enum MatchRule { roomNotWaiting, roomNotRunning, timeUp, wrongQr, alreadyFinished, requiredNotCleared }
 
 /// 対戦のルール上できない操作。
 class MatchRuleViolation extends MatchException {
@@ -35,7 +35,6 @@ class MatchRuleViolation extends MatchException {
     MatchRule.roomNotRunning: '対戦が開始されていません',
     MatchRule.timeUp: '時間切れです',
     MatchRule.wrongQr: 'このコースのQRではありません',
-    MatchRule.startNotScanned: '先にスタートQRを読み取ってください',
     MatchRule.alreadyFinished: 'すでにゴールしています',
     MatchRule.requiredNotCleared: '指定チェックポイントが残っています',
   };

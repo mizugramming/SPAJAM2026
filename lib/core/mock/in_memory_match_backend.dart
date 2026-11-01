@@ -115,7 +115,6 @@ class _InMemoryMatchRepository implements MatchRepository {
       case RoomStatus.running:
         break;
     }
-    if (!me.isReady) throw MatchRuleViolation(MatchRule.startNotScanned);
     if (me.hasFinished) throw MatchRuleViolation(MatchRule.alreadyFinished);
     return (room: room, me: me);
   }
@@ -206,17 +205,6 @@ class _InMemoryMatchRepository implements MatchRepository {
   }
 
   @override
-  Future<void> scanStart({required String roomId, required String qr}) async {
-    await _b._network();
-    final me = _me(roomId);
-    final room = _b._room(roomId);
-    if (room.statusAt(_b.now) == RoomStatus.finished) throw MatchRuleViolation(MatchRule.roomNotRunning);
-    if (qr != _b._courseOf(room).startQr) throw MatchRuleViolation(MatchRule.wrongQr);
-    if (me.isReady) return;
-    _saveParticipant(me.copyWith(startScannedAt: _b.now));
-  }
-
-  @override
   Future<Checkpoint> scanCheckpoint({required String roomId, required String qr}) async {
     await _b._network();
     final (:room, me: _) = _playing(roomId);
@@ -287,7 +275,8 @@ class _InMemoryMatchRepository implements MatchRepository {
     if (qr != course.goalQr) throw MatchRuleViolation(MatchRule.wrongQr);
     final myClears = _b._clears[roomId]!.where((c) => c.participantId == me.userId);
     if (!hasClearedAllRequired(course, myClears)) throw MatchRuleViolation(MatchRule.requiredNotCleared);
-    _saveParticipant(me.copyWith(goalAt: _b.now));
+    final goalAt = _b.now;
+    _saveParticipant(me.copyWith(goalAt: goalAt, goalBonus: goalBonusFor(course, room, goalAt)));
   }
 
   @override

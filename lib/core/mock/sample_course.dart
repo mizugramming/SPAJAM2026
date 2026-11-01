@@ -4,9 +4,9 @@ import '../models/course.dart';
 const sampleCourse = Course(
   id: 'sample',
   name: 'サンプルコース（仮）',
-  startQr: 'MQ-START-sample',
   goalQr: 'MQ-GOAL-sample',
   timeLimit: Duration(minutes: 30),
+  goalBonusPerMinute: 1,
   checkpoints: [
     Checkpoint(
       id: 'cp-a',

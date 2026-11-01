@@ -23,11 +23,12 @@
 |---|---|---|
 | Course / Checkpoint | QR文字列、撮影ミッション、点数、指定/自由 | 初版は固定コースをアプリ内に定義 |
 | Room | 参加コード、ownerId、状態（waiting/running/finished）、開始・終了時刻 | 時刻はサーバーが決める |
-| Participant | 名前、スタートQR読取時刻、ゴール時刻 | 参加者×ルームで1件 |
+| Course | ゴールQR、制限時間、ゴールボーナス（残り1分あたりの点数） | |
+| Participant | 名前、ゴール時刻、ゴールボーナス | 参加者×ルームで1件 |
 | PhotoSubmission | 写真の参照、合否、AIの理由 | 通信失敗の提出は残さない |
 | CheckpointClear | 参加者、チェックポイント、点数 | 参加者×チェックポイントで1件だけ（二重加点防止） |
 
-得点は `CheckpointClear` の合計。得点を別の場所に持たない。
+得点は `CheckpointClear` の合計＋ゴールボーナス（`Participant.goalBonus`）。ゴールボーナスはゴール時にサーバーが確定し、それ以外の場所に得点を持たない。
 
 ## 共通基盤の条件と実装
 
@@ -41,14 +42,13 @@
 
 1. 運営が固定コースを選んでルーム作成 → 6桁の参加コードを表示。
 2. 参加者がコードで参加（待機中のみ。同じ端末の再参加は同じ参加者として扱う）。
-3. 参加者が共通スタートQRを読む → 運営の待機画面に「準備済み」と出る。
 4. 運営が一斉開始 → サーバーが開始時刻と終了時刻（開始＋制限時間）を記録。
 5. 参加者がチェックポイントQRを読む → 撮影 → AI判定 → 合格なら加点。
-6. 指定チェックポイントを全てクリアした参加者だけがゴールQRで完了できる。
+6. 指定チェックポイントを全てクリアした参加者だけがゴールQRで完了できる。ゴール時の残り時間（1分未満は切り捨て）×コースの「1分あたりの点数」をゴールボーナスとして加点する。時間切れ後はゴールできないのでボーナスなし。
 7. 終了時刻を過ぎるか運営が終了すると、参加者の操作を受け付けない。
 
 **暫定**（決まったら差し替える）
-- スタートQRを読んでいない参加者はチェックポイント・撮影・ゴールができない。運営は未読取の人がいても確認のうえ開始できる。
+- ゴールボーナスの1分あたりの点数：仮コースは1点（ユーザー決定は「残り時間に比例」まで。点数は未確定）。
 - 順位：得点の高い順 → ゴール済みが先 → ゴールが早い順。得点とゴール時刻が同じなら同順位。
 - 参加者は全員のクリア状況（順位）を見られ、写真と判定理由は自分の分だけ見られる。
 - 全員ゴールしても自動では終了しない（運営が終了する）。
@@ -75,10 +75,10 @@
 
 | テーブル | 列 | 制約 |
 |---|---|---|
-| courses | id text PK, name, start_qr, goal_qr, time_limit_seconds int | |
+| courses | id text PK, name, goal_qr, time_limit_seconds int, goal_bonus_per_minute int | start_qr 列は使わない（残してもよい） |
 | checkpoints | id text PK, course_id → courses, name, floor, qr, mission, points int, required bool, sort_order int | |
 | rooms | id uuid PK, code text, course_id, owner_id uuid, status text（waiting/running/finished）, created_at, started_at, ends_at, finished_at | 進行中の code は一意 |
-| participants | room_id, user_id uuid, display_name, joined_at, start_scanned_at, goal_at | PK(room_id, user_id) |
+| participants | room_id, user_id uuid, display_name, joined_at, goal_at, goal_bonus int（既定0） | PK(room_id, user_id)。start_scanned_at 列は使わない |
 | submissions | id uuid PK, room_id, participant_id uuid, checkpoint_id, photo_path, submitted_at, status text（pending/passed/rejected）, reason, judged_at | |
 | checkpoint_clears | room_id, participant_id uuid, checkpoint_id, points int, cleared_at, submission_id | UNIQUE(room_id, participant_id, checkpoint_id) |
 
@@ -98,9 +98,8 @@
 | finish_room | p_room_id | なし | 運営 |
 | find_room_by_code | p_code | rooms の1行（json） | 誰でも |
 | join_room | p_room_id, p_display_name | participants の1行（json）。再参加は既存の行を返す | 運営以外 |
-| scan_start | p_room_id, p_qr | なし | 参加者 |
 | scan_checkpoint | p_room_id, p_qr | checkpoint_id（text） | 参加者 |
-| scan_goal | p_room_id, p_qr | なし | 参加者 |
+| scan_goal | p_room_id, p_qr | なし。goal_at=now()、goal_bonus=floor((ends_at−now())/60秒)×goal_bonus_per_minute（0未満にしない） | 参加者 |
 
 時刻はすべてサーバーの `now()`。規則は上の「対戦の流れと規則」と `lib/core/mock/in_memory_match_backend.dart` と同じにする。
 
@@ -114,12 +113,17 @@
 
 ### エラーの返し方
 - 関数・Function のルール違反は、`MQ:` で始まる文字列で返す。関数は `raise exception 'MQ:roomNotRunning'`、Function は 4xx の `{"error": "MQ:roomNotRunning"}`。
-- コード：`MQ:permission`、`MQ:notFound`、`MQ:roomNotWaiting`、`MQ:roomNotRunning`、`MQ:timeUp`、`MQ:wrongQr`、`MQ:startNotScanned`、`MQ:alreadyFinished`、`MQ:requiredNotCleared`（アプリの `MatchRule` と同じ名前）。
+- コード：`MQ:permission`、`MQ:notFound`、`MQ:roomNotWaiting`、`MQ:roomNotRunning`、`MQ:timeUp`、`MQ:wrongQr`、`MQ:alreadyFinished`、`MQ:requiredNotCleared`（アプリの `MatchRule` と同じ名前）。
 - それ以外の失敗は、アプリでは通信失敗として扱う。
 
 ### 未対応・注意
 - checkpoints の qr 列は参加者からも読めるので、QRを読まずに値を知ることができる。初版では許容し、後で関数側の照合に寄せる。
 - 端末の時計とサーバー時刻のずれは補正していない（残り時間の表示が数秒ずれる可能性）。
+
+### 接続仕様の変更履歴
+- 2026-11-01：スタートQRを廃止（ユーザー決定）。参加した時点で準備完了、運営の一斉開始で全員開始。`scan_start` 関数と `MQ:startNotScanned` を廃止し、scan_checkpoint・judge-photo・scan_goal は start_scanned_at を確認しない。ゴールボーナスを追加（courses.goal_bonus_per_minute、participants.goal_bonus、scan_goal で確定）。
+  - 移行順：(1) サーバー側でスタートQRの確認を外し、列を追加（アプリの旧版も動く）→ (2) アプリの新版を test-1 にマージ。逆順だと新アプリが startNotScanned で止まる。
+  - アプリは goal_bonus_per_minute・goal_bonus が無い間は 0 として読む。
 
 ## 保存・復帰
 

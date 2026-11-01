@@ -20,21 +20,18 @@ class _OwnerWaitingViewState extends ConsumerState<OwnerWaitingView> {
 
   Future<void> _start() async {
     final s = widget.snapshot;
-    final notReady = s.participants.where((p) => !p.isReady).length;
-    if (notReady > 0) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('開始しますか？'),
-          content: Text('スタートQRを読んでいない参加者が$notReady人います。'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('待つ')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('開始する')),
-          ],
-        ),
-      );
-      if (ok != true || !mounted) return;
-    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('開始しますか？'),
+        content: Text('参加者${s.participants.length}人で開始します。開始後は参加できません。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('待つ')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('開始する')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
     setState(() => _starting = true);
     try {
       await ref.read(matchRepositoryProvider).startRoom(s.room.id);
@@ -50,7 +47,6 @@ class _OwnerWaitingViewState extends ConsumerState<OwnerWaitingView> {
   Widget build(BuildContext context) {
     final s = widget.snapshot;
     final theme = Theme.of(context);
-    final readyCount = s.participants.where((p) => p.isReady).length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -68,18 +64,10 @@ class _OwnerWaitingViewState extends ConsumerState<OwnerWaitingView> {
           ),
         ),
         const SizedBox(height: 16),
-        Text('参加者 ${s.participants.length}人（スタートQR済み $readyCount人）', style: theme.textTheme.titleSmall),
+        Text('参加者 ${s.participants.length}人', style: theme.textTheme.titleSmall),
         if (s.participants.isEmpty)
           const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('参加者を待っています')),
-        for (final p in s.participants)
-          ListTile(
-            leading: Icon(
-              p.isReady ? Icons.check_circle : Icons.hourglass_empty,
-              color: p.isReady ? Colors.green : null,
-            ),
-            title: Text(p.displayName),
-            subtitle: Text(p.isReady ? 'スタートQR読取済み' : 'スタートQR未読取'),
-          ),
+        for (final p in s.participants) ListTile(leading: const Icon(Icons.person), title: Text(p.displayName)),
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: s.participants.isEmpty || _starting ? null : _start,

@@ -4,31 +4,29 @@ class Participant {
     required this.roomId,
     required this.displayName,
     required this.joinedAt,
-    this.startScannedAt,
     this.goalAt,
+    this.goalBonus = 0,
   });
 
   final String userId;
   final String roomId;
   final String displayName;
   final DateTime joinedAt;
-
-  /// 共通スタートQRを読んだ時刻。運営の待機画面で準備済みとして表示する。
-  final DateTime? startScannedAt;
-
   final DateTime? goalAt;
 
-  bool get isReady => startScannedAt != null;
+  /// ゴール時の残り時間に応じたボーナス点。サーバーがゴール時に確定する。
+  final int goalBonus;
+
   bool get hasFinished => goalAt != null;
 
-  Participant copyWith({DateTime? startScannedAt, DateTime? goalAt}) {
+  Participant copyWith({DateTime? goalAt, int? goalBonus}) {
     return Participant(
       userId: userId,
       roomId: roomId,
       displayName: displayName,
       joinedAt: joinedAt,
-      startScannedAt: startScannedAt ?? this.startScannedAt,
       goalAt: goalAt ?? this.goalAt,
+      goalBonus: goalBonus ?? this.goalBonus,
     );
   }
 }

@@ -126,12 +126,14 @@ class PlayerPhotoReviewView extends StatefulWidget {
     required this.onSubmit,
     required this.onRetake,
     this.errorMessage,
+    this.instruction,
   });
 
   final Widget photo;
   final Future<void> Function() onSubmit;
   final VoidCallback onRetake;
   final String? errorMessage;
+  final String? instruction;
 
   @override
   State<PlayerPhotoReviewView> createState() => _PlayerPhotoReviewViewState();
@@ -231,6 +233,10 @@ class _PlayerPhotoReviewViewState extends State<PlayerPhotoReviewView> {
         ],
       ),
       children: [
+        if (widget.instruction case final instruction? when instruction.trim().isNotEmpty) ...[
+          PlayerNotice(message: '撮影するもの：$instruction', icon: Icons.center_focus_strong),
+          const SizedBox(height: 16),
+        ],
         const _CameraPanelLabel(icon: Icons.photo_outlined, label: '判定に使う写真', caption: 'REVIEW'),
         const SizedBox(height: 8),
         _PhotoFrame(

@@ -3,22 +3,23 @@ class Course {
   const Course({
     required this.id,
     required this.name,
-    required this.startQr,
     required this.goalQr,
     required this.timeLimit,
+    required this.goalBonusPerMinute,
     required this.checkpoints,
   });
 
   final String id;
   final String name;
 
-  /// 全員共通のスタートQRに埋め込む文字列。
-  final String startQr;
-
   /// ゴールQRに埋め込む文字列。
   final String goalQr;
 
   final Duration timeLimit;
+
+  /// ゴール時の残り時間1分あたりのボーナス点。
+  final int goalBonusPerMinute;
+
   final List<Checkpoint> checkpoints;
 
   Iterable<Checkpoint> get requiredCheckpoints => checkpoints.where((c) => c.required);

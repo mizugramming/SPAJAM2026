@@ -58,15 +58,16 @@ void main() {
         'user_id': 'u2',
         'display_name': 'アリス',
         'joined_at': '2026-11-01T01:01:00Z',
-        'start_scanned_at': null,
-        'goal_at': null,
+        'goal_at': '2026-11-01T01:20:00Z',
+        'goal_bonus': 15,
       });
-      expect(p.isReady, isFalse);
+      expect(p.hasFinished, isTrue);
+      expect(p.goalBonus, 15);
     });
 
     test('コースはチェックポイントを並び順で持つ', () {
       final course = courseFromRows(
-        {'id': 'c', 'name': 'コース', 'start_qr': 's', 'goal_qr': 'g', 'time_limit_seconds': 1800},
+        {'id': 'c', 'name': 'コース', 'goal_qr': 'g', 'time_limit_seconds': 1800, 'goal_bonus_per_minute': 2},
         [
           for (final (id, order) in [('b', 2), ('a', 1)])
             {
@@ -84,6 +85,7 @@ void main() {
       );
       expect(course.checkpoints.map((c) => c.id), ['a', 'b']);
       expect(course.timeLimit, const Duration(minutes: 30));
+      expect(course.goalBonusPerMinute, 2);
     });
 
     test('rpcの戻り値は1行のjsonでも配列でもよい', () {

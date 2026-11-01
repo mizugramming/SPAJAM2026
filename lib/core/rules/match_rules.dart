@@ -1,5 +1,6 @@
 import '../models/course.dart';
 import '../models/participant.dart';
+import '../models/room.dart';
 import '../models/room_snapshot.dart';
 import '../models/submission.dart';
 
@@ -8,6 +9,13 @@ import '../models/submission.dart';
 bool hasClearedAllRequired(Course course, Iterable<CheckpointClear> clears) {
   final cleared = clears.map((c) => c.checkpointId).toSet();
   return course.requiredCheckpoints.every((c) => cleared.contains(c.id));
+}
+
+/// ゴールボーナス：ゴール時の残り時間（1分未満は切り捨て）×コースの1分あたりの点数。時間切れ後は0。
+int goalBonusFor(Course course, Room room, DateTime goalAt) {
+  final endsAt = room.endsAt;
+  if (endsAt == null || !goalAt.isBefore(endsAt)) return 0;
+  return endsAt.difference(goalAt).inMinutes * course.goalBonusPerMinute;
 }
 
 class Standing {

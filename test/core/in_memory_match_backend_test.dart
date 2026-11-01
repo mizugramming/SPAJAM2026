@@ -23,11 +23,10 @@ void main() {
     alice = backend.repositoryFor('alice');
   });
 
-  /// 作成→参加→スタートQR→開始まで進めたルームID。
+  /// 作成→参加→開始まで進めたルームID。
   Future<String> runningRoom() async {
     final room = await owner.createRoom(courseId: sampleCourse.id);
     await alice.joinRoom(roomId: room.id, displayName: 'アリス');
-    await alice.scanStart(roomId: room.id, qr: sampleCourse.startQr);
     await owner.startRoom(room.id);
     return room.id;
   }
@@ -128,7 +127,6 @@ void main() {
     final bob = backend.repositoryFor('bob');
     for (final (repo, name) in [(alice, 'アリス'), (bob, 'ボブ')]) {
       await repo.joinRoom(roomId: room.id, displayName: name);
-      await repo.scanStart(roomId: room.id, qr: sampleCourse.startQr);
     }
     await owner.startRoom(room.id);
     final cp = sampleCourse.checkpoints.first;
@@ -141,13 +139,12 @@ void main() {
     expect(() => bob.loadPhoto(roomId: room.id, photoRef: ref), throwsA(isA<PermissionDenied>()));
   });
 
-  test('スタートQRを読む前はチェックポイントに進めない', () async {
+  test('開始前はチェックポイントに進めない', () async {
     final room = await owner.createRoom(courseId: sampleCourse.id);
     await alice.joinRoom(roomId: room.id, displayName: 'アリス');
-    await owner.startRoom(room.id);
     expect(
       () => alice.scanCheckpoint(roomId: room.id, qr: sampleCourse.checkpoints.first.qr),
-      throwsA(isA<MatchRuleViolation>().having((e) => e.rule, 'rule', MatchRule.startNotScanned)),
+      throwsA(isA<MatchRuleViolation>().having((e) => e.rule, 'rule', MatchRule.roomNotRunning)),
     );
   });
 
@@ -175,6 +172,10 @@ void main() {
 
     final s = await owner.watchRoom(roomId).first;
     expect(s.participant('alice')!.goalAt, now);
+    // 制限30分・開始5分後にゴール → 残り25分 × 1点。
+    expect(s.participant('alice')!.goalBonus, 25);
+    final checkpointPoints = sampleCourse.requiredCheckpoints.fold(0, (sum, c) => sum + c.points);
+    expect(s.scoreOf('alice'), checkpointPoints + 25);
     await expectLater(
       alice.scanGoal(roomId: roomId, qr: sampleCourse.goalQr),
       throwsA(isA<MatchRuleViolation>().having((e) => e.rule, 'rule', MatchRule.alreadyFinished)),

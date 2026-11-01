@@ -52,6 +52,7 @@ class _Body extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         Text('${s.scoreOf(userId)}点', style: theme.textTheme.headlineMedium),
+        Text('チェックポイント ${s.checkpointScoreOf(userId)}点 ＋ ゴールボーナス ${s.participant(userId)?.goalBonus ?? 0}点'),
         const SizedBox(height: 8),
         Text('チェックポイント', style: theme.textTheme.titleSmall),
         for (final cp in s.course.checkpoints)
