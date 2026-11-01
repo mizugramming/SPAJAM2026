@@ -2,6 +2,25 @@
 
 担当：プレイヤー画面・QR／撮影・担当テスト。作業ブランチは `matsumoto/player-flow`、PR先は `test-1`。親画面・共通基盤は変更しない。
 
+確認先：[PR #56（matsumoto/player-flow → test-1）](https://github.com/mizugramming/SPAJAM2026/pull/56)。C-11追従待ちのドラフトですが、差分の閲覧・コメントは可能です。
+
+## 嶋本さんの確認手順
+
+1. PR #56の「Files changed」で担当差分を確認してください。入口は `lib/features/player/player_flow_page.dart` の `PlayerFlowPage({String? resumeRoomId})` で、Scaffoldなしのbodyです。
+2. `lib/features/player/README.md` の入口の組み込みと共通接続を確認してください。`PlayerShell` 内の仮画面差し替えは嶋本担当です。
+3. 共通モックで一周・復帰・失敗時の挙動を確認するテストは `test/features/player/player_flow_page_test.dart` です。PRのChecksからCI結果も確認できます。実機QR／カメラは未確認です。
+4. #55の共通APIとC-11は、このPRの旧APIとはそのまま組み合わせられません。#55統合後のスタートQR除去・ボーナス内訳・関連テスト更新は松本側で行います。現在は入口契約と接続方法の確認をお願いします。
+
+自分の作業ブランチを切り替えずに進捗を読む場合：
+
+```bash
+git fetch origin matsumoto/player-flow
+git show origin/matsumoto/player-flow:docs/progress/matsumoto.md
+git show origin/matsumoto/player-flow:lib/features/player/README.md
+```
+
+このPRでは親ルートを変更していないため、通常の `flutter run` だけでは新しいプレイヤー画面へ入れません。現時点の操作確認は上記の共通モックのWidgetテスト、実アプリ確認はC-11追従と親ルート差し替え後に行います。
+
 ## 現在の状態（2026-11-01 更新）
 
 - 参加・開始待ち・マップ／フロア切替・QR・撮影・写真確認・判定／再撮影・順位・結果の表示部品を実装し、ナイトミッション配色を反映。
@@ -29,6 +48,7 @@
 
 ### 2026-11-01
 
+- PR #56を作成し、嶋本さん向けの確認先・確認手順・C-11追従の担当を追記。コード変更やマージは行っていない。
 - ユーザーの [C-9] 指示に従い、自分のブランチで共通基盤との接続を実装。対象は担当ソース・テスト・README・この進捗のみ。既存の未追跡 `ios/` / `linux/` / `macos/` は保持。
 - C-9・M-1〜M-3への回答は `test-1` に未反映で `origin/nagisa` に存在することを確認。親Shell・ルートや共通変更は無断で取り込んでいない。
 - 保存失敗後の再保存、削除失敗後の再試行、遅い処理中の離脱、写真確認の長いお題を修正し、回帰テストを追加。
