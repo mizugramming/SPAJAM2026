@@ -1,50 +1,87 @@
-# 共同開発キット
+# まよいクエスト（仮称）開発仕様書
 
-## 始める前に
+作成日：2026-10-31／会話で決定した仕様の初版。実装済みを意味しない。
 
-AIに指示を出す前に、[担当作業の開始・再開プロンプト](docs/ai_prompts.md)をそのまま渡してください。AIがルール・設計書・実際の構成を確認し、まだ伝わっていない担当と変更内容を質問します。
+館内案内図を見ながら実際に歩き、QRと撮影ミッションでチェックポイントを巡る個人対戦ゲーム。テーマは「まよい」。自由ミッションを続けるか、早くゴールするかの選択も楽しむ。
 
-アプリの基盤は作成者が用意します。このmainは、別のアプリでも使うルール・プロンプト・資料の雛形を保管する場所です。
+## 開発体制
 
-## 次のアプリへ持っていくもの
-
-| ファイル | 用途 |
+| 担当 | 範囲 |
 |---|---|
-| [AGENTS.md](AGENTS.md) | 共通ルールブック。そのまま使う |
-| [docs/ai_prompts.md](docs/ai_prompts.md) | 開発者がそのままAIへ渡すプロンプト |
-| [CLAUDE.md](CLAUDE.md) / [.github/copilot-instructions.md](.github/copilot-instructions.md) | 利用するAI向けの入口 |
-| [templates/project/](templates/project/README.md) | 今回のREADME・設計・構成・環境・素材管理・PRの雛形 |
-| [Flutter用README](templates/project/README.flutter.md) | 開発者1〜4の番号別コマンドと、更新・開発・PR・マージの手順 |
+| 松本 | プレイヤー画面、QR読取、撮影、マップ・判定結果・順位表示 |
+| 嶋本 | オーナー画面、共通モデル、状態・保存・同期、得点計算、AI接続、統合 |
 
-[コピーと引き渡しの手順](docs/reuse_rules.md)を参照してください。雛形の内容は、作成者が実装した基盤に合わせて完成させます。担当開発者がプロンプトへ項目を記入する必要はありません。
+Android専用、Flutter、Android Studio。オーナーも同じアプリを使用。対戦には常時インターネット接続が必要。開発者は2人。Claude/Codexのどちらを誰が使うかは未指定。
 
-## このキットの構成
+## 最初に読む資料
 
-```text
-AGENTS.md / CLAUDE.md             再利用するルールとAI向けの入口
-docs/ai_prompts.md                担当作業の開始・再開
-docs/reuse_rules.md               コピーと引き渡しの手順
-docs/repository_maintenance.md    このリポジトリのブランチ運用・旧アプリの保管先
-templates/project/               アプリごとに作成者が完成させる資料の雛形
-.github/copilot-instructions.md   再利用するAI向けの入口
-.github/PULL_REQUEST_TEMPLATE.md  このキットの変更をレビューする様式
-.github/workflows/check.yml      このキットの文書・構成チェック
-tool/check_kit.py                 上記チェックの実装
-```
+1. [AGENTS.md](AGENTS.md)：プロジェクト共通の共同開発ルール。
+2. [要件](docs/requirements.md)：決定済み仕様と初版の範囲。
+3. [画面設計](docs/screen_design.md)：画面と遷移。
+4. [システム設計](docs/system_design.md)：接続・データ・状態・未確定事項。
+5. [担当と進め方](docs/development_roles.md)：担当フォルダ案と統合手順。
+6. [進捗の記録](docs/progress/README.md)：担当者ごとの進捗と依頼・質問。作業を始める前に他の担当者のファイルを読む。
 
-このキットのCIやチェックツールは、アプリ用のCIとは用途が異なります。アプリではSDK固定・依存ロック・解析・テスト・ビルド・ブランチ保護を別途用意します。
+## 実装の優先順位
 
-## このキットを変更するとき
+最初は固定コースで、ルーム作成→参加→一斉開始→チェックポイントQR→写真のAI判定→加点→全指定クリア→ゴールQR→結果集計を実際に動かす。自由ミッション・順位共有・時間切れ・復帰も同じ対戦モデルに接続する。
 
-作業ブランチから `main` 向けにPRを作成します。文書は `docs/`、アプリごとの資料雛形は `templates/project/`、共通ルール・AI指示・CIは共通管理です。担当範囲は依頼に応じて確認してください。
+案内図のAI解析、通路の高度な編集、自作コース保存、PDF取込、NFCは後続。正式な要件から削除したわけではない。初版では実装できていない機能を使えるように表示しない。
 
-ローカルの検証にはPython 3.12以降を使います。追加パッケージは不要です。
+## 決定事項（2026-10-31）
+
+| 項目 | 決定 |
+|---|---|
+| リポジトリ | https://github.com/mizugramming/SPAJAM2026 |
+| 統合ブランチ（PR先） | `test-1`。作業ブランチ（例：`nagisa`）から `test-1` へPR。`main` は共通キット用なのでアプリを入れない |
+| Flutter | 3.44.5 stable（Dart 3.12.2）。`.fvmrc` で固定 |
+| バックエンド | Supabase（東京リージョン）。アプリ側の接続は実装済み、サーバー側（`supabase/`）は作成中 |
+| AI判定 | OpenAI。Supabase Edge Function から呼び、鍵はアプリに入れない（サーバー側は作成中） |
+| 状態管理 | flutter_riverpod 3 |
+| 対象端末 | Android。`web/` は開発中に Chrome で画面を確認するためだけに置く（カメラ・QRは実機で確認） |
+
+## 開発環境・起動・検証
 
 ```bash
-python3 tool/check_kit.py
-git diff --check
+fvm flutter pub get --enforce-lockfile   # fvm がなければ 3.44.5 の flutter を直接使う
+fvm flutter run -d chrome                # 開発中の確認用：Chrome で表示（本番の対象は Android）
+fvm flutter run                          # モックで起動（Supabase に接続しない）
+fvm flutter run --dart-define-from-file=config/supabase.json   # Supabase に接続
+fvm flutter analyze
+fvm flutter test
+dart format lib test                     # 行幅120（analysis_options.yaml）
 ```
 
-必須チェック名は `check` です。資料の有無・ローカルリンク先・アプリ固有ファイルの混入を検査します。文意、外部URLの有効性、アプリの起動までは検査しません。
+`config/supabase.json` は `config/supabase.example.json` をコピーして、Project URL と publishable（anon）キーを入れる。Git には入れない。`service_role` / secret キーはアプリに入れない。
 
-現在開発中のアプリとmainは用途が異なります。[このリポジトリの運用](docs/repository_maintenance.md)を確認し、相互にブランチ全体をマージしないでください。
+CI（`.github/workflows/check.yml` の `check`）は、依存取得・整形・analyze・test・空白チェックを実行する。実機での起動・カメラ・QR・複数端末の同期は未検証。
+
+## 構成
+
+```text
+lib/main.dart                 起動（ProviderScope）
+lib/app/                      ルート・入口・共通レイアウト（嶋本）
+lib/app/dev/                  開発用モック参加者パネル（嶋本）
+lib/core/models/              共通モデル・エラー（嶋本）
+lib/core/repository/          MatchRepository 契約（嶋本）
+lib/core/rules/               得点・ゴール・順位の判定（嶋本）
+lib/core/mock/                モックのサーバー・AI判定・仮コース（嶋本）
+lib/core/supabase/            Supabase 版 MatchRepository（嶋本）
+lib/core/session/             再起動後に戻るルームの保存（嶋本）
+lib/core/providers.dart       画面が使う Provider（嶋本）
+supabase/                     テーブル・RLS・関数・Edge Function（サーバー側の担当）
+lib/features/owner/           オーナー画面（嶋本）
+lib/features/player/          プレイヤー画面（松本）
+test/core/, test/features/owner/   嶋本のテスト
+test/features/player/         松本のテスト
+```
+
+接続方法と使用例は [担当と進め方](docs/development_roles.md)、データと規則は [システム設計](docs/system_design.md)。
+
+## 初版着手前の最小確認
+
+- Supabase プロジェクトの作成者と URL・匿名キーの共有方法、OpenAI の費用上限と鍵の管理者。
+- 使用する固定コースの案内図、フロア、通路、撮影対象、正解写真、設置可能なQR。今は仮コース（`lib/core/mock/sample_course.dart`）。
+- 松本の Flutter 環境が 3.44.5 であること。
+
+細かな推奨設計はsystem_design.mdに明示し、決定済み要件と混同しない。

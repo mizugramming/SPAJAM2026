@@ -1,4 +1,4 @@
-name: Shared kit checks
+name: App checks
 on:
   push:
   pull_request:
@@ -11,11 +11,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      # .fvmrc と同じバージョンにそろえる。
+      - uses: subosito/flutter-action@v2
         with:
-          python-version: '3.12'
-      - name: Validate shared files and document links
-        run: python tool/check_kit.py
+          flutter-version: '3.44.5'
+          channel: stable
+      - run: flutter pub get --enforce-lockfile
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test
       - name: Check whitespace in the proposed change
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
