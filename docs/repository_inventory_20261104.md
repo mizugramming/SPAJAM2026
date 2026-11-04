@@ -1,75 +1,76 @@
-# ブランチ・PR棚卸し（2026-11-04）
+# ブランチ・PR整理結果（2026-11-04）
 
-GitHubのブランチ・PR一覧、各ブランチのREADME、Gitの履歴を照合した記録です。[普段の運用](repository_maintenance.md)と分け、確認後の更新を現在の状態と混同しないようにします。
+GitHubのブランチ・PR一覧とGitの履歴を照合した記録です。[普段の運用](repository_maintenance.md)とは分けて管理します。
 
-整理開始時点は21ブランチ・未完了PR10件。以下は整理作業用ブランチを除く一覧です。アプリコード・SDK・依存・CI設定・保護設定・共有履歴は変更対象に含めません。
+最初の棚卸しは21ブランチ・未完了PR10件。整理用ブランチとPR #57の追加後は22ブランチ・11件となり、旧ブランチ14本・旧PR8件を整理しました。現在は **8ブランチ・未完了PR3件** です。
 
-PR #9・#10・#54は、説明に理由と保存先・継続先を記録してマージせずクローズ済みです。既存の未完了PRは7件になりました（整理内容を提案する新規PRを除く）。
+所有者の「test-1側の開発と、rehearsal/01・rehearsal/02・honbanを残して旧作業を削除する」方針に従っています。main、test-1、rehearsal/01、rehearsal/02、honbanの先端は変更していません。
 
-## 統合先・保管先（5本）
+## 保持しているブランチ（8本）
 
-| ブランチ | 内容 | 確認時の先端 |
+| ブランチ | 用途 | 開いているPR |
 |---|---|---|
-| `main` | 共通キット | `637c514df715` |
-| `test-1` | まよいクエスト。現在の開発先 | `e3bed5c14d88` |
-| `honban` | つなぐん | `b26910aa3b24` |
-| `rehearsal/02` | 余白 | `209275626360` |
-| `rehearsal/01` | 初回練習アプリ | `0f47895dcc90` |
+| `main` | 共通キット | — |
+| `test-1` | まよいクエストの統合先 | — |
+| `rehearsal/01` | 初回練習アプリの保管先 | — |
+| `rehearsal/02` | 余白の統合先 | — |
+| `honban` | つなぐんの統合先 | — |
+| `nagisa` | 現在のアプリの開発中作業 | [#55](https://github.com/mizugramming/SPAJAM2026/pull/55) |
+| `matsumoto/player-flow` | 現在のアプリの開発中作業・ドラフト | [#56](https://github.com/mizugramming/SPAJAM2026/pull/56) |
+| `chore/repository-cleanup-20261104` | このリポジトリ整理の作業 | [#57](https://github.com/mizugramming/SPAJAM2026/pull/57) |
 
-## 現在のアプリの作業（2本）
+`nagisa`・`matsumoto/player-flow` はtest-1側の進行中作業です。整理用の `chore/repository-cleanup-20261104` はPR #57が残っているため保持しています。
 
-| ブランチ | 継続先 | 確認時の先端 |
+## 削除した旧ブランチ（14本）
+
+削除直前に先端がバックアップ時点から変わっていないことを確認しました。未統合のコミットを含むものも、削除前の履歴を復元用ファイルへ保存・検証したうえで整理しています。
+
+| ブランチ | 削除前の先端コミット | 今回クローズしたPR |
 |---|---|---|
-| `nagisa` | [PR #55](https://github.com/mizugramming/SPAJAM2026/pull/55) → `test-1` | `da3bfe559f0c` |
-| `matsumoto/player-flow` | [PR #56](https://github.com/mizugramming/SPAJAM2026/pull/56) → `test-1`。ドラフト、共通APIへの追従待ち | `186b1d20f59a` |
+| `docs/harden-development-handoff` | `57b6475911c0493a5711994f2a3049ca3cb144ed` | [#37](https://github.com/mizugramming/SPAJAM2026/pull/37) |
+| `docs/honban-device-layout` | `8b79459c151cbce9fc70d7fa44d322eaa45f048d` | [#38](https://github.com/mizugramming/SPAJAM2026/pull/38) |
+| `docs/reusable-development-rulebook` | `f3d274956ef0a6f267d7ab44411e8dab08d43070` | [#23](https://github.com/mizugramming/SPAJAM2026/pull/23) |
+| `feature/practice-nagisa` | `c0802825f01c1b46ae70569a593d85990d6faab5` | — |
+| `feature/screen4-mizuki` | `ec0353017880c58e6337aabb77c0015ce8de9abe` | — |
+| `feature/space-constellation-nagisa` | `3ff879ddbab0e4484567f11c13912cfbd58a58e2` | [#35](https://github.com/mizugramming/SPAJAM2026/pull/35) |
+| `feature/yohaku-constellation` | `1e7b705890526fab0c66196f0354eaeb9bca1305` | — |
+| `feature/yohaku-home` | `3b43f884d5e4df4beb85bcb1600efe3ab0fc286a` | — |
+| `feature/yohaku-space` | `a5ba6fcd8e1964b157a415b9c5a5e384cb34780b` | — |
+| `feature/yohaku-space-rehearsal02` | `2c399c00b0f3825763c9ef626412be997316a214` | — |
+| `feature/yohaku-space-relationship-icons` | `a5ba6fcd8e1964b157a415b9c5a5e384cb34780b` | [#32](https://github.com/mizugramming/SPAJAM2026/pull/32) |
+| `feature/お寿司のとこ-nagisa` | `2c615495327953e1a2ac12e3017e3e6d986f8ff0` | — |
+| `feature/プロフィール入力-松本吏功` | `a5ba6fcd8e1964b157a415b9c5a5e384cb34780b` | — |
+| `fix/yohaku-home-analyze` | `b3d09fbb0632e2855d290062d6d9b86e7fb85d60` | — |
 
-## 判断・レビューを残す作業（5本）
+## PRの整理
 
-| ブランチ | PR先 | 保持する理由 | 確認時の先端 |
-|---|---|---|---|
-| `docs/harden-development-handoff` | [#37](https://github.com/mizugramming/SPAJAM2026/pull/37) → `main` | 履歴はhonbanに含まれるが、main向けの共通キット変更は未統合 | `57b6475911c0` |
-| `docs/honban-device-layout` | [#38](https://github.com/mizugramming/SPAJAM2026/pull/38) → `honban` | 統合先に含まれないコミットがある | `8b79459c151c` |
-| `docs/reusable-development-rulebook` | [#23](https://github.com/mizugramming/SPAJAM2026/pull/23) → `rehearsal/02` | 統合先に含まれないコミットがある | `f3d274956ef0` |
-| `feature/space-constellation-nagisa` | [#35](https://github.com/mizugramming/SPAJAM2026/pull/35) → `main`（要見直し） | #36の統合後にも未統合コミット5件。mainへはアプリを入れず、余白側の差分・接続をレビューする | `3ff879ddbab0` |
-| `feature/yohaku-space-relationship-icons` | [#32](https://github.com/mizugramming/SPAJAM2026/pull/32) → `rehearsal/02` | 先端はrehearsal/01に含まれるが、PR先への差分は残る。名前だけで統合済みと判断しない | `a5ba6fcd8e19` |
+- #9・#10・#54：main向けの旧アプリ・重複PRとして、理由と保存先・継続先を説明に記録してクローズ。
+- #23・#32・#35・#37・#38：今回削除する旧作業に対応するため、説明に理由と削除前の先端を記録してクローズ。
+- #55・#56・#57：進行中の作業として保持。
 
-#37もこの運用資料を変更するため、先に統合されたPRの内容を後続側で取り込み、案内を再確認します。
+旧PRはマージせず閉じています。アプリコード、SDK、依存、CI、ブランチ保護、保持するブランチの履歴は変更していません。
 
-## 統合先に履歴が含まれる作業（6本）
+## 復元用バックアップ
 
-以下は削除候補です。リモートからは削除していません。継続利用の有無と最新の先端を確認してから扱います。
+削除前の全履歴を `SPAJAM2026-before-branch-cleanup-20261104.bundle` に保存しました。`branch-cleanup-manifest-20261104.json` には保持・削除の対象と先端を記録しています。どちらも今回の作業で提供する復元用ファイルで、リポジトリのソースには追加していません。
 
-| ブランチ | 先端まで含む保存先 | 確認時の先端 |
-|---|---|---|
-| `feature/yohaku-constellation` | `rehearsal/02` | `1e7b70589052` |
-| `feature/yohaku-home` | `rehearsal/02` | `3b43f884d5e4` |
-| `feature/yohaku-space` | `rehearsal/01` | `a5ba6fcd8e19` |
-| `feature/yohaku-space-rehearsal02` | `rehearsal/02`（#33で統合） | `2c399c00b0f3` |
-| `feature/お寿司のとこ-nagisa` | `rehearsal/01` | `2c6154953279` |
-| `feature/プロフィール入力-松本吏功` | `rehearsal/01`。main向け#10はクローズ済み | `a5ba6fcd8e19` |
+- bundleの容量：77,480,006 bytes。
+- SHA-256：`aabec523e2167dba3a857706478ea27bb05eea4f23dd11581ea78e6d023e4cb4`。
+- `git bundle verify`：完全な履歴であることを確認。
+- bundleからミラーを複製し、`git fsck --full` が成功。
+- 削除直後のGitHub画面で、14本とも復元操作（Restore）が表示されることを確認。
 
-## 未統合のコミットがある旧作業（3本）
+bundleから復元する場合は、別の空の場所でミラーを作成します。対象名と上表のSHAを確認し、必要な1本だけを戻します。
 
-5本の統合先・保管先すべてを対象に `git rev-list 作業ブランチ --not 統合先...` で数えています。履歴に含まれないことを示す値で、同じ内容が別コミットで反映されているかまでは断定しません。
+```bash
+git clone --mirror SPAJAM2026-before-branch-cleanup-20261104.bundle restore.git
+git --git-dir=restore.git show-ref
+# 対象名を元のブランチ名に置き換え、対象1本だけを復元する
+git --git-dir=restore.git push https://github.com/mizugramming/SPAJAM2026.git refs/remotes/origin/対象名:refs/heads/対象名
+```
 
-| ブランチ | 統合先・保管先に含まれないコミット数 | 確認時の先端 |
-|---|---|---|
-| `feature/practice-nagisa` | 1 | `c0802825f01c` |
-| `feature/screen4-mizuki` | 2 | `ec0353017880` |
-| `fix/yohaku-home-analyze` | 1 | `b3d09fbb0632` |
-
-マージ済みPRの名前に似ていても、未統合の先端を消さないため保持します。
-
-## クローズしたPR（3件）
-
-| PR | 整理理由 | 継続先・保存先 |
-|---|---|---|
-| [#54](https://github.com/mizugramming/SPAJAM2026/pull/54) | #55と同じ `nagisa` の先端をmainへ送っている重複PR | 正しい宛先 `test-1` の[#55](https://github.com/mizugramming/SPAJAM2026/pull/55)を継続 |
-| [#10](https://github.com/mizugramming/SPAJAM2026/pull/10) | 旧プロフィール画面を共通キットのmainへ送っている | 先端 `a5ba6fcd8e19` は `rehearsal/01` に含まれる。作業ブランチも保持 |
-| [#9](https://github.com/mizugramming/SPAJAM2026/pull/9) | 旧練習アプリ全体を共通キットのmainへ送っている | `rehearsal/01` の先端 `0f47895dcc90` をそのまま保持 |
-
-3件ともマージせず閉じ、コード・ブランチを保持しています。未統合の変更があるPRや、正しい宛先の作業PRは保持しています。
+整理前のリモート先端はbundleの `refs/remotes/origin/` 以下にあります。復元先に同名ブランチが存在する場合は、上書きせず現在の作業を確認してください。
 
 ## 以前の保存タグ
 
-[`archive/yohaku-main-before-cleanup-20260919`](https://github.com/mizugramming/SPAJAM2026/tree/archive/yohaku-main-before-cleanup-20260919) を保持しています。今回の棚卸しでも履歴の書き換え・ブランチ先端の移動は行いません。
+[`archive/yohaku-main-before-cleanup-20260919`](https://github.com/mizugramming/SPAJAM2026/tree/archive/yohaku-main-before-cleanup-20260919) も保持しています。
