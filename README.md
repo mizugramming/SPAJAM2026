@@ -1,4 +1,20 @@
-# 共同開発キット
+# SPAJAM2026
+
+アプリごとに開発ブランチを分けています。現在の「まよいクエスト」は **[`test-1`](https://github.com/mizugramming/SPAJAM2026/tree/test-1)** を開いてください。この `main` は共同開発キットの保管先です。
+
+## 目的別の入口
+
+| 目的 | ブランチ・資料 | PR先 |
+|---|---|---|
+| まよいクエストの開発 | [`test-1` のREADME](https://github.com/mizugramming/SPAJAM2026/blob/test-1/README.md) | `test-1` |
+| つなぐんの確認・保守 | [`honban` のREADME](https://github.com/mizugramming/SPAJAM2026/blob/honban/README.md) | `honban` |
+| 余白の確認・保守 | [`rehearsal/02` のREADME](https://github.com/mizugramming/SPAJAM2026/blob/rehearsal/02/README.md) | `rehearsal/02` |
+| 初回練習アプリの参照 | [`rehearsal/01`](https://github.com/mizugramming/SPAJAM2026/tree/rehearsal/01) | 続ける場合は目的・統合先を確認 |
+| 共通ルール・資料雛形の再利用・改善 | このページの以下の案内 | `main` |
+
+作業・起動・検証は対象ブランチのREADMEに従います。アプリのPRを `main` へ送らず、アプリ間でブランチ全体をマージしないでください。
+
+[ブランチ運用と整理の手順](docs/repository_maintenance.md) ／ [2026-11-04のブランチ・PR棚卸し](docs/repository_inventory_20261104.md)
 
 ## 始める前に
 
@@ -24,10 +40,11 @@ AIに指示を出す前に、[担当作業の開始・再開プロンプト](doc
 AGENTS.md / CLAUDE.md             再利用するルールとAI向けの入口
 docs/ai_prompts.md                担当作業の開始・再開
 docs/reuse_rules.md               コピーと引き渡しの手順
-docs/repository_maintenance.md    このリポジトリのブランチ運用・旧アプリの保管先
+docs/repository_maintenance.md    このリポジトリのブランチ運用・整理手順
+docs/repository_inventory_*.md    日付付きのブランチ・PR棚卸し
 templates/project/               アプリごとに作成者が完成させる資料の雛形
 .github/copilot-instructions.md   再利用するAI向けの入口
-.github/PULL_REQUEST_TEMPLATE.md  このキットの変更をレビューする様式
+.github/PULL_REQUEST_TEMPLATE.md  対象・PR先・変更範囲・検証を記録する様式
 .github/workflows/check.yml      このキットの文書・構成チェック
 tool/check_kit.py                 上記チェックの実装
 ```
