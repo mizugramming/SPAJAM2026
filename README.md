@@ -13,6 +13,7 @@
 5. [提供された v2 設計原本](docs/tsunagun/APP_DESIGN.md)：原本を保持しているため、親分骨化など撤回済みの記述が残っています。
 6. [通信版の接続とPCでの発表手順](docs/online.md)／[通信サーバー](server/README.md)
 7. [構成・担当範囲と共通接続](docs/feature_integration.md)／[環境・検証・PR手順](docs/development.md)／[素材管理](docs/assets.md)
+8. [PC二画面の実操作検証・Android実機への導入](docs/device_validation.md)：確認用APKの作成と、複数の接続端末への導入手順。
 
 `docs/tsunagun/` は受領原本です。原本や `templates/project/` の雛形で、上記の最新決定や実装を上書きしません。
 
