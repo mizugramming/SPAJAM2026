@@ -1,6 +1,6 @@
 # PC二画面の検証とAndroid実機への導入
 
-2026-11-09。`honban` の通信版を、独立した二つのChromeプロセスから実際に操作して検証します。端末用APKにも同じ公開通信先を含めます。実機はこの検証時点では未接続です。
+2026-11-09。`honban` の通信版を、独立した二つのChromeプロセスから実際に操作して検証します。端末用APKにも同じ公開通信先を含めます。初回PC検証後、追加端末へのUSB更新導入まで進めています。
 
 ## すぐ使う手順
 
@@ -19,10 +19,12 @@ python3 tool/android_devices.py install --serial 端末AのID --serial 端末B�
 Android実機を接続する前にAPKを作り直す場合：
 
 ```bash
-python3 tool/android_devices.py build
+python3 tool/android_devices.py build --build-number 2002
 ```
 
 固定SDK・JDK・ロックファイルを確認し、公開APIを指定した汎用release APKを作成します。ARMv7・ARM64・x86_64の実コードと、その中に公開接続先が含まれることも確認します。生成物と接続先・ソースコミット・ハッシュの記録は `build/device-distribution/` に置き、Gitには含めません。releaseの最適化を使いますが、署名は既存プロジェクトのdebug署名で、実機確認用です。
+
+追加端末にはビルド番号2001が入っていたため、更新用は2002で作成します。さらに大きい番号のアプリがある場合は、その番号以上を指定してください。署名が同じでも番号の小さいAPKは更新を拒否されるため、アプリを削除して対処せず、APK側の番号を揃えます。実際の番号とバージョン名も生成時の記録へ保存します。
 
 APKの接続先は `https://tsunagun-rooms.tsunagun-room-server.workers.dev` です。端末自身を指すlocalhostへの接続や、PCへのADBポート転送は不要です。各端末でこの公開HTTPS/WSSへの通信が必要です。
 
@@ -99,10 +101,11 @@ Chromeがない場合は同パッケージの `cli.js install chromium` で検�
 | 通常ルームの二画面操作 | 成功。1人開始不可、実入力の勝敗、確定後の再戦拒否、赤1点・青3点 |
 | カメラ拒否からの手入力・選択切替・再読み込み | 全3シナリオで成功 |
 | 最終のブラウザー検証 | 3シナリオ・計37確認項目が成功。実行時例外0件。記録は `build/device-validation/verified/` |
-| Windows用ADBの起動・端末一覧 | 成功。37.0.1、WindowsのUSB接続を使う経路を準備。端末0台 |
+| Windows用ADBの起動・端末一覧 | 成功。37.0.1、Windows側のUSB接続で実機認識と更新導入まで確認 |
 | 実機用の汎用release APK | 成功。89.6MB、Android 7.0（API 24）以降、ARMv7・ARM64・x86_64。公開接続先の埋め込みと署名の有効性を確認 |
 | 最終ローカルチェック | 成功。文書・Python/JavaScript構文・Dart整形・解析・Flutterテスト296件・Web release・Android debug。両ロックファイルの差分なし |
-| AndroidのUSB導入・実機での操作 | 未実施。接続端末なし |
+| AndroidのUSB導入 | 追加端末（Android 15）へ、既存2001から同じ署名の2002へ更新成功。導入済みAPKのSHA-256一致と前面のMainActivityを確認 |
+| 実機の画面表示・二台同時ゲーム | 未確認。PC取得画像が黒く、表示確認の途中でUSB接続も外れたため、端末側の表示を確認してから継続 |
 
 ## 実機接続後に確認すること
 

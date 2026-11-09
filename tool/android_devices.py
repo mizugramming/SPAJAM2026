@@ -115,18 +115,25 @@ def targets(args, connected):
     return selected
 
 
-def build():
+def build(build_number=None):
     fvm = shutil.which("fvm")
     if not fvm:
         raise ValueError("FVMが見つかりません。docs/development.md の環境準備を確認してください。")
     run([fvm, "dart", "tool/check_environment.dart", "--android"])
     run([fvm, "flutter", "pub", "get", "--enforce-lockfile"])
     run(["git", "diff", "--exit-code", "--", "pubspec.lock"])
-    run([
+    command = [
         fvm, "flutter", "build", "apk", "--release", "--no-pub",
         f"--dart-define=TSUNAGUN_SERVER_URL={SERVER}",
-    ])
+    ]
+    if build_number is not None:
+        command.append(f"--build-number={build_number}")
+    run(command)
     source = ROOT / "build/app/outputs/flutter-apk/app-release.apk"
+    metadata = json.loads((ROOT / "build/app/outputs/apk/release/output-metadata.json").read_text())
+    version = metadata["elements"][0]
+    if build_number is not None and version["versionCode"] != build_number:
+        raise ValueError("APKのビルド番号が指定した値と一致しません。")
     with zipfile.ZipFile(source) as archive:
         abis = sorted({p.split("/")[1] for p in archive.namelist() if p.endswith("/libapp.so")})
         if abis != ["arm64-v8a", "armeabi-v7a", "x86_64"]:
@@ -143,6 +150,7 @@ def build():
         "file": APK.name, "bytes": APK.stat().st_size,
         "sha256": hashlib.sha256(APK.read_bytes()).hexdigest(),
         "server": SERVER, "mode": "release", "abis": abis,
+        "versionCode": version["versionCode"], "versionName": version["versionName"],
         "signing": "existing project debug signing; device testing only",
     }
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -165,7 +173,8 @@ def main():
     parser = argparse.ArgumentParser(description="つなぐんの実機確認用APKと端末導入")
     parser.add_argument("--adb", help="ADB実行ファイルのパス。通常はSDKから自動検出")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("build", help="固定SDKで公開通信先付きの汎用release APKを作成")
+    build_command = commands.add_parser("build", help="固定SDKで公開通信先付きの汎用release APKを作成")
+    build_command.add_argument("--build-number", type=int, help="既存アプリ以上のビルド番号を指定")
     commands.add_parser("setup-windows-adb", help="Windows/WSL向けの公式ADBをbuild/に準備")
     commands.add_parser("list", help="端末一覧を表示。インストールしない")
     for name in ["info", "install"]:
@@ -177,7 +186,9 @@ def main():
             command.add_argument("--no-start", action="store_true", help="導入後にアプリを起動しない")
     args = parser.parse_args()
     if args.command == "build":
-        build()
+        if args.build_number is not None and not 1 <= args.build_number <= 2100000000:
+            parser.error("--build-number は1〜2100000000の整数を指定してください。")
+        build(args.build_number)
         return
     if args.command == "setup-windows-adb":
         setup_windows_adb()
