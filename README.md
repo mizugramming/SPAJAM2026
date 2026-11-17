@@ -1,52 +1,77 @@
-# 共同開発キット
+# SPAJAM 本選アプリ — honsen ブランチ
 
-本選の初期開発には [穴埋め式の初期プロンプト](docs/development-kit/initial-prompt.md)を使えます。[Skills・UI/UX・登録端末の案内](docs/development-kit/README.md)も参照してください。
+この `honsen` ブランチは、[mizugramming/SPAJAM2026](https://github.com/mizugramming/SPAJAM2026) 内の本選アプリ開発・統合先です。`main` は共通ルール・Skills・資料の雛形を管理する開発キットとして残します。
 
-## 始める前に
+**現在は開発準備の段階です。アプリ本体、SDK設定、依存ロック、起動・ビルド手順はまだ作成していません。** テーマ、仕様、SDK、担当者は初期開発で決定し、資料へ反映します。
 
-AIに指示を出す前に、[担当作業の開始・再開プロンプト](docs/ai_prompts.md)をそのまま渡してください。AIがルール・設計書・実際の構成を確認し、まだ伝わっていない担当と変更内容を質問します。
+## 最初に行うこと
 
-アプリの基盤は作成者が用意します。このmainは、別のアプリでも使うルール・プロンプト・資料の雛形を保管する場所です。
+1. [共通ルール](AGENTS.md)と[初期プロンプト](docs/development-kit/initial-prompt.md)を確認し、本選のアイデア・利用者・主要な体験を伝えます。
+2. コンセプト・主要導線・完成条件を合意し、[設計書](docs/app_design.md)へ記録します。
+3. アプリ基盤を作成し、SDK・依存ロック・起動方法・解析・テスト・ビルドを[開発手順](docs/development.md)へ記録します。
+4. [構成と接続](docs/project_structure.md)で担当ファイルと共通の接続を決め、[引き継ぎ](docs/handoff.md)を更新して分担を始めます。
 
-## 次のアプリへ持っていくもの
+初期開発には `$spajam-flutter-delivery`、基盤ができた後の担当作業には[開始・再開プロンプト](docs/ai_prompts.md)を使います。登録済みの実機は[端末情報](docs/development-kit/devices.md)を参照します。
+
+## 資料と役割
 
 | ファイル | 用途 |
 |---|---|
-| [AGENTS.md](AGENTS.md) | 共通ルールブック。そのまま使う |
-| [docs/ai_prompts.md](docs/ai_prompts.md) | 開発者がそのままAIへ渡すプロンプト |
-| [CLAUDE.md](CLAUDE.md) / [.github/copilot-instructions.md](.github/copilot-instructions.md) | 利用するAI向けの入口 |
-| [templates/project/](templates/project/README.md) | 今回のREADME・設計・構成・環境・素材管理・PRの雛形 |
-| [Flutter用README](templates/project/README.flutter.md) | 開発者1〜4の番号別コマンドと、更新・開発・PR・マージの手順 |
+| [AGENTS.md](AGENTS.md) | 共同開発、環境、素材、検証、統合の共通ルール |
+| [開発キットの案内](docs/development-kit/README.md) | Skillsの使い方と初期プロンプト |
+| [アプリ設計書](docs/app_design.md) | 今回の仕様・完成条件・決定履歴 |
+| [構成と接続](docs/project_structure.md) | 実ファイル、共有データ、担当の境界 |
+| [環境・開発手順](docs/development.md) | 初回準備、日々の開発、CI、マージ |
+| [素材管理](docs/assets.md) | 素材の登録、出典、表示確認 |
+| [検証記録](docs/validation.md) | 実施結果と未確認事項 |
+| [担当への引き継ぎ](docs/handoff.md) | 会話を読まずに担当作業へ入るための情報 |
 
-[コピーと引き渡しの手順](docs/reuse_rules.md)を参照してください。雛形の内容は、作成者が実装した基盤に合わせて完成させます。担当開発者がプロンプトへ項目を記入する必要はありません。
+現在のアプリ実装範囲・担当者・統合担当は未決定です。同じファイルを複数人へ同時に割り当てず、確定した担当と接続仕様を上記の資料へ記録します。
 
-## このキットの構成
+## ブランチ・PR・マージ
 
-```text
-AGENTS.md / CLAUDE.md             再利用するルールとAI向けの入口
-docs/ai_prompts.md                担当作業の開始・再開
-docs/reuse_rules.md               コピーと引き渡しの手順
-docs/repository_maintenance.md    このリポジトリのブランチ運用・旧アプリの保管先
-templates/project/               アプリごとに作成者が完成させる資料の雛形
-.github/copilot-instructions.md   再利用するAI向けの入口
-.github/PULL_REQUEST_TEMPLATE.md  このキットの変更をレビューする様式
-.github/workflows/check.yml      このキットの文書・構成チェック
-tool/check_kit.py                 上記チェックの実装
-```
+- 本選アプリの統合先・PR先は **`honsen`** です。GitHubのPR作成画面でも `base: honsen` を選びます。
+- 作業ブランチは最新の `origin/honsen` から作り、`feat/<内容>`、`fix/<内容>`、`docs/<内容>` を使って1人・1タスクで分けます。
+- 書き込み権限を持つメンバーは、自分のPRも他の人の承認を待たずにマージする運用です。レビューは必要に応じて依頼できます。
+- マージする人が最新コミットのCI成功、差分、競合の有無、未解決のレビュー会話を確認します。CIを実行することと、GitHubの保護設定で強制することは別です。
+- AIへの依頼では、PR作成までか、確認後のマージまでかを伝えてください。
 
-このキットのCIやチェックツールは、アプリ用のCIとは用途が異なります。アプリではSDK固定・依存ロック・解析・テスト・ビルド・ブランチ保護を別途用意します。
-
-## このキットを変更するとき
-
-作業ブランチから `main` 向けにPRを作成します。文書は `docs/`、アプリごとの資料雛形は `templates/project/`、共通ルール・AI指示・CIは共通管理です。担当範囲は依頼に応じて確認してください。
-
-ローカルの検証にはPython 3.12以降を使います。追加パッケージは不要です。
+同じリポジトリを取得済みのフォルダで、未コミット変更を確認・保護してから作業ブランチを作ります。以下は文書変更の例です。
 
 ```bash
-python3 tool/check_kit.py
+git status --short --branch
+git fetch origin
+git switch --no-track -c docs/update-guide origin/honsen
+```
+
+作業を終えたら[開発手順](docs/development.md)の検証を実行し、変更ファイルを指定してコミット・pushします。
+
+```bash
+gh pr create --base honsen
+gh pr checks --watch
+gh pr merge --merge
+```
+
+コマンドは1行ずつ実行します。CIの失敗・未実行・実行中を成功と扱わず、PR画面でも結果と競合を確認してからマージします。他のPRが先に入った場合は、作業ブランチへ最新の `origin/honsen` を取り込み、再検証してpushします。
+
+## 今できる検証
+
+Python 3.12以降を使います。追加パッケージは不要です。
+
+```bash
+python3 tool/check_skills.py
+python3 tool/check_skills.py --self-test
 git diff --check
 ```
 
-必須チェック名は `check` です。資料の有無・ローカルリンク先・アプリ固有ファイルの混入を検査します。文意、外部URLの有効性、アプリの起動までは検査しません。
+[Honsen development checks](.github/workflows/check.yml) の `check` ジョブは、Skillsのメタデータ・参照・ハッシュ、検証ツールのself-test、差分の空白を確認します。`honsen` とその作業ブランチでは、`lib/` や `pubspec.yaml` などを禁止するキット専用検査は実行しません。
 
-現在開発中のアプリとmainは用途が異なります。[このリポジトリの運用](docs/repository_maintenance.md)を確認し、相互にブランチ全体をマージしないでください。
+**アプリの解析・テスト・ビルドや実機操作はまだ検証しません。** 基盤を作る際に、固定したSDK・依存ロックに合う検証をCIへ追加します。
+
+## main の共通キットとの関係
+
+このブランチは [main のコミット 72e4b95](https://github.com/mizugramming/SPAJAM2026/commit/72e4b951599f95bb26eb8fc7e09ab18ed1b42349) を起点に準備しています。`AGENTS.md`、`.agents/`、ライセンス、`templates/`、キット用ツールは引き継いでいます。
+
+本選アプリの変更を `main` へ丸ごとマージしません。`main` の共通ルール更新が必要な場合も、対象ファイルの差分を確認して本選の作業ブランチへ反映します。詳しくは[リポジトリの運用](docs/repository_maintenance.md)を参照してください。
+
+`tool/check_kit.py` は `main` の開発キット用として保持し、本選の検証コマンドには使いません。`docs/development-kit/` の調査・試行・修正記録はキット作成時の履歴であり、本選アプリの仕様や動作確認結果ではありません。
