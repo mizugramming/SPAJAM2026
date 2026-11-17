@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "repository": "flutter/agent-plugins",
+      "commit": "17fe9182f4c462d69d6a7963aef01b44b1f7f189",
+      "license": "BSD-3-Clause",
+      "license_path": ".agents/third-party/flutter-agent-plugins.LICENSE",
+      "skills": [
+        {
+          "name": "flutter-fix-layout-issues",
+          "upstream_path": "skills/flutter-fix-layout-issues"
+        },
+        {
+          "name": "flutter-add-widget-test",
+          "upstream_path": "skills/flutter-add-widget-test"
+        }
+      ],
+      "files": {
+        ".agents/skills/flutter-fix-layout-issues/SKILL.md": "317dfcfebc2e451934da6db13fe7fc730eb0396c1eb69149a26da54de0d71dd0",
+        ".agents/skills/flutter-add-widget-test/SKILL.md": "50954d33798d0b65e736be82905935b4fe0bf9f81fae6fd582ad110b53ca3479",
+        ".agents/third-party/flutter-agent-plugins.LICENSE": "5b95696b504e162bcf775060ec416005df9969a95cda6f7d4ddb57327dd74d35"
+      },
+      "upstream_files": {
+        ".agents/skills/flutter-fix-layout-issues/SKILL.md": "e82c82b4245ef502bd93bc543d4f5968f4ee8043fa7556ffebcb34f30651fc9b",
+        ".agents/skills/flutter-add-widget-test/SKILL.md": "6c449ebd844e331e661b12630b6ad2a218e84d1bd8ea8377ba9dbd62ffe2798a",
+        ".agents/third-party/flutter-agent-plugins.LICENSE": "5b95696b504e162bcf775060ec416005df9969a95cda6f7d4ddb57327dd74d35"
+      },
+      "local_modifications": [
+        {
+          "path": ".agents/skills/flutter-add-widget-test/SKILL.md",
+          "change": "Remove trailing whitespace for the main branch whitespace check; instructional content unchanged.",
+          "lines": [
+            53,
+            56
+          ]
+        },
+        {
+          "path": ".agents/skills/flutter-fix-layout-issues/SKILL.md",
+          "change": "Remove trailing whitespace for the main branch whitespace check; instructional content unchanged.",
+          "lines": [
+            17,
+            88
+          ]
+        }
+      ]
+    }
+  ]
+}

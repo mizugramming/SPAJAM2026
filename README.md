@@ -1,5 +1,7 @@
 # 共同開発キット
 
+本選の初期開発には [穴埋め式の初期プロンプト](docs/development-kit/initial-prompt.md)を使えます。[Skills・UI/UX・登録端末の案内](docs/development-kit/README.md)も参照してください。
+
 ## 始める前に
 
 AIに指示を出す前に、[担当作業の開始・再開プロンプト](docs/ai_prompts.md)をそのまま渡してください。AIがルール・設計書・実際の構成を確認し、まだ伝わっていない担当と変更内容を質問します。

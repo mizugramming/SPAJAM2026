@@ -10,10 +10,18 @@
 |---|---|
 | [AGENTS.md](../AGENTS.md) | 担当範囲・環境・素材・検証・マージの共通ルール |
 | [docs/ai_prompts.md](ai_prompts.md) | AIへそのまま渡す担当作業の開始・再開プロンプト |
-| [CLAUDE.md](../CLAUDE.md) | Claudeから共通ルールを参照する入口。利用する場合にコピー |
-| [.github/copilot-instructions.md](../.github/copilot-instructions.md) | Copilotから共通ルールを参照する入口。利用する場合にコピー |
+| [.agents/skills/](../.agents/skills/) | Flutter初期開発・修正記録と必要な公式補助手順 |
+| [.agents/skills-lock.json](../.agents/skills-lock.json)、[.agents/third-party/](../.agents/third-party/) | 公式Skillsの取得元・固定コミット・ハッシュ・ライセンス |
+| [docs/development-kit/](development-kit/) | Skillsの利用・導入調査・試行と検証の記録 |
+| [tool/check_skills.py](../tool/check_skills.py) | 同梱Skillsの参照・識別情報・ハッシュを確認する標準ライブラリの検証 |
+| `CLAUDE.md` | Claudeから共通ルールを参照する入口。利用する場合にコピー |
+| `.github/copilot-instructions.md` | Copilotから共通ルールを参照する入口。利用する場合にコピー |
 
-この案内も残す場合は `docs/reuse_rules.md` としてコピーします。これらはアプリ名・担当者名・SDKの数値・ブランチ名に依存しません。
+この案内は `docs/reuse_rules.md` としてコピーします。ルールとSkillsの手順はアプリ名・担当者名・SDKの数値・ブランチ名に依存しません。
+
+Skillsを使う場合は上記の追加セットを同じ相対位置へまとめて配置します。`docs/development-kit/` 内の調査・試行・記録反映の資料は、このキットの作成記録です。再利用先では原リポジトリを示す記録として保持し、旧アプリの環境・ブランチ・結果を新アプリの条件にしません。原資料は複製せず、必要な知見だけをSkillsへ収めています。
+
+ユーザーが今後使うと指定した [利用端末の登録](development-kit/devices.md) は共有する環境情報として引き継ぎます。新しい端末指定があれば更新し、旧アプリの画面寸法やプレビュー枠を固定条件にしません。
 
 ## 資料の雛形を配置する
 
