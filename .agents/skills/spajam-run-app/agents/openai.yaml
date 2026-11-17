@@ -1,0 +1,3 @@
+interface:
+  display_name: "SPAJAM アプリを開く"
+  short_description: "既存の起動方法を使い、保存状態を保って利用者に見える画面まで確認する"

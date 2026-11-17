@@ -10,6 +10,7 @@ Flutter用には同じフォルダの `README.flutter.md` に、取得済みの�
 2. このREADME：今回の担当・資料・統合先。
 3. [設計書](docs/app_design.md)と[構成・接続資料](docs/project_structure.md)。
 4. [環境・開発手順](docs/development.md)と[素材管理](docs/assets.md)。
+5. [検証結果](docs/validation.md)と[担当への引き継ぎ](docs/handoff.md)。
 
 担当作業は、共通セットから配置した `docs/ai_prompts.md` のプロンプトをそのままAIへ渡して始めます。作成者が用意した基盤上で、自分の担当部分を変更します。
 

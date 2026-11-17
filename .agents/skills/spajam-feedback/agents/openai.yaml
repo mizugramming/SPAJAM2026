@@ -1,0 +1,3 @@
+interface:
+  display_name: "SPAJAM 修正記録の反映"
+  short_description: "提供された修正記録を事実と推測に分け、次回使える条件付きの知見へ整理する"
