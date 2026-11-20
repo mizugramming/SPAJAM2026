@@ -27,6 +27,10 @@
 2. リポジトリのルートでCodexを開始し、Skill名を明示して使う。導入後は次のターンから利用する。表示されなければCodexを再起動し、一覧と読み込んだファイルを確認する。
 3. 外部のプラグイン、MCP、Figma、GitHub CLIの認証はこのキットだけでは有効にならない。必要な機能だけ各環境で準備する。Skill内に個人の絶対パスや鍵を保存しない。
 
+Claude Codeでは `CLAUDE.md` と `.claude/skills/` から同じ本文を読み、`/spajam-flutter-delivery` などで呼び出します。[別PCの準備・分担・レビュー・更新手順](claude-code.md)にまとめています。CodexとClaudeで同じファイルを並行編集せず、担当と接続仕様を共有します。
+
+ユーザー提供のUIサンプルは[UI参考資料](ui-references.md)から確認できます。見本名と採用したい操作を指定し、コンセプトに合わせてFlutterへ設計します。
+
 公式Skillsは固定コミットを元に同梱しています。mainの差分チェックに合わせて行末空白4箇所だけを除去し、手順の内容は維持しています。元のハッシュ・変更後のハッシュ・変更内容も記録しています。取得元とファイルハッシュは [.agents/skills-lock.json](../../.agents/skills-lock.json)、配布条件は [Flutterのライセンス](../../.agents/third-party/flutter-agent-plugins.LICENSE) にあります。clone後の再ダウンロードは不要です。更新時だけ本文・差分を再確認し、固定コミット・ハッシュ・必要なライセンスを一緒に更新します。`metadata.model` は導入元の付加情報であり、このキットはモデル変更を設定しません。
 
 別のプロジェクトへの移し方は[共通セットの再利用](../reuse_rules.md)にまとめています。今回の `honsen` は同じリポジトリの `main` から共通ファイルを継承し、本選の資料を配置済みです。旧アプリのコード・設定・ロックは流用しません。統合先は `honsen` で、旧番号ブランチや `develop` は今回の既定にしません。
@@ -38,6 +42,8 @@ Python 3.12以降・標準ライブラリで、ルートから実行できます
 ```bash
 python3 tool/check_skills.py
 python3 tool/check_skills.py --self-test
+python3 tool/sync_claude_skills.py --check
+python3 tool/sync_claude_skills.py --self-test
 git diff --check
 git diff --name-only
 git status --short --branch

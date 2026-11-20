@@ -10,9 +10,11 @@ honsenブランチの実ファイルと接続を記録します。現在は開�
 |---|---|---|
 | `AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` | 共通ルールとAI向けの入口 | 共通管理 |
 | `.agents/` | 共有Skills、取得元の固定値、ライセンス | 共通管理 |
+| `.claude/skills/` | 共通Skillsを呼ぶClaude用の生成入口。本文は `.agents/` を参照 | 共通管理 |
 | `docs/` | 本選の仕様・環境・担当・検証と、共通キットの案内 | 各資料の担当は未決定 |
 | `tool/check_skills.py` | Skillsの検証 | 共通管理 |
-| `.github/workflows/check.yml` | Skills検証・self-test・空白チェック | 共通管理 |
+| `tool/sync_claude_skills.py` | Claude用入口の生成・同期検証とself-test | 共通管理 |
+| `.github/workflows/check.yml` | 共通Skills・Claude用入口の検証、self-test、空白チェック | 共通管理 |
 | `templates/` / `tool/check_kit.py` | 継承したキットの雛形とmain専用検証。本選のCIではキット専用検証を実行しない | 共通管理 |
 | アプリのソース・素材・テスト・SDK設定 | まだ未作成 | 初期開発で担当と配置を決定 |
 

@@ -21,6 +21,10 @@ jobs:
         run: python tool/check_skills.py
       - name: Test skills validator
         run: python tool/check_skills.py --self-test
+      - name: Validate Claude skill entrypoints
+        run: python tool/sync_claude_skills.py --check
+      - name: Test Claude entrypoint synchronization
+        run: python tool/sync_claude_skills.py --self-test
       - name: Check whitespace in the proposed change
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
