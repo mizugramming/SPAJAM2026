@@ -108,7 +108,7 @@ def git_context(root):
     def read(*args):
         try:
             return subprocess.check_output(["git", "-C", str(root), *args],
-                                           stderr=subprocess.DEVNULL, text=True).strip()
+                                           stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace").strip()
         except (OSError, subprocess.CalledProcessError):
             return None
     top = read("rev-parse", "--show-toplevel")
@@ -256,7 +256,7 @@ def self_test():
         original = output.read_bytes()
         rejected("existing ZIP preserved", "new .zip", lambda: build(root, plan, output))
         assert output.read_bytes() == original
-        guide.write_text(guide.read_text() + "更新版。\n", encoding="utf-8")
+        guide.write_text(guide.read_text(encoding="utf-8") + "更新版。\n", encoding="utf-8")
         second = base / "trial-02.zip"
         build(root, dict(plan, label="trial-02"), second)
         records = {x["path"]: x for x in verify(second)["files"]}
