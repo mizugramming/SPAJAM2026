@@ -15,6 +15,8 @@
 
 別PCのClaude Codeでも同じSkillsを使えます。[Claudeの導入・呼び出し方とCodexとの分担](docs/development-kit/claude-code.md)を参照してください。UI検討には[提供されたサンプル集](docs/development-kit/ui-references.md)も利用できます。
 
+方針と主要画面が固まったら、[別PC向け共有ZIP](docs/development-kit/share-package.md)で、アプリ完成前から開発とプレゼン作りを分担できます。
+
 ## 資料と役割
 
 | ファイル | 用途 |
@@ -77,3 +79,5 @@ git diff --check
 本選アプリの変更を `main` へ丸ごとマージしません。`main` の共通ルール更新が必要な場合も、対象ファイルの差分を確認して本選の作業ブランチへ反映します。詳しくは[リポジトリの運用](docs/repository_maintenance.md)を参照してください。
 
 `tool/check_kit.py` は `main` の開発キット用として保持し、本選の検証コマンドには使いません。`docs/development-kit/` の調査・試行・修正記録はキット作成時の履歴であり、本選アプリの仕様や動作確認結果ではありません。
+
+Claude用入口の同期と共有ZIPのself-testを含む、現在の検証一覧は[開発手順](docs/development.md)を参照してください。

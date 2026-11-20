@@ -12,3 +12,6 @@ __pycache__/
 # Claude Code settings and worktrees local to this computer
 .claude/settings.local.json
 .claude/worktrees/
+
+# Local handoff ZIPs (share separately, do not commit)
+/out/share-packages/

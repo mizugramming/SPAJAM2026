@@ -11,6 +11,7 @@
 | [spajam-flutter-delivery](../../.agents/skills/spajam-flutter-delivery/SKILL.md) | 認識合わせ → 初期実装 → UI/端末確認 → 引き継ぎ。既存UIやボタン単位の改善にも使う |
 | [spajam-feedback](../../.agents/skills/spajam-feedback/SKILL.md) | 提供記録を事実・推測・適用条件に分け、既存手順へ反映 |
 | [spajam-run-app](../../.agents/skills/spajam-run-app/SKILL.md) | 既存の方法で開く・開き直す・発表用画面を準備し、利用者側の表示を確認 |
+| [spajam-share-package](../../.agents/skills/spajam-share-package/SKILL.md) | 合意した方針・スマホ画面・現状を別PCへ渡すZIPにし、開発とプレゼンを並行する |
 | [flutter-fix-layout-issues](../../.agents/skills/flutter-fix-layout-issues/SKILL.md) | 制約違反・overflowの原因と修正 |
 | [flutter-add-widget-test](../../.agents/skills/flutter-add-widget-test/SKILL.md) | 入力・タップ・スクロールと状態反映を確かめるWidgetテスト |
 | [本選の設計資料](../app_design.md) / `templates/project/` | 本選の資料は `docs/` へ展開済み。元の雛形は参照用として保持 |
@@ -44,6 +45,7 @@ python3 tool/check_skills.py
 python3 tool/check_skills.py --self-test
 python3 tool/sync_claude_skills.py --check
 python3 tool/sync_claude_skills.py --self-test
+python3 .agents/skills/spajam-share-package/scripts/build_package.py --self-test
 git diff --check
 git diff --name-only
 git status --short --branch
@@ -54,6 +56,8 @@ git status --short --branch
 アプリ開発時は今回のREADME・環境資料にあるSDK・依存取得・解析・テスト・ビルドのコマンドを使います。SDK値をSkillsへ固定しません。端末の操作確認はビルドと分けて記録します。
 
 ## 本選で最初に送るプロンプト
+
+方針が固まり、別PCでプレゼン作り等を始める時点では、[共有ZIPの入力例](share-package.md)を使えます。初期実装の完成を待たず、合意済みの内容と未決事項を引き渡します。
 
 [穴埋め式の初期プロンプト](initial-prompt.md)をコピーして使います。アイデア・利用者と場面・一番大切な体験を中心に、分かる項目だけ記入してください。未定の内容は具体案を添えて確認します。
 

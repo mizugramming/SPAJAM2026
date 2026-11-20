@@ -14,7 +14,7 @@ CodexとClaude Codeで、同じ仕様・Skills・検証結果を使います。C
 
 呼び出し口は通常のファイルとしてGitで共有し、Windowsでのシンボリックリンク設定や個人フォルダへのインストールを不要にしています。名前と説明だけはClaudeの選択に必要なため生成し、CIで共通本文とのずれを検出します。
 
-既存の5種を双方で利用できます。Codexの `$spajam-flutter-delivery` は、Claude Codeでは `/spajam-flutter-delivery` です。`spajam-feedback`、`spajam-run-app`、`flutter-fix-layout-issues`、`flutter-add-widget-test` も同じ名前で呼べます。通常の依頼でも説明に応じて選択されますが、狙ったSkillを確実に指定したいときはコマンドを添えます。
+同梱のSkillsを双方で利用できます。Codexの `$spajam-flutter-delivery` は、Claude Codeでは `/spajam-flutter-delivery` です。`spajam-feedback`、`spajam-run-app`、`spajam-share-package`、`flutter-fix-layout-issues`、`flutter-add-widget-test` も同じ名前で呼べます。通常の依頼でも説明に応じて選択されますが、狙ったSkillを確実に指定したいときはコマンドを添えます。
 
 ## 別PCでの初回準備
 
@@ -84,6 +84,8 @@ Flutter SDK、Androidのビルド環境、ブラウザー、画像の閲覧、MC
 ```
 
 別AIへの交代では、目的・担当範囲・関連資料に加え、現在のブランチとSHA、変更内容、検証結果、未解決事項、次の具体的な作業を[引き継ぎ資料](../handoff.md)かPRへ残します。既存の仕様を会話から再生成せず、資料を参照して続けます。
+
+方針・画面資料を別PCへ渡して開発とプレゼンを分ける場合は、`/spajam-share-package` で[共有ZIP](share-package.md)を用意できます。受け取った側は `project/` を開き、割り当てられた作業から開始します。
 
 ## Skillsを更新したとき
 

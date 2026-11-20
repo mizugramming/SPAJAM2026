@@ -1,0 +1,26 @@
+{
+  "label": "checkpoint-01",
+  "entrypoint": "docs/sharing/checkpoint-01.md",
+  "include": [
+    "README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".agents",
+    ".claude/skills",
+    ".github/workflows/check.yml",
+    "docs/app_design.md",
+    "docs/project_structure.md",
+    "docs/development.md",
+    "docs/handoff.md",
+    "docs/validation.md",
+    "docs/assets.md",
+    "docs/ai_prompts.md",
+    "docs/reuse_rules.md",
+    "docs/repository_maintenance.md",
+    "docs/development-kit",
+    "docs/sharing/checkpoint-01.md",
+    "tool/check_skills.py",
+    "tool/sync_claude_skills.py"
+  ],
+  "exclude": []
+}
