@@ -8,3 +8,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+
+# Claude Code settings and worktrees local to this computer
+.claude/settings.local.json
+.claude/worktrees/

@@ -16,7 +16,7 @@
 | [.agents/skills-lock.json](../.agents/skills-lock.json)、[.agents/third-party/](../.agents/third-party/) | 公式Skillsの取得元・固定コミット・ハッシュ・ライセンス |
 | [docs/development-kit/](development-kit/) | Skillsの利用・導入調査・試行と検証の記録 |
 | [tool/check_skills.py](../tool/check_skills.py) | 同梱Skillsの参照・識別情報・ハッシュを確認する標準ライブラリの検証 |
-| `CLAUDE.md` | Claudeから共通ルールを参照する入口。利用する場合にコピー |
+| `CLAUDE.md`、`.claude/skills/`、`tool/sync_claude_skills.py` | Claude Codeで共通指示・Skillsを読む入口と同期ツール。利用する場合にまとめてコピー |
 | `.github/copilot-instructions.md` | Copilotから共通ルールを参照する入口。利用する場合にコピー |
 
 この案内は `docs/reuse_rules.md` としてコピーします。ルールとSkillsの手順はアプリ名・担当者名・SDKの数値・ブランチ名に依存しません。

@@ -4,6 +4,7 @@
 
 - 担当者・目的・利用者への結果：担当者とアプリ仕様は未決定。
 - 現在の準備範囲：共通ルール、Skills、設計・環境・担当資料、Skills用CI。アプリの起動・操作ができる基盤は未作成。
+- Claude Codeの準備・分担・レビュー手順：[Claudeとの共同開発](development-kit/claude-code.md)。AI間の交代では作業ブランチ・コミットSHA、未共有の差分、検証済みの範囲、未解決事項、次の作業を記録する。
 - リポジトリ：`mizugramming/SPAJAM2026`。アプリ基盤コミットは未作成。作業ブランチは `feat/<内容>` / `fix/<内容>` / `docs/<内容>`、PR先は `honsen`。
 - 共通キットの取得元：[SPAJAM2026 のコミット 72e4b95](https://github.com/mizugramming/SPAJAM2026/tree/72e4b951599f95bb26eb8fc7e09ab18ed1b42349)。
 - 編集するソース・素材・テスト：未記入。

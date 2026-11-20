@@ -13,6 +13,8 @@
 
 初期開発には `$spajam-flutter-delivery`、基盤ができた後の担当作業には[開始・再開プロンプト](docs/ai_prompts.md)を使います。登録済みの実機は[端末情報](docs/development-kit/devices.md)を参照します。
 
+別PCのClaude Codeでも同じSkillsを使えます。[Claudeの導入・呼び出し方とCodexとの分担](docs/development-kit/claude-code.md)を参照してください。UI検討には[提供されたサンプル集](docs/development-kit/ui-references.md)も利用できます。
+
 ## 資料と役割
 
 | ファイル | 用途 |

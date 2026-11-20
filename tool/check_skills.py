@@ -99,7 +99,10 @@ def check(root: Path) -> list[str]:
             errors.append(f"{path.relative_to(root)}: {error}")
 
     documents = sorted((root / ".agents").rglob("*.md"))
+    documents += sorted((root / ".claude").rglob("*.md"))
     documents += sorted((root / "docs/development-kit").rglob("*.md"))
+    if (root / "CLAUDE.md").is_file():
+        documents.append(root / "CLAUDE.md")
     for path in documents:
         try:
             content = path.read_text(encoding="utf-8")
