@@ -35,6 +35,7 @@ python3 tool/check_skills.py
 python3 tool/check_skills.py --self-test
 python3 tool/sync_claude_skills.py --check
 python3 tool/sync_claude_skills.py --self-test
+python3 .agents/skills/spajam-share-package/scripts/build_package.py --self-test
 git diff --check
 ```
 
@@ -50,7 +51,7 @@ git diff --check
 
 ## CI・PR・マージ
 
-- 初期CI：`.github/workflows/check.yml` の `check` ジョブ。共通Skills・Claude用入口の同期・各検証ツールのself-test・空白チェックを実行。
+- 初期CI：`.github/workflows/check.yml` の `check` ジョブ。共通Skills・Claude用入口の同期・共有ZIP生成を含むself-test・空白チェックを実行。
 - アプリ用CI：未作成。基盤作成時にローカルと同じSDK設定・依存ロックを使う解析・テスト・ビルドを追加。
 - PR先：`honsen`。
 - 承認レビュー：他の人の承認は必須にしない。書き込み権限を持つメンバーは自分のPRもマージできる。

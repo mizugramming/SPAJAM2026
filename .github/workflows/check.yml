@@ -25,6 +25,8 @@ jobs:
         run: python tool/sync_claude_skills.py --check
       - name: Test Claude entrypoint synchronization
         run: python tool/sync_claude_skills.py --self-test
+      - name: Test share ZIP generation and verification
+        run: python .agents/skills/spajam-share-package/scripts/build_package.py --self-test
       - name: Check whitespace in the proposed change
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}

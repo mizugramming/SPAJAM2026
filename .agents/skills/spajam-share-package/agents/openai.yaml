@@ -1,0 +1,4 @@
+interface:
+  display_name: "SPAJAMの別PC共有ZIP"
+  short_description: "方針とスマホ画面を共有し開発とプレゼンを並行するZIPを準備"
+  default_prompt: "$spajam-share-package を使って、合意した方針と画面資料を別PC向けZIPにまとめ、開発とプレゼンの担当が着手できる状態にしてください。"
