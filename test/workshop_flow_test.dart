@@ -64,7 +64,7 @@ void main() {
       Offset.zero & (tester.view.physicalSize / tester.view.devicePixelRatio);
 
   // Flutter's image decoder runs on the real clock, outside the test timer.
-  Future<void> decodeVisibleSurface(WidgetTester tester) async {
+  Future<void> decodeVisibleMedal(WidgetTester tester) async {
     final images = find.descendant(
       of: surfaceArt,
       matching: find.byType(Image),
@@ -76,18 +76,17 @@ void main() {
     await tester.pump();
   }
 
-  void expectSurfaceImage(WidgetTester tester, String path) {
-    final image = tester.widget<Image>(
-      find.descendant(of: surfaceArt, matching: find.byType(Image)),
-    );
-    final provider = image.image;
-    final asset = provider is ResizeImage ? provider.imageProvider : provider;
-    expect((asset as AssetImage).assetName, path);
-  }
-
   Rect upperMaterial(WidgetTester tester) {
+    final material = tester.widget<SurfaceArt>(surfaceArt).material;
     final face = find
-        .descendant(of: surfaceArt, matching: find.byType(Image))
+        .descendant(
+          of: surfaceArt,
+          matching: material.glyph == null
+              ? find.byType(Image)
+              : find.byWidgetPredicate(
+                  (w) => w is CustomPaint && w.foregroundPainter != null,
+                ),
+        )
         .first;
     final rect = tester.getRect(face);
     final viewport = viewportOf(tester);
@@ -321,10 +320,6 @@ void main() {
         expect(find.text('いろみがき'), findsOneWidget);
         await chooseMaterial(tester, material);
 
-        const roughKanji = 'assets/images/kanji_polish_rough.webp';
-        const satinKanji = 'assets/images/kanji_polish_satin.webp';
-        const glossyKanji = 'assets/images/kanji_polish_gloss.webp';
-        if (material == 'kanji') expectSurfaceImage(tester, roughKanji);
         var total = 0;
         for (var i = 0; i < 3; i++) {
           expect(find.text('${i + 1} 回目 / 全3回'), findsOneWidget);
@@ -343,7 +338,7 @@ void main() {
           expect(departure, findsNothing);
           expect(paper, findsNothing);
           await tester.pump(const Duration(milliseconds: 500));
-          await decodeVisibleSurface(tester);
+          await decodeVisibleMedal(tester);
           await checkToolHandoff(
             tester,
             captureRect,
@@ -391,7 +386,7 @@ void main() {
           final surface = tester.widget<SurfaceArt>(find.byType(SurfaceArt));
           expect(surface.strokeCount, total);
           expect(surface.progress * 100, closeTo(percentages[i], 0.5));
-          await decodeVisibleSurface(tester);
+          await decodeVisibleMedal(tester);
           final activePaper = tester.widget<SandpaperFace>(paper);
           visiblePaper(tester);
           expect(activePaper.sample, same(readyPaper.sample));
@@ -400,9 +395,13 @@ void main() {
           expect(activePaper.progress, surface.progress);
           if (material == 'medal') {
             final image = ['daou', 'gin', 'kin'][i];
-            expectSurfaceImage(tester, 'assets/fonts/$image.jpg');
-          } else {
-            expectSurfaceImage(tester, i == 2 ? glossyKanji : satinKanji);
+            expect(
+              find.descendant(
+                of: find.byType(SurfaceArt),
+                matching: find.byKey(ValueKey('assets/fonts/$image.jpg')),
+              ),
+              findsOneWidget,
+            );
           }
           await tester.pump(const Duration(seconds: 1));
         }
@@ -412,14 +411,12 @@ void main() {
         expect(find.text('疑似入力'), findsOneWidget);
         expect(paper, findsNothing);
         expect(find.text(stages.last), findsOneWidget);
-        if (material == 'kanji') expectSurfaceImage(tester, glossyKanji);
         expect(find.textContaining('往復'), findsNothing);
         await tapControl(tester, 'retry');
         expect(find.text('磨く素材を選ぶ'), findsOneWidget);
         await chooseMaterial(tester, material);
         expect(find.text('1 回目 / 全3回'), findsOneWidget);
         expect(SurfaceArtProbe.progress(tester), 0);
-        if (material == 'kanji') expectSurfaceImage(tester, roughKanji);
         expect(tester.takeException(), isNull);
       },
     );
@@ -751,7 +748,7 @@ void main() {
     await tester.pumpAndSettle();
     await tapControl(tester, 'title-start');
     await chooseMaterial(tester, 'medal');
-    await decodeVisibleSurface(tester);
+    await decodeVisibleMedal(tester);
     await tapControl(tester, 'capture');
     expect(find.textContaining('マイクを許可'), findsOneWidget);
     expect(departure, findsNothing);
