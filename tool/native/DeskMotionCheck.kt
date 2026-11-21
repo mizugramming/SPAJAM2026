@@ -74,29 +74,55 @@ private fun checkSpeedChanges(fusedGravity: Boolean) {
     val desk = DeskMotion()
     val haptics = DeskHaptics("coarse", 0.0, 68, 245)
     val halfMs = listOf(600, 185, 600)
-    val distances = listOf(0.15, 0.05, 0.15)
+    // Keep the stroke length fixed while the hand accelerates and slows down.
+    val distance = 0.15
     val boundaries = halfMs.runningFold(1000) { start, half -> start + 8 * half }
     val strokes = IntArray(3)
     val envelopes = Array(3) { mutableListOf<Int>() }
     val fastPasses = IntArray(8)
+    val middleOn = IntArray(3)
+    val endsOn = IntArray(3)
+    var waveform = longArrayOf()
+    var startedMs = 0
     for (ms in 0..boundaries.last() + 500 step 10) {
         val ns = ms * 1_000_000L
         val stage = halfMs.indices.firstOrNull { ms in boundaries[it] until boundaries[it + 1] }
         val accel = stage?.let {
-            travel((ms - boundaries[it]) / 1000.0, halfMs[it] / 1000.0, 4, distance = distances[it])
+            travel((ms - boundaries[it]) / 1000.0, halfMs[it] / 1000.0, 4, distance = distance)
         } ?: 0.0
         if (fusedGravity) desk.gravity(ns, down)
         val state = desk.update(ns, floatArrayOf(accel.toFloat(), 0f, 9.81f))
         if (state.stroke) strokes[checkNotNull(stage)]++
         val feedback = haptics.sample(ns, state)
         if (feedback != null) {
+            waveform = feedback.timings
+            startedMs = ms
             if (feedback.durationMs > 0) {
                 if (stage != null) envelopes[stage].add(feedback.durationMs)
                 if (stage == 1) fastPasses[(ms - boundaries[1]) / halfMs[1]]++
                 desk.motorStarted(ns, feedback.durationMs)
             } else desk.motorStopped(ns)
         }
-        if (haptics.expire(ns)) desk.motorStopped(ns)
+        if (haptics.expire(ns)) {
+            waveform = longArrayOf()
+            desk.motorStopped(ns)
+        }
+        if (stage != null && ms - boundaries[stage] >= 2 * halfMs[stage]) {
+            val phase = ((ms - boundaries[stage]) % halfMs[stage]).toDouble() / halfMs[stage]
+            var elapsedMs = (ms - startedMs).toLong()
+            for ((index, duration) in waveform.withIndex()) {
+                if (elapsedMs < duration) {
+                    if (index % 2 == 1 && phase in .375.. .625) middleOn[stage]++
+                    if (index % 2 == 1 && (phase < .125 || phase > .875)) endsOn[stage]++
+                    break
+                }
+                elapsedMs -= duration
+            }
+        }
+    }
+    // Equal-length windows. The motor must run primarily during travel, including after a speed change.
+    check(halfMs.indices.all { middleOn[it] > 3 * endsOn[it] }) {
+        "Motor-on samples at mid-pass and ends: ${middleOn.toList()} / ${endsOn.toList()}"
     }
     check(strokes.all { it == 4 }) { "Count at each speed: ${strokes.toList()}" }
     check(fastPasses.takeLast(4).all { it == 1 }) { "Taps per fast pass: ${fastPasses.toList()}" }

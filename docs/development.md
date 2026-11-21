@@ -54,6 +54,7 @@ native=android/app/src/main/kotlin/jp/spajam/polish_workshop
 kotlinc "$native"/{VoiceAnalysis,StrokeDetector,DeskMotion,DeskHaptics}.kt tool/native/*.kt -include-runtime -d /tmp/polish-signals.jar
 java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.SignalCheckKt &&
   java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskMotionCheckKt &&
+  java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskVelocityCheckKt &&
   java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskHapticsCheckKt
 ```
 

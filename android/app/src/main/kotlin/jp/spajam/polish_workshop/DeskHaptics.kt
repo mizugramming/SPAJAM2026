@@ -1,5 +1,6 @@
 package jp.spajam.polish_workshop
 
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** A finite Android waveform. Index zero is the initial wait; odd indices are motor-on time. */
@@ -40,7 +41,7 @@ internal class DeskHaptics(
     private var startedNs = 0L
     private var endNs = 0L
     private var quietUntilNs = 0L
-    private var intervalMs = 0
+    private var playedDirection = 0
     private var inContact = false
 
     fun update(progress: Double, durationMs: Int, amplitude: Int) {
@@ -52,40 +53,52 @@ internal class DeskHaptics(
     fun sample(timeNs: Long, state: DeskSample, evidenceNs: Long = timeNs): DeskFeedback? {
         if (state.ended || !state.contact) {
             inContact = false
+            playedDirection = 0
             return if (cancelActive(timeNs)) DeskFeedback.stop else null
         }
         if (state.began) {
             inContact = true
-            lastEvidenceNs = evidenceNs
-            // Leave an interval to observe the very first reversal.
-            val touchMs = (10 + length * .45).roundToInt().coerceIn(12, 42)
-            if (evidenceNs < quietUntilNs) return null
-            return play(timeNs, touchMs + 75, longArrayOf(0, touchMs.toLong()))
+            playedDirection = 0
         }
         if (!inContact) return null
+        if (state.moving) lastEvidenceNs = evidenceNs
         if (expire(timeNs)) return DeskFeedback.stop
-        if (!state.moving) return null
-        lastEvidenceNs = evidenceNs
-        val periodMs = state.cadenceMs?.coerceIn(230, 1250) ?: 230
-        if (timeNs < endNs && periodMs * 4 < intervalMs * 3) {
-            // A quick new rhythm can cut a long, slow envelope short.
+        if (timeNs - lastEvidenceNs >= 120_000_000L) return null
+
+        val speed = abs(state.signedSpeedMps)
+        val direction = if (state.signedSpeedMps >= 0.0) 1 else -1
+        val reference = maxOf(state.passPeakMps, .15)
+        // Let a pass sound on the glide and release it as the hand approaches rest.
+        if (direction != playedDirection && speed >= maxOf(.055, reference * .16)) {
+            // An asymmetric return may be too gentle to sound but still begins a new pass.
+            playedDirection = 0
+            if (cancelActive(timeNs)) return DeskFeedback.stop
+        }
+        if (speed < maxOf(.045, reference * .43)) {
             return if (cancelActive(timeNs)) DeskFeedback.stop else null
         }
-        // Require hand evidence after all motor-on slots and their settling time.
-        if (evidenceNs < quietUntilNs) return null
-        if (state.cadenceMs != null && periodMs <= 500) {
-            // One short rasp on each verified push or pull. Its two directions still score one stroke.
-            val reversalNs = state.lastReversalNs ?: return null
-            if (reversalNs <= startedNs || evidenceNs - reversalNs !in 0L..45_000_000L) return null
-            return play(timeNs, periodMs / 2, compactTexture(periodMs))
+        if (timeNs < endNs && state.passPeakMps >= compactAtMps && timeNs - startedNs >= 80_000_000L) {
+            return if (cancelActive(timeNs)) DeskFeedback.stop else null
         }
-        val nextNs = startedNs + minOf(intervalMs, periodMs) * 1_000_000L
-        if (timeNs < nextNs) return null
-        val envelopeMs = if (state.cadenceMs == null) 80 else
-            (80 + (periodMs - 500) * 920 / 700).coerceAtMost(1000)
-        val scaled = (envelopeMs * (.25 + .75 * length / 65).coerceIn(.30, 1.0)).roundToInt()
-        val budget = minOf(scaled, periodMs - 90).coerceAtLeast(1)
-        return play(timeNs, periodMs, texture(budget))
+        if (!state.moving || direction == playedDirection || speed < maxOf(.075, reference * .65) ||
+            evidenceNs < quietUntilNs) return null
+        playedDirection = direction
+        val fast = compactTexture(state.cadenceMs?.coerceIn(230, 1250) ?: 370)
+        val portion = ((state.passPeakMps - slowPeakMps) / (compactAtMps - slowPeakMps)).coerceIn(0.0, 1.0)
+        val fastMs = fast.sum().toInt()
+        val slowMs = (850 * (.25 + .75 * length / 65).coerceIn(.30, 1.0)).roundToInt()
+        val width = (slowMs + portion * (fastMs - slowMs)).roundToInt()
+        // Cadence only limits the command to the time available on this pass.
+        val availableMs = state.cadenceMs?.let { (it * .62 / 2).roundToInt() } ?: slowMs
+        val budget = minOf(width, maxOf(availableMs, fastMs))
+        return play(timeNs, if (budget <= fastMs) fast else texture(budget))
+    }
+
+    private companion object {
+        // Median peak speeds from the labelled REDMI training take (SpeedFitKt).
+        const val slowPeakMps = .7937
+        const val fastPeakMps = 1.7663
+        const val compactAtMps = (slowPeakMps + fastPeakMps) / 2
     }
 
     /** Same elapsed-realtime clock as SensorEvent.timestamp. Handles missing sensor events as well. */
@@ -99,12 +112,11 @@ internal class DeskHaptics(
         return true
     }
 
-    private fun play(timeNs: Long, periodMs: Int, timings: LongArray): DeskFeedback {
+    private fun play(timeNs: Long, timings: LongArray): DeskFeedback {
         val feedback = DeskFeedback(timings, strength)
         startedNs = timeNs
         endNs = timeNs + feedback.durationMs * 1_000_000L
         quietUntilNs = endNs + 60_000_000L
-        intervalMs = periodMs
         return feedback
     }
 

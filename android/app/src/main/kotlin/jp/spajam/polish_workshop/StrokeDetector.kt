@@ -150,8 +150,6 @@ internal class StrokeDetector {
         axis.copyInto(target)
     }
 
-    val lastReversalNs: Long? get() = if (outwardHalfNs > 0) lastLobe else null
-
     val estimatedPeriodMs: Int? get() {
         val period = if (cycleNs > 0) cycleNs else 2 * outwardHalfNs
         return if (period > 0) (period / 1_000_000L).toInt() else null
