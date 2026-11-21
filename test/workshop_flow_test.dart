@@ -214,11 +214,14 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('はじめる'), findsOneWidget);
         await tapControl(tester, 'title-start');
+        expect(find.text('いろみがき'), findsOneWidget);
         await chooseMaterial(tester, material);
 
         var total = 0;
         for (var i = 0; i < 3; i++) {
           expect(find.text('${i + 1} 回目 / 全3回'), findsOneWidget);
+          expect(find.text('いろみがき'), findsNothing);
+          expect(find.text('疑似入力'), findsOneWidget);
           expect(paper, findsNothing);
           final pitch = [110, 190, 300][i];
           await tapControl(tester, 'demo-$pitch');
@@ -241,6 +244,7 @@ void main() {
             Grit.values[i],
           );
           final readyPaper = tester.widget<SandpaperFace>(paper);
+          expect(find.text('いろみがき'), findsNothing);
           expect(readyPaper.grit, Grit.values[i]);
           expect(readyPaper.sample.hz, pitch);
           expect(
@@ -252,6 +256,7 @@ void main() {
           expect(find.text('$gritのやすり'), findsOneWidget);
           await tester.pump(const Duration(seconds: 12));
           await tapControl(tester, 'start');
+          expect(find.text('いろみがき'), findsNothing);
           expect(find.text('残り 10 秒'), findsOneWidget);
           expect(find.text('磨け'), findsOneWidget);
           visiblePaper(tester);
@@ -297,6 +302,8 @@ void main() {
         }
 
         expect(find.text('今回の仕上がり'), findsOneWidget);
+        expect(find.text('いろみがき'), findsNothing);
+        expect(find.text('疑似入力'), findsOneWidget);
         expect(paper, findsNothing);
         expect(find.text(stages.last), findsOneWidget);
         expect(find.textContaining('往復'), findsNothing);

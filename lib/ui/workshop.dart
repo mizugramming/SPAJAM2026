@@ -151,18 +151,17 @@ class Workshop extends StatelessWidget {
       GamePhase.result => Screen.result,
     };
     final hasPaper = screen == Screen.ready || screen == Screen.polishing;
-    final header = Part(
-      'header',
-      'ロゴ行',
-      _Header(
-        onDiagnostics: screen == Screen.select ? actions.openDiagnostics : null,
-        simulated: simulated,
-      ),
-    );
     final stage = screen == Screen.select
         ? _SelectStage(
             key: ValueKey((game.phase, game.round)),
-            header: header,
+            header: Part(
+              'header',
+              'ロゴ行',
+              _Header(
+                onDiagnostics: actions.openDiagnostics,
+                simulated: simulated,
+              ),
+            ),
             onBack: onTitle,
             onChoose: (material) {
               unawaited(precacheImage(SandpaperFace.texture, context));
@@ -174,7 +173,15 @@ class Workshop extends StatelessWidget {
             screen: screen,
             background: _Background(subdued: hasPaper),
             parts: [
-              if (!hasPaper) header,
+              if (!hasPaper && simulated)
+                const Part(
+                  'header',
+                  '疑似入力表示',
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _simulatedLabel,
+                  ),
+                ),
               Part('round', 'ラウンド行', _RoundHeader(game: game)),
               Part(
                 'workpiece',
@@ -977,9 +984,14 @@ class _Body extends StatelessWidget {
   );
 }
 
+const _simulatedLabel = Text(
+  '疑似入力',
+  style: TextStyle(fontSize: 12, color: muted),
+);
+
 class _Header extends StatelessWidget {
   const _Header({required this.onDiagnostics, required this.simulated});
-  final VoidCallback? onDiagnostics;
+  final VoidCallback onDiagnostics;
   final bool simulated;
   @override
   Widget build(BuildContext context) => Row(
@@ -997,15 +1009,13 @@ class _Header extends StatelessWidget {
           ),
         ),
       ),
-      if (simulated)
-        const Text('疑似入力', style: TextStyle(fontSize: 12, color: muted)),
-      if (onDiagnostics != null)
-        IconButton(
-          key: const ValueKey('diagnostics'),
-          tooltip: '端末の入力と振動を確認',
-          onPressed: onDiagnostics,
-          icon: const Icon(Icons.tune_rounded, size: 21, color: muted),
-        ),
+      if (simulated) _simulatedLabel,
+      IconButton(
+        key: const ValueKey('diagnostics'),
+        tooltip: '端末の入力と振動を確認',
+        onPressed: onDiagnostics,
+        icon: const Icon(Icons.tune_rounded, size: 21, color: muted),
+      ),
     ],
   );
 }
