@@ -104,7 +104,10 @@ internal class DeskHaptics(
         val trim = if (state.cadenceMs == null) {
             ((state.passPeakMps - 1.20) / (compactAtMps - 1.20)).coerceIn(0.0, 1.0)
         } else fast * (1 - .85 * slow)
-        val maximumMs = 850 + trim * (80 - 850)
+        // The measured half-stroke also sets the space available for a sustained rasp.
+        // A gravity-confirmed plane keeps slow reorientation from extending the packet.
+        val extraTravelMs = if (state.steadyPlane) ((period - 1600) * .30).coerceIn(0.0, 350.0) else 0.0
+        val maximumMs = (850 + extraTravelMs) * (1 - trim) + 80 * trim
         if (timeNs < endNs && timeNs - startedNs >= maximumMs * 1_000_000) {
             return if (cancelActive(timeNs)) DeskFeedback.stop else null
         }
@@ -118,16 +121,16 @@ internal class DeskHaptics(
             lead * acceleration < -.25 || speed < -acceleration * .030) return null
         playedDirection = direction
         activePeak = speed
-        return play(timeNs, waveform(state, period, fast, slow))
+        return play(timeNs, waveform(state, period, fast, slow, extraTravelMs))
     }
 
-    private fun waveform(state: DeskSample, period: Int, fast: Double, slow: Double): LongArray {
+    private fun waveform(state: DeskSample, period: Int, fast: Double, slow: Double, extraTravelMs: Double): LongArray {
         // Keep the 60 ms motor settling window plus most of a sensor frame before the return.
         val availableMs = (period / 2 - 72).coerceAtLeast(24)
         val compactMax = minOf(availableMs, 80)
         val compactMin = minOf(50, compactMax)
         val shortMs = compactMin + ((compactMax - compactMin) * (length / 68.0).coerceIn(0.0, 1.0)).roundToInt()
-        val longMs = (850 * (.25 + .75 * length / 65).coerceIn(.30, 1.0)).roundToInt()
+        val longMs = (850 * (.25 + .75 * length / 65).coerceIn(.30, 1.0) + extraTravelMs).roundToInt()
         val longBudget = state.cadenceMs?.let {
             val travelMs = (it * (.37 + .10 * slow)).roundToInt()
             minOf(longMs, travelMs, availableMs).coerceAtLeast(shortMs)

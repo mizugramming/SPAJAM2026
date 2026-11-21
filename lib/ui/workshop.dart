@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 
 import '../game/game.dart';
 import 'layout_tuner.dart';
+import 'medal_flight.dart';
+import 'phrase_text.dart';
+import 'round_introduction.dart';
 import 'sandpaper.dart';
 import 'surface_art.dart';
 import 'workshop_theme.dart';
@@ -14,13 +17,15 @@ export 'workshop_theme.dart' show workshopTheme;
 
 abstract interface class WorkshopActions {
   void choose(WorkMaterial material);
+  void setVoiceProfile(VoiceProfile profile);
   void capture();
+  void paperLanded();
   void start();
   void retry();
   void simulateStroke();
-  void openDiagnostics();
-  void selectDemoPitch(double hz);
-  double get demoPitch;
+  void openSettings();
+  void selectDemoVoice(Grit grit);
+  Grit get demoVoice;
 }
 
 /// 各画面の部品を lib/ui/workshop_layout.dart の配置表どおりに置く。
@@ -54,11 +59,10 @@ class Workshop extends StatelessWidget {
     if (start == null || game.phase != GamePhase.select) return _game(context);
     return Scaffold(
       body: SafeArea(
-        child: LayoutStage(
+        child: _workshopStage(
           key: const ValueKey('title'),
           screen: Screen.title,
           parts: _titleParts(start),
-          background: const _Background(),
         ),
       ),
     );
@@ -70,63 +74,11 @@ class Workshop extends StatelessWidget {
       'タイトル文字',
       Semantics(
         header: true,
-        label: 'いろみがき',
-        child: ExcludeSemantics(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.topLeft,
-            child: _GrungeText(
-              'いろ\nみがき',
-              style: TextStyle(
-                color: chalk,
-                fontSize: 96,
-                fontWeight: FontWeight.w900,
-                height: 1.0,
-                letterSpacing: -2,
-              ),
-            ),
-          ),
+        label: '磨くでヤンス！',
+        child: const ExcludeSemantics(
+          child: FittedBox(fit: BoxFit.contain, child: _TitleLettering()),
         ),
       ),
-      fill: true,
-    ),
-    const Part(
-      'tagline',
-      '英字の添え書き',
-      FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.topLeft,
-        child: Text(
-          'POLISH  OUT  YOUR  COLOR',
-          maxLines: 1,
-          style: TextStyle(
-            color: chalk,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 3,
-          ),
-        ),
-      ),
-      fill: true,
-    ),
-    const Part(
-      'catch',
-      '縦書きの一言',
-      _VerticalText(
-        '色を磨き出せ',
-        style: TextStyle(
-          color: chalk,
-          fontSize: 34,
-          fontWeight: FontWeight.w800,
-          height: 1.15,
-        ),
-      ),
-      align: Alignment.topCenter,
-    ),
-    Part(
-      'medal',
-      'メダル',
-      ExcludeSemantics(child: _MedalImage(_medalStageImages.first)),
       fill: true,
     ),
     Part(
@@ -134,7 +86,6 @@ class Workshop extends StatelessWidget {
       '「はじめる」ボタン',
       _BoxButton(
         key: const ValueKey('title-start'),
-        icon: Icons.local_fire_department_rounded,
         label: 'はじめる',
         onPressed: start,
       ),
@@ -150,54 +101,89 @@ class Workshop extends StatelessWidget {
       GamePhase.polishing => Screen.polishing,
       GamePhase.result => Screen.result,
     };
-    final hasPaper = screen == Screen.ready || screen == Screen.polishing;
-    final stage = screen == Screen.select
-        ? _SelectStage(
-            key: ValueKey((game.phase, game.round)),
-            header: Part(
-              'header',
-              'ロゴ行',
-              _Header(
-                onDiagnostics: actions.openDiagnostics,
-                simulated: simulated,
-              ),
-            ),
-            onBack: onTitle,
-            onChoose: (material) {
-              unawaited(precacheImage(SandpaperFace.texture, context));
-              actions.choose(material);
-            },
-          )
-        : LayoutStage(
-            key: ValueKey((game.phase, game.round)),
-            screen: screen,
-            background: _Background(subdued: hasPaper),
-            parts: [
-              if (!hasPaper && simulated)
-                const Part(
-                  'header',
-                  '疑似入力表示',
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _simulatedLabel,
-                  ),
-                ),
-              Part('round', 'ラウンド行', _RoundHeader(game: game)),
-              Part(
-                'workpiece',
-                '素材',
-                _Workpiece(game: game, inContact: inContact),
-                fill: true,
-              ),
-              ..._controls(context),
-            ],
-          );
+    final stage = switch (screen) {
+      Screen.select => _SelectStage(
+        key: ValueKey((game.phase, game.round)),
+        voiceProfile: game.voiceProfile,
+        onProfileChanged: actions.setVoiceProfile,
+        onSettings: actions.openSettings,
+        onBack: onTitle,
+        onChoose: (material) {
+          unawaited(precacheImage(SandpaperFace.texture, context));
+          actions.choose(material);
+        },
+      ),
+      Screen.voice => RoundIntroduction(
+        key: ValueKey((game.material!.id, game.round)),
+        round: game.round,
+        arrival:
+            game.round == 1 &&
+                game.material!.id == 'medal' &&
+                !MediaQuery.disableAnimationsOf(context)
+            ? medalLandingDuration
+            : Duration.zero,
+        builder: (arrival, intro) =>
+            _playStage(context, screen, arrival: arrival, intro: intro),
+      ),
+      _ => _playStage(context, screen),
+    };
     return Scaffold(
       body: SafeArea(
         child: screen == Screen.ready
-            ? _PaperArrival(key: ValueKey(game.round), child: stage)
+            ? _PaperArrival(
+                key: ValueKey(game.round),
+                onLanded: actions.paperLanded,
+                child: stage,
+              )
             : stage,
       ),
+    );
+  }
+
+  Widget _playStage(
+    BuildContext context,
+    Screen screen, {
+    Animation<double>? arrival,
+    Widget? intro,
+  }) {
+    final hasPaper = screen == Screen.ready || screen == Screen.polishing;
+    return _workshopStage(
+      key: ValueKey((game.phase, game.round)),
+      screen: screen,
+      parts: [
+        Part(
+          'workpiece',
+          '素材',
+          _Workpiece(game: game, inContact: inContact),
+          transition: arrival == null
+              ? null
+              : (_, bounds, face) => AnimatedBuilder(
+                  animation: arrival,
+                  child: face,
+                  builder: (context, child) => arrival.value == 1
+                      ? child!
+                      : MedalFlight(
+                          progress: arrival.value,
+                          entering: true,
+                          distanceToTop: bounds.bottom,
+                          face: child!,
+                        ),
+                ),
+          fill: true,
+        ),
+        if (intro != null) Part('intro', '回数のカットイン', intro, fill: true),
+        if (intro == null) ...[
+          if (!hasPaper && simulated)
+            const Part(
+              'header',
+              '疑似入力表示',
+              Align(alignment: Alignment.centerRight, child: _simulatedLabel),
+            ),
+          Part('round', 'ラウンド行', _RoundHeader(game: game), fill: true),
+        ],
+        for (final part in _controls(context))
+          if (intro == null || part.id == 'back') part,
+      ],
     );
   }
 
@@ -227,7 +213,7 @@ class Workshop extends StatelessWidget {
           ? null
           : Semantics(
               liveRegion: true,
-              child: Text(
+              child: PhraseText(
                 errorText,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.error,
@@ -251,47 +237,20 @@ class Workshop extends StatelessWidget {
                 ? _BackButton(onPressed: busy ? null : actions.retry)
                 : null,
           ),
-          Part(
-            'title',
-            '見出し',
-            Center(
-              child: _Title(
+          if (errorText == null || errorText.isEmpty)
+            Part(
+              'title',
+              '見出し',
+              _Title(
                 busy
                     ? '声を聞いています'
                     : game.finishingWithFine
                     ? '仕上げは高い声で'
                     : 'やすりを作る',
               ),
+              singleLine: true,
+              align: Alignment.center,
             ),
-            align: Alignment.center,
-          ),
-          Part(
-            'chips',
-            '疑似音声の選択',
-            !simulated
-                ? null
-                : Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    children: [
-                      for (final choice in [
-                        (110, '低い'),
-                        (190, '中間'),
-                        (300, '高い'),
-                      ])
-                        ChoiceChip(
-                          key: ValueKey('demo-${choice.$1}'),
-                          label: Text(choice.$2),
-                          selected: actions.demoPitch == choice.$1,
-                          onSelected: busy
-                              ? null
-                              : (_) => actions.selectDemoPitch(
-                                  choice.$1.toDouble(),
-                                ),
-                        ),
-                    ],
-                  ),
-          ),
           errorPart,
           Part(
             'action',
@@ -307,27 +266,59 @@ class Workshop extends StatelessWidget {
             ),
             fill: true,
           ),
+          // Keep the pitch choices above the mic's Web accessibility hit area.
+          Part(
+            'chips',
+            '疑似音声の選択',
+            !simulated
+                ? null
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      for (final choice in const [
+                        (Grit.coarse, '低い'),
+                        (Grit.medium, '中間'),
+                        (Grit.fine, '高い'),
+                      ])
+                        ChoiceChip(
+                          key: ValueKey(
+                            'demo-${game.voiceProfile.demoHz(choice.$1).round()}',
+                          ),
+                          label: Text(choice.$2),
+                          selected: actions.demoVoice == choice.$1,
+                          onSelected: busy
+                              ? null
+                              : (_) => actions.selectDemoVoice(choice.$1),
+                        ),
+                    ],
+                  ),
+            singleLine: true,
+          ),
         ];
       case GamePhase.ready:
         return [
           Part(
             'title',
             'やすりの目',
-            Center(child: _Title('${game.grit!.label}のやすり')),
+            _Title('${game.grit!.label}のやすり'),
             transition: _afterPaperLands,
+            singleLine: true,
             align: Alignment.center,
           ),
           _paper(arriving: true),
           errorPart,
           Part(
             'action',
-            '開始ボタン',
-            _BoxButton(
-              key: const ValueKey('start'),
-              icon: Icons.play_arrow_rounded,
-              label: busy ? '準備中…' : '磨く！',
-              onPressed: busy ? null : actions.start,
-            ),
+            '計測の再試行',
+            errorText == null
+                ? null
+                : _BoxButton(
+                    key: const ValueKey('retry-motion'),
+                    icon: Icons.refresh,
+                    label: '計測を再試行',
+                    onPressed: busy ? null : actions.start,
+                  ),
             transition: _afterPaperLands,
             fill: true,
           ),
@@ -346,6 +337,7 @@ class Workshop extends StatelessWidget {
                 color: ember,
               ),
             ),
+            singleLine: true,
           ),
           Part(
             'bar',
@@ -379,9 +371,22 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.result:
         return [
-          Part('title', '見出し', _Title(game.stage.name)),
+          if (game.material!.id == 'kanji')
+            Part(
+              'rank',
+              '段位（何漢）',
+              _KanjiRank(points: kanjiPoints(game)),
+              fill: true,
+            )
+          else
+            Part('title', '見出し', _Title(game.stage.name), singleLine: true),
           if (game.verdict case final verdict?)
             Part('body', '仕上がりの判定', _Body(verdict)),
+          Part(
+            'hint',
+            'こする案内',
+            _canRub(game) ? const _Body('メダルの上部を指でこすると、文字が現れます') : null,
+          ),
           Part(
             'action',
             '「もう一度遊ぶ」ボタン',
@@ -408,9 +413,10 @@ class Workshop extends StatelessWidget {
 }
 
 /// A single timeline carries the captured mic to the middle, reveals the paper,
-/// and unlocks start at its landing. The game clock begins with that button.
+/// and signals the session when the sheet settles on the workbench.
 class _PaperArrival extends StatelessWidget {
-  const _PaperArrival({super.key, required this.child});
+  const _PaperArrival({super.key, required this.onLanded, required this.child});
+  final VoidCallback onLanded;
   final Widget child;
   static const duration = Duration(milliseconds: 1800);
 
@@ -419,7 +425,8 @@ class _PaperArrival extends StatelessWidget {
     final reduced = MediaQuery.disableAnimationsOf(context);
     return TweenAnimationBuilder<double>(
       duration: reduced ? Duration.zero : duration,
-      tween: Tween(begin: reduced ? 1.0 : 0.0, end: 1.0),
+      tween: Tween(begin: 0.0, end: 1.0),
+      onEnd: onLanded,
       child: ClipRect(child: child),
       builder: (context, t, stage) =>
           _ArrivalProgress(value: reduced ? 1 : t, child: stage!),
@@ -555,17 +562,35 @@ Widget _paperEntrance(
 );
 
 /// The banner crosses the material once. Input remains live beneath it.
-class _PolishCue extends StatelessWidget {
+class _PolishCue extends StatefulWidget {
   const _PolishCue();
+
+  @override
+  State<_PolishCue> createState() => _PolishCueState();
+}
+
+class _PolishCueState extends State<_PolishCue>
+    with SingleTickerProviderStateMixin {
+  late final _cue = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 630),
+    animationBehavior: AnimationBehavior.preserve,
+  )..forward();
+
+  @override
+  void dispose() {
+    _cue.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final reduced = MediaQuery.disableAnimationsOf(context);
     return IgnorePointer(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 630),
-        builder: (context, t, banner) {
+      child: AnimatedBuilder(
+        animation: _cue,
+        builder: (context, banner) {
+          final t = _cue.value;
           if (t == 1) return const SizedBox.shrink();
           final enter = const Interval(
             0,
@@ -582,31 +607,34 @@ class _PolishCue extends StatelessWidget {
             child: Opacity(opacity: reduced ? 1 : 1 - leave, child: banner!),
           );
         },
-        child: const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color(0x00751619),
-                Color(0xF88E1D21),
-                Color(0xFA701418),
-                Color(0x00751619),
-              ],
-              stops: [0, .18, .82, 1],
+        child: Semantics(
+          liveRegion: true,
+          child: const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0x00751619),
+                  Color(0xF88E1D21),
+                  Color(0xFA701418),
+                  Color(0x00751619),
+                ],
+                stops: [0, .18, .82, 1],
+              ),
             ),
-          ),
-          child: FittedBox(
-            fit: BoxFit.contain,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                '磨け',
-                style: TextStyle(
-                  color: chalk,
-                  fontFamily: appFont,
-                  fontSize: 72,
-                  height: 1.05,
-                  letterSpacing: 7,
-                  fontWeight: FontWeight.w900,
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '磨け！',
+                  style: TextStyle(
+                    color: chalk,
+                    fontFamily: appFont,
+                    fontSize: 72,
+                    height: 1.05,
+                    letterSpacing: 7,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ),
@@ -617,19 +645,126 @@ class _PolishCue extends StatelessWidget {
   }
 }
 
-/// 全画面に敷く背景画像。画面の縦横比に合わせて切り抜く。
-class _Background extends StatelessWidget {
-  const _Background({this.subdued = false});
-  final bool subdued;
+LayoutStage _workshopStage({
+  Key? key,
+  required Screen screen,
+  required List<Part> parts,
+}) => LayoutStage(
+  key: key,
+  screen: screen,
+  parts: parts,
+  background: const Image(
+    image: AssetImage('assets/images/workshop_room.webp'),
+    // 下地の天板と柱を、小物の配置表と同じ画面比率の位置に保つ。
+    fit: BoxFit.fill,
+    excludeFromSemantics: true,
+  ),
+  backgroundParts: [
+    const Part(
+      'curtain',
+      '背景・のれん',
+      _WorkshopProp('curtain', alignment: Alignment.topCenter),
+      fill: true,
+    ),
+    const Part(
+      'jacket',
+      '背景・ジャケット',
+      _HangingProp('jacket', alignment: Alignment.topCenter),
+      fill: true,
+    ),
+    const Part('brush', '背景・磨き刷毛', _HangingProp('brush'), fill: true),
+    // 台の上の小物をヤンスの手前に重ねる。
+    if (screen == Screen.title)
+      const Part(
+        'mascot',
+        'キャラクターのヤンス',
+        Image(
+          image: AssetImage('assets/images/yansu_title.png'),
+          fit: BoxFit.contain,
+          semanticLabel: 'キャラクターのヤンス',
+        ),
+        fill: true,
+      ),
+    const Part(
+      'cloth',
+      '背景・敷き布',
+      _WorkshopProp('cloth', alignment: Alignment.bottomCenter),
+      fill: true,
+    ),
+    const Part(
+      'books',
+      '背景・本',
+      _WorkshopProp('books', alignment: Alignment.bottomCenter),
+      fill: true,
+    ),
+    const Part(
+      'dumbbell',
+      '背景・ダンベル',
+      _WorkshopProp('dumbbell', alignment: Alignment.bottomCenter),
+      fill: true,
+    ),
+    const Part(
+      'wax',
+      '背景・ヘアワックス',
+      _WorkshopProp('wax', alignment: Alignment.bottomCenter),
+      fill: true,
+    ),
+  ],
+  // 道具を動かしても陰影は画面に固定し、上に重なる文字と素材を読みやすくする。
+  backgroundShade: screen == Screen.ready || screen == Screen.polishing
+      ? const BoxDecoration(color: Color(0xC4131010))
+      : const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0x9918100E), Color(0x9918100E), Colors.transparent],
+            stops: [0, .19, .4],
+          ),
+        ),
+);
+
+class _HangingProp extends StatelessWidget {
+  const _HangingProp(this.name, {this.alignment = Alignment.center});
+  final String name;
+  final Alignment alignment;
 
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
-    child: Image(
-      image: const AssetImage('assets/images/background.jpg'),
-      color: subdued ? const Color(0xC4131010) : null,
-      colorBlendMode: BlendMode.srcATop,
-      fit: BoxFit.cover,
+    child: FittedBox(
+      fit: BoxFit.contain,
+      alignment: alignment,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // 柱に触れる鋲を支点に、手前に出る裾や毛先の影を右に落とす。
+          Positioned.fill(
+            child: Transform.rotate(
+              alignment: const Alignment(.08, -.87),
+              angle: -.055,
+              child: Image.asset(
+                'assets/images/workshop_$name.webp',
+                color: const Color(0x77281A10),
+              ),
+            ),
+          ),
+          Image.asset('assets/images/workshop_$name.webp'),
+        ],
+      ),
     ),
+  );
+}
+
+class _WorkshopProp extends StatelessWidget {
+  const _WorkshopProp(this.name, {this.alignment = Alignment.center});
+  final String name;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) => Image.asset(
+    'assets/images/workshop_$name.webp',
+    fit: BoxFit.contain,
+    alignment: alignment,
+    excludeFromSemantics: true,
   );
 }
 
@@ -654,16 +789,28 @@ class _GrungeText extends StatelessWidget {
   );
 }
 
-/// 1文字ずつ縦に並べた文字。
-class _VerticalText extends StatelessWidget {
-  const _VerticalText(this.text, {required this.style});
-  final String text;
-  final TextStyle style;
+class _TitleLettering extends StatelessWidget {
+  const _TitleLettering();
+
+  static const brush = TextStyle(
+    fontFamily: appFont,
+    fontSize: 116,
+    fontWeight: FontWeight.w900,
+    color: chalk,
+    height: 1,
+  );
 
   @override
   Widget build(BuildContext context) => Column(
     mainAxisSize: MainAxisSize.min,
-    children: [for (final c in text.characters) Text(c, style: style)],
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _GrungeText('磨くで', style: brush.copyWith(fontSize: 82)),
+      const Padding(
+        padding: EdgeInsets.only(left: 24),
+        child: _GrungeText('ヤンス！', style: brush),
+      ),
+    ],
   );
 }
 
@@ -671,54 +818,50 @@ class _VerticalText extends StatelessWidget {
 class _BoxButton extends StatelessWidget {
   const _BoxButton({
     super.key,
-    required this.icon,
+    this.icon,
     required this.label,
     required this.onPressed,
   });
-  final IconData icon;
+  final IconData? icon;
   final String label;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) => SizedBox.expand(
-    child: Stack(
-      fit: StackFit.expand,
-      children: [
-        FilledButton(
-          style: FilledButton.styleFrom(
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(2)),
-            ),
-            textStyle: const TextStyle(
-              fontFamily: appFont,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2,
-            ),
-          ),
-          onPressed: onPressed,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 24),
-                const SizedBox(width: 10),
-                Text(label),
-              ],
-            ),
-          ),
+    child: FilledButton(
+      style: FilledButton.styleFrom(
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(2)),
         ),
-        // 文字と地に黒いかすれを重ねる。押す操作は下のボタンへ通す。
-        IgnorePointer(
-          child: CustomPaint(
-            painter: _GrungePainter(label.hashCode, frame: false),
-          ),
+        textStyle: const TextStyle(
+          fontFamily: appFont,
+          fontSize: 34,
+          fontWeight: FontWeight.w900,
+          height: 1.12,
+          letterSpacing: 1.4,
         ),
-      ],
+        backgroundBuilder: (context, states, child) => CustomPaint(
+          painter: _GrungePainter(label.hashCode, frame: false),
+          child: child,
+        ),
+      ),
+      onPressed: onPressed,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 28),
+              const SizedBox(width: 10),
+            ],
+            Text(label, maxLines: 1),
+          ],
+        ),
+      ),
     ),
   );
 }
@@ -989,87 +1132,28 @@ const _simulatedLabel = Text(
   style: TextStyle(fontSize: 12, color: muted),
 );
 
-class _Header extends StatelessWidget {
-  const _Header({required this.onDiagnostics, required this.simulated});
-  final VoidCallback onDiagnostics;
-  final bool simulated;
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      const _FileMark(),
-      const SizedBox(width: 9),
-      const Expanded(
-        child: Text(
-          'いろみがき',
-          style: TextStyle(
-            fontSize: 17,
-            letterSpacing: 1.0,
-            color: chalk,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-      if (simulated) _simulatedLabel,
-      IconButton(
-        key: const ValueKey('diagnostics'),
-        tooltip: '端末の入力と振動を確認',
-        onPressed: onDiagnostics,
-        icon: const Icon(Icons.tune_rounded, size: 21, color: muted),
-      ),
-    ],
-  );
-}
-
-class _FileMark extends StatelessWidget {
-  const _FileMark();
-  @override
-  Widget build(BuildContext context) => SizedBox.square(
-    dimension: 26,
-    child: CustomPaint(painter: _FilePainter()),
-  );
-}
-
-class _FilePainter extends CustomPainter {
-  @override
-  void paint(Canvas c, Size s) {
-    c.translate(s.width / 2, s.height / 2);
-    c.rotate(-math.pi / 4);
-    final p = Paint()..color = crimson;
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-11, -7, 17, 14),
-        const Radius.circular(2),
-      ),
-      p,
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(4, -2.2, 9, 4.4),
-        const Radius.circular(2),
-      ),
-      p,
-    );
-    final notch = Paint()
-      ..color = bench
-      ..strokeWidth = 1.2;
-    for (final x in [-8.0, -4.0, 0.0]) {
-      c.drawLine(Offset(x, -4), Offset(x + 2, 4), notch);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_FilePainter oldDelegate) => false;
-}
-
 /// game.dart の段階（サビた銅・銅・銀・金・金ピカ）と同じ順のメダル画像。
 /// 銅の2段階は同じ絵にゲームの研磨率に応じた地金色・サビ・光沢を重ねる。
+/// 金はつや消しの絵、金ピカは上の方が曇った磨き途中の絵。
 const _medalStageImages = [
   'assets/fonts/daou.jpg',
   'assets/fonts/daou.jpg',
   'assets/fonts/gin.jpg',
-  'assets/fonts/kin.jpg',
-  'assets/fonts/kinpika.jpg',
+  'assets/images/medal-gold.png',
+  'assets/images/medal-gold-polishing.png',
 ];
+
+/// 仕上がり画面で指でこすると現れる、「最優秀賞」入りの金ピカの絵。
+const _medalRubImage = 'assets/fonts/kinpika.jpg';
+
+/// 仕上がり画面で指でこすれるのは、金メダル以上で終わったメダル。
+bool _canRub(GameController game) {
+  final material = game.material;
+  return game.phase == GamePhase.result &&
+      material != null &&
+      material.id == 'medal' &&
+      material.stages.indexOf(game.stage) >= 3;
+}
 
 /// 素材と研磨の割合に合う画像。画像のない素材は null（描画で表示する）。
 String? _imageFor(WorkMaterial material, double progress) {
@@ -1079,7 +1163,12 @@ String? _imageFor(WorkMaterial material, double progress) {
 
 /// 円形に切り抜いたメダル画像。画像が替わるときは重ねて切り替える。
 class _MedalImage extends StatelessWidget {
-  const _MedalImage(this.image, {this.cacheWidth = 720, this.copperTint});
+  const _MedalImage(
+    this.image, {
+    super.key,
+    this.cacheWidth = 720,
+    this.copperTint,
+  });
   final String image;
   final int cacheWidth;
   final Color? copperTint;
@@ -1120,11 +1209,15 @@ String _pickHeading(WorkMaterial material) => switch (material.id) {
 class _SelectStage extends StatefulWidget {
   const _SelectStage({
     super.key,
-    required this.header,
+    required this.voiceProfile,
+    required this.onProfileChanged,
+    required this.onSettings,
     required this.onBack,
     required this.onChoose,
   });
-  final Part header;
+  final VoiceProfile voiceProfile;
+  final ValueChanged<VoiceProfile> onProfileChanged;
+  final VoidCallback onSettings;
   final VoidCallback? onBack;
   final void Function(WorkMaterial material) onChoose;
 
@@ -1132,17 +1225,24 @@ class _SelectStage extends StatefulWidget {
   State<_SelectStage> createState() => _SelectStageState();
 }
 
-class _SelectStageState extends State<_SelectStage> {
+class _SelectStageState extends State<_SelectStage>
+    with SingleTickerProviderStateMixin {
   static const _pageId = 'material-page';
 
   /// 端のないくり返しにするため、十分大きなページ番号から始める。
   static final _loopBase = materials.length * 1000;
   late int _index;
   late final PageController _pages;
+  late final AnimationController _departure;
+  bool _departing = false;
 
   @override
   void initState() {
     super.initState();
+    _departure = AnimationController(
+      vsync: this,
+      duration: medalDepartureDuration,
+    );
     final saved = PageStorage.maybeOf(
       context,
     )?.readState(context, identifier: _pageId);
@@ -1154,8 +1254,17 @@ class _SelectStageState extends State<_SelectStage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!MediaQuery.disableAnimationsOf(context)) {
+      unawaited(precacheImage(copperSpin, context, onError: (_, _) {}));
+    }
+  }
+
+  @override
   void dispose() {
     _pages.dispose();
+    _departure.dispose();
     super.dispose();
   }
 
@@ -1179,21 +1288,83 @@ class _SelectStageState extends State<_SelectStage> {
       ? (_pages.page ?? _pages.initialPage.toDouble()).round()
       : _loopBase + _index;
 
+  Future<void> _choose(WorkMaterial material) async {
+    if (_departing) return;
+    if (material.id == 'medal' && !MediaQuery.disableAnimationsOf(context)) {
+      // Only the centered page departs, even when confirmation interrupts a swipe.
+      _pages.jumpToPage(_page);
+      setState(() => _departing = true);
+      try {
+        await _departure.forward().orCancel;
+      } on TickerCanceled {
+        return;
+      }
+    }
+    if (mounted) widget.onChoose(material);
+  }
+
+  Widget _carouselWithDeparture(Widget pager) => LayoutBuilder(
+    builder: (context, constraints) {
+      final bounds = constraints.biggest;
+      final placement = layoutTuner.boxOf(Screen.select, 'pager');
+      final top = bounds.height * placement.y / placement.h;
+      final diameter = math.min(
+        bounds.height,
+        bounds.width * _pages.viewportFraction,
+      );
+      return Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
+        children: [
+          pager,
+          if (_departing)
+            Center(
+              child: SizedBox.square(
+                dimension: diameter,
+                child: AnimatedBuilder(
+                  animation: _departure,
+                  child: _MaterialArt(material: materials[_index]),
+                  builder: (context, face) => MedalFlight(
+                    progress: _departure.value,
+                    entering: false,
+                    distanceToTop: top + bounds.height / 2 + diameter / 2,
+                    face: face!,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) {
     final current = materials[_index];
     final next = materials[(_index + 1) % materials.length];
     final previous = materials[(_index - 1) % materials.length];
-    return LayoutStage(
+    final stage = _workshopStage(
       screen: Screen.select,
-      background: const _Background(),
       parts: [
-        widget.header,
+        Part(
+          'header',
+          'ゲームの設定',
+          Align(
+            alignment: Alignment.topRight,
+            child: IconButton(
+              key: const ValueKey('diagnostics'),
+              tooltip: '設定',
+              onPressed: widget.onSettings,
+              icon: const Icon(Icons.tune_rounded, size: 23, color: muted),
+            ),
+          ),
+          fill: true,
+        ),
         Part('back', '「戻る」ボタン', switch (widget.onBack) {
           final VoidCallback back => _BackButton(onPressed: back),
           _ => null,
         }),
-        const Part('title', '見出し', _Title('磨く素材を選ぶ')),
+        const Part('title', '見出し', _Title('磨く素材を選ぶ'), singleLine: true),
         Part(
           'heading',
           '素材の見出し',
@@ -1212,43 +1383,57 @@ class _SelectStageState extends State<_SelectStage> {
               ),
             ),
           ),
+          singleLine: true,
           align: Alignment.topCenter,
         ),
         Part(
           'pager',
           '素材画像（左右にスワイプで回る）',
-          Semantics(
-            label: '素材の選択',
-            value: _pickHeading(current),
-            increasedValue: _pickHeading(next),
-            decreasedValue: _pickHeading(previous),
-            onIncrease: () => _turn(_page + 1),
-            onDecrease: () => _turn(_page - 1),
-            // マウスのドラッグでも回せるようにする（Chromeでの確認用）。
-            child: ScrollConfiguration(
-              behavior: ScrollConfiguration.of(
-                context,
-              ).copyWith(dragDevices: PointerDeviceKind.values.toSet()),
-              child: PageView.builder(
-                key: const ValueKey('material-pager'),
-                controller: _pages,
-                onPageChanged: _show,
-                clipBehavior: Clip.none,
-                itemBuilder: (context, page) {
-                  final material = materials[page % materials.length];
-                  return ExcludeSemantics(
-                    child: _CarouselItem(
-                      key: ValueKey('material-page-${material.id}-$page'),
-                      controller: _pages,
-                      page: page,
-                      fallbackPage: _loopBase + _index,
-                      onTap: () => _turn(page),
-                      child: _MaterialArt(material: material),
-                    ),
-                  );
-                },
+          _carouselWithDeparture(
+            Semantics(
+              label: '素材の選択',
+              value: _pickHeading(current),
+              increasedValue: _pickHeading(next),
+              decreasedValue: _pickHeading(previous),
+              onIncrease: () => _turn(_page + 1),
+              onDecrease: () => _turn(_page - 1),
+              // マウスのドラッグでも回せるようにする（Chromeでの確認用）。
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(dragDevices: PointerDeviceKind.values.toSet()),
+                child: PageView.builder(
+                  key: const ValueKey('material-pager'),
+                  controller: _pages,
+                  onPageChanged: _show,
+                  clipBehavior: Clip.none,
+                  itemBuilder: (context, page) {
+                    final material = materials[page % materials.length];
+                    return ExcludeSemantics(
+                      child: _CarouselItem(
+                        key: ValueKey('material-page-${material.id}-$page'),
+                        controller: _pages,
+                        page: page,
+                        fallbackPage: _loopBase + _index,
+                        onTap: () => _turn(page),
+                        child: _departing && page == _page
+                            ? const SizedBox.shrink()
+                            : _MaterialArt(material: material),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
+          ),
+          fill: true,
+        ),
+        Part(
+          'voiceProfile',
+          '声の高さ',
+          _VoiceProfilePicker(
+            profile: widget.voiceProfile,
+            onChanged: widget.onProfileChanged,
           ),
           fill: true,
         ),
@@ -1261,14 +1446,86 @@ class _SelectStageState extends State<_SelectStage> {
               key: const ValueKey('confirm-material'),
               icon: Icons.check_rounded,
               label: 'これを磨く',
-              onPressed: () => widget.onChoose(current),
+              onPressed: () => _choose(current),
             ),
           ),
           fill: true,
         ),
       ],
     );
+    return IgnorePointer(
+      ignoring: _departing,
+      child: ExcludeFocus(excluding: _departing, child: stage),
+    );
   }
+}
+
+class _VoiceProfilePicker extends StatelessWidget {
+  const _VoiceProfilePicker({required this.profile, required this.onChanged});
+
+  final VoiceProfile profile;
+  final ValueChanged<VoiceProfile> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    spacing: 8,
+    children: [
+      const Expanded(
+        flex: 2,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '声の高さ',
+            style: TextStyle(
+              color: chalk,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+      Expanded(
+        flex: 5,
+        child: SegmentedButton<VoiceProfile>(
+          expandedInsets: EdgeInsets.zero,
+          style: SegmentedButton.styleFrom(
+            foregroundColor: chalk,
+            backgroundColor: metalPanel,
+            selectedForegroundColor: bench,
+            selectedBackgroundColor: ember,
+            side: const BorderSide(color: muted),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(4)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            minimumSize: const Size(0, 48),
+            textStyle: const TextStyle(
+              fontFamily: appFont,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          segments: [
+            for (final item in VoiceProfile.values)
+              ButtonSegment(
+                value: item,
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    item.label,
+                    key: ValueKey('voice-profile-${item.name}'),
+                    softWrap: false,
+                  ),
+                ),
+              ),
+          ],
+          selected: {profile},
+          onSelectionChanged: (choice) => onChanged(choice.single),
+        ),
+      ),
+    ],
+  );
 }
 
 /// 回転式の1枚。中央から離れるほど小さく暗くし、タップで中央へ回す。
@@ -1322,7 +1579,98 @@ class _CarouselItem extends StatelessWidget {
   );
 }
 
-/// 素材選択で大きく見せる素材の絵。メダルは画像、ほかは描画した見本。
+/// やすりの目の点数（粗目3・中目2・細目1）。3回の合計は3〜9点。
+int gritPoints(Grit grit) => switch (grit) {
+  Grit.coarse => 3,
+  Grit.medium => 2,
+  Grit.fine => 1,
+};
+
+/// 漢磨きの成否。成功の範囲はもう一人の担当が決める。決まるまでの仮の決まりとして、
+/// 最後の段階（光沢を帯びた漢）まで磨けたら成功にしている。範囲が決まったらここだけ書き換える。
+bool kanjiSucceeded(GameController game) =>
+    game.stage == game.material!.stages.last;
+
+/// 3回のやすりの合計点。
+int kanjiPoints(GameController game) =>
+    game.grits.fold(0, (sum, grit) => sum + gritPoints(grit));
+
+/// 漢磨きの仕上がりの段位（1漢がいちばん上）。合計点で決まる。
+String kanjiRank(int points) => '${kanjiRankNumber(points)}漢';
+
+/// 段位の数字（1がいちばん上）。
+int kanjiRankNumber(int points) => switch (points) {
+  <= 3 => 5,
+  <= 5 => 4,
+  6 => 3,
+  <= 8 => 2,
+  _ => 1,
+};
+
+/// 段位の色の「漢」の絵。四角いっぱいに収める（数字は出さず、読み上げでは「○漢」）。
+class _KanjiRank extends StatelessWidget {
+  const _KanjiRank({required this.points});
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = 'assets/images/kanji-rank-${kanjiRankNumber(points)}.png';
+    return Semantics(
+      label: kanjiRank(points),
+      excludeSemantics: true,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            radius: .68,
+            colors: [Color(0x92F3E1C2), Color(0x00F3E1C2)],
+          ),
+        ),
+        child: Image.asset(
+          image,
+          key: ValueKey(image),
+          fit: BoxFit.contain,
+          cacheWidth: 400,
+        ),
+      ),
+    );
+  }
+}
+
+/// 漢磨きの仕上がりに出すキャラクター。3回のやすりの合計点と成否で決まる。
+String kanjiResultImage(int points, {required bool success}) {
+  final (ok, ng) = switch (points) {
+    <= 3 => ('character-05.png', 'overpolished-05.png'),
+    <= 5 => ('character-04.png', 'overpolished-04.png'),
+    6 => ('gyansu.jpg', 'overpolished-03.png'),
+    <= 8 => ('character-02.png', 'overpolished-02.png'),
+    _ => ('kyushu-danji.png', 'overpolished-01.png'),
+  };
+  return 'assets/images/${success ? ok : ng}';
+}
+
+/// 仕上がり画面の漢磨きのキャラクター。
+class _KanjiCharacter extends StatelessWidget {
+  const _KanjiCharacter({required this.game});
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = kanjiResultImage(
+      kanjiPoints(game),
+      success: kanjiSucceeded(game),
+    );
+    return Center(
+      child: Image.asset(
+        image,
+        key: ValueKey(image),
+        fit: BoxFit.contain,
+        cacheWidth: 900,
+      ),
+    );
+  }
+}
+
+/// 素材選択ではメダルと漢を研磨前の状態で見せる。
 class _MaterialArt extends StatelessWidget {
   const _MaterialArt({required this.material});
   final WorkMaterial material;
@@ -1332,8 +1680,15 @@ class _MaterialArt extends StatelessWidget {
     child: AspectRatio(
       aspectRatio: 1,
       child: switch (_imageFor(material, 0)) {
-        final String image => _MedalImage(image, cacheWidth: 640),
-        _ => SurfaceArt(material: material, progress: 1),
+        final String image => SurfaceArt(
+          material: material,
+          progress: 0,
+          medalImage: _MedalImage(image, cacheWidth: 640),
+        ),
+        _ => SurfaceArt(
+          material: material,
+          progress: material.id == 'kanji' ? 0 : 1,
+        ),
       },
     ),
   );
@@ -1828,36 +2183,134 @@ class _DustSpray extends CustomPainter {
       old.progress != progress;
 }
 
+/// 指でこすった跡だけ [image] を見せる層。こすった点はメダル（置き場所の短い辺を
+/// 直径とする中央の正方形）に対する割合で持ち、表示の大きさが変わってもずれない。
+class _RubReveal extends StatefulWidget {
+  const _RubReveal({required this.image});
+  final String image;
+
+  @override
+  State<_RubReveal> createState() => _RubRevealState();
+}
+
+class _RubRevealState extends State<_RubReveal> {
+  /// 指の太さ（メダルの直径に対する割合）。
+  static const _brush = .08;
+  final _points = <Offset>{};
+  Offset? _previous;
+
+  void _rub(Offset local, double side) {
+    if (side <= 0) return;
+    final point = local / side;
+    if ((point - const Offset(.5, .5)).distance > .5 + _brush) {
+      _previous = null;
+      return;
+    }
+    final last = _previous ?? point;
+    _previous = point;
+    final steps = math.max(1, ((point - last).distance / (_brush / 2)).ceil());
+    final previousCount = _points.length;
+    for (var i = 1; i <= steps; i++) {
+      final p = Offset.lerp(last, point, i / steps)!;
+      // 同じ場所を繰り返しこすってもマスクの点を増やし続けない。
+      _points.add(Offset((p.dx * 64).round() / 64, (p.dy * 64).round() / 64));
+    }
+    if (previousCount != _points.length) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: AspectRatio(
+      aspectRatio: 1,
+      child: ClipOval(
+        child: LayoutBuilder(
+          builder: (context, box) => GestureDetector(
+            key: const ValueKey('medal-rub'),
+            behavior: HitTestBehavior.opaque,
+            dragStartBehavior: DragStartBehavior.down,
+            onPanStart: (d) {
+              _previous = null;
+              _rub(d.localPosition, box.maxWidth);
+            },
+            onPanUpdate: (d) => _rub(d.localPosition, box.maxWidth),
+            child: _points.isEmpty
+                ? const SizedBox.expand()
+                : ClipPath(
+                    clipper: _RubClipper(List.of(_points), _brush),
+                    child: _MedalImage(
+                      widget.image,
+                      key: const ValueKey('medal-revealed'),
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _RubClipper extends CustomClipper<Path> {
+  _RubClipper(this.points, this.brush);
+  final List<Offset> points;
+  final double brush;
+
+  @override
+  Path getClip(Size size) {
+    final side = math.min(size.width, size.height);
+    final origin = Offset((size.width - side) / 2, (size.height - side) / 2);
+    final path = Path();
+    for (final p in points) {
+      path.addOval(
+        Rect.fromCircle(center: origin + p * side, radius: brush * side),
+      );
+    }
+    return path;
+  }
+
+  @override
+  bool shouldReclip(_RubClipper old) => old.points.length != points.length;
+}
+
 class _RoundHeader extends StatelessWidget {
   const _RoundHeader({required this.game});
   final GameController game;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    alignment: WrapAlignment.spaceBetween,
-    crossAxisAlignment: WrapCrossAlignment.center,
-    spacing: 12,
-    runSpacing: 5,
-    children: [
-      Text(
-        game.phase == GamePhase.result ? '今回の仕上がり' : game.material!.name,
-        style: const TextStyle(
-          color: chalk,
-          fontWeight: FontWeight.w700,
-          fontSize: 17,
-        ),
-      ),
-      if (game.phase != GamePhase.result)
-        Text(
-          '${game.round} 回目 / 全3回',
+  Widget build(BuildContext context) {
+    final voice = game.phase == GamePhase.voice;
+    final result = game.phase == GamePhase.result;
+    final material = Flexible(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          result ? '今回の仕上がり' : game.material!.name,
           style: const TextStyle(
-            color: muted,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+            color: chalk,
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
           ),
         ),
-    ],
-  );
+      ),
+    );
+    final counter = Flexible(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          '${game.round} 回目 / 全${GameController.roundCount}回',
+          style: TextStyle(
+            color: voice ? chalk : muted,
+            fontWeight: FontWeight.w600,
+            fontSize: voice ? 18 : 14,
+          ),
+        ),
+      ),
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      spacing: 12,
+      children: [if (voice) counter, material, if (!voice && !result) counter],
+    );
+  }
 }
 
 /// 四角いっぱいに広がる作業面。枠・段階名・研磨の割合は出さず、素材だけを大きく見せる。
@@ -1869,13 +2322,17 @@ class _Workpiece extends StatelessWidget {
   Widget build(BuildContext context) {
     final material = game.material!;
     final image = _imageFor(material, game.progress);
+    final kanji = material.id == 'kanji';
     final art = SurfaceArt(
       material: material,
       progress: game.progress,
       strokeCount: game.totalStrokes,
       inContact: inContact,
       reveal: game.phase == GamePhase.result,
-      medalImage: image == null
+      overlay: !kanji || game.phase != GamePhase.result,
+      medalImage: kanji && game.phase == GamePhase.result
+          ? _KanjiCharacter(game: game)
+          : image == null
           ? null
           : _MedalImage(
               image,
@@ -1888,33 +2345,34 @@ class _Workpiece extends StatelessWidget {
                   : null,
             ),
     );
-    return Semantics(
-      image: true,
-      excludeSemantics: true,
-      label: game.stage.name,
-      value: '研磨 ${(game.progress * 100).round()}%',
-      child: Stack(
-        fit: StackFit.expand,
-        clipBehavior: Clip.none,
-        children: [
-          art,
-          // 接触中のチリと、往復が成立したときの大きな破片を重ねる。
-          Positioned.fill(
-            child: IgnorePointer(
-              child: _Shavings(
-                strokes: game.totalStrokes,
-                active: game.phase == GamePhase.polishing,
-                inContact: inContact,
-                progress: game.progress,
-                tint: image == _medalStageImages.first
-                    ? null
-                    : game.stage.color,
-                grit: game.grit,
-              ),
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: [
+        Semantics(
+          image: true,
+          excludeSemantics: true,
+          label: game.stage.name,
+          value: '研磨 ${(game.progress * 100).round()}%',
+          child: art,
+        ),
+        // 金メダル以上の仕上がりは、指でこすったところから文字が浮かび上がる。
+        if (_canRub(game))
+          const Positioned.fill(child: _RubReveal(image: _medalRubImage)),
+        // 接触中のチリと、往復が成立したときの大きな破片を重ねる。
+        Positioned.fill(
+          child: IgnorePointer(
+            child: _Shavings(
+              strokes: game.totalStrokes,
+              active: game.phase == GamePhase.polishing,
+              inContact: inContact,
+              progress: game.progress,
+              tint: image == _medalStageImages.first ? null : game.stage.color,
+              grit: game.grit,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

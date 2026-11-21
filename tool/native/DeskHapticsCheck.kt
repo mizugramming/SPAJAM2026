@@ -100,6 +100,8 @@ fun main(args: Array<String>) {
         replayHaptics(File(args.single()))
         return
     }
+    checkLongSlides()
+    checkSlowStrokeCounts()
     for (hz in listOf(60, 100)) {
         shortSlides(hz, 1.0, 185)
         shortSlides(hz, 2.0, 350)
@@ -110,10 +112,10 @@ fun main(args: Array<String>) {
         contact = true, began = began, moving = true, cadenceMs = period,
         signedSpeedMps = speed, passPeakMps = peak
     )
-    fun packet(grit: String, progress: Double, baseMs: Int, period: Int, peak: Double): DeskFeedback {
+    fun packet(grit: String, progress: Double, baseMs: Int, period: Int, peak: Double, steadyPlane: Boolean = false): DeskFeedback {
         val haptics = DeskHaptics(grit, progress, baseMs, 160)
         check(haptics.sample(ns(5), motion(0.0, peak, period, began = true)) == null)
-        val wave = checkNotNull(haptics.sample(ns(125), motion(peak, peak, period)))
+        val wave = checkNotNull(haptics.sample(ns(125), motion(peak, peak, period).copy(steadyPlane = steadyPlane)))
         check(wave.amplitude == 160 && wave.timings[0] == 0L)
         check(wave.timings.size % 2 == 0 && wave.timings.drop(1).all { it > 0 })
         return wave
@@ -149,6 +151,14 @@ fun main(args: Array<String>) {
     check(asymmetric.sample(ns(420), returning(.10, -.8)) === DeskFeedback.stop)
     val fineReturn = packet("fine", .9, 14, 1400, .48)
     check(fineReturn.timings[1] >= 45 && fineReturn.timings.size >= 4)
+
+    val longSlides = profiles.map { (grit, ms) -> packet(grit, .1, ms, 3200, .18, steadyPlane = true) }
+    for ((i, profile) in profiles.withIndex()) {
+        val polished = packet(profile.first, .9, (profile.second * .58).toInt(), 3200, .18, steadyPlane = true)
+        check(onMs(polished) < onMs(longSlides[i]))
+        check(longSlides[i].durationMs > packet(profile.first, .1, profile.second, 1600, .18, true).durationMs)
+    }
+    check(longSlides.zipWithNext().all { (a, b) -> onMs(a) > onMs(b) })
 
     val h = DeskHaptics("coarse", .1, 65, 230)
     check(h.sample(ns(5), motion(0.0, .6, 1200, began = true)) == null)

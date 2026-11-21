@@ -1,22 +1,56 @@
 # 素材・日本語フォント
 
-漢の銘板、汚れ・粒子・反射光は本選用の自作描画。
+漢の研磨には、くすんだ銀文字と磨いた銀文字の透過画像を使う。
 
 ## 画像
 
-チームが自作（手描き・編集）した画像。2026-11-22に追加。`pubspec.yaml` に1枚ずつ登録している。メダル4枚はファイル名の末尾が `.jpg` で、中身は透過PNG。研磨中はこの絵にゲームの研磨率に応じたサビと光沢、往復に応じた反射を重ねる。
+使用する画像は `pubspec.yaml` に1枚ずつ登録している。チームが自作（手描き・編集）したメダル4枚はファイル名の末尾が `.jpg` で、中身は透過PNG。研磨中はこの絵にゲームの研磨率に応じたサビと光沢、往復に応じた反射を重ねる。
 
 | ファイル | 使う場所 |
 |---|---|
-| `assets/fonts/daou.jpg` | サビた銅メダル。タイトル、素材選択カード、研磨のサビた銅・銅の段階 |
+| `assets/images/yansu_title.png` | ユーザー提供の全身画をもとに、内蔵ImageGenでヤンスの紙背景を透過。髪先、墨の輪郭、顔、黒い短パン、素足を残し、足の間も透明にした。工房に直接重ねるタイトル用PNG（576 × 888）。 |
+| `assets/fonts/daou.jpg` | サビた銅メダル。素材選択カード、研磨のサビた銅・銅の段階 |
 | `assets/fonts/gin.jpg` | 銀メダルの段階 |
-| `assets/fonts/kin.jpg` | 金メダルの段階 |
-| `assets/fonts/kinpika.jpg` | 研磨95%以上の金メダル |
-| `assets/images/background.jpg` | タイトル・素材選択・研磨などの全画面の背景 |
+| `assets/fonts/kin.jpg` | 旧・金メダルの絵（今は画面から参照していない） |
+| `assets/images/medal-gold.png` | 金メダルの段階（つや消し・文字なし）。2026-11-22にチームが用意した「金ピカ.png」を英字名に変更 |
+| `assets/images/medal-gold-polishing.png` | 金ピカの段階（上の方が曇った磨き途中）。同日に用意した「途中の金ピカ.png」を英字名に変更。メダルは最後に必ずこの段階まで届く |
+| `assets/fonts/kinpika.jpg` | 仕上がり画面で、金メダル以上のメダルを指でこすった跡に見せる「最優秀賞」入りの絵 |
+| `assets/images/kanji-silver.png` | 漢磨きの素材選択・採音・研磨で出す銀の立体文字「漢」（くすんだ絵、透過PNG）。2026-11-22にチームが用意した「透明背景の銀色立体漢字「漢」-1.png」を英字名に変更 |
+| `assets/images/kanji-silver-polished.png` | 同じ文字の磨き上がった絵。同日の「透明背景の銀色立体漢字 漢-2.png」を英字名に変更。元の絵（未登録）。文字の位置と大きさが `kanji-silver.png` と少しずれていたため、そろえた `kanji-silver-polished-aligned.png` を研磨の割合だけ上に重ねて、磨くほどこの絵になる |
+| `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png`、`overpolished-01〜05.png` | 漢磨きの仕上がりのキャラクター（合計点と成否の表は app_design.md）。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
+| `assets/images/kanji-rank-1〜5.png` | 漢磨きの結果画面の段位の「漢」（1漢は赤、2漢は金など段位ごとの色）。2026-11-22にチームから受け取った「１漢.jpg」〜「５漢.jpg」の白背景を透明にしたもの |
+| `assets/images/kanji-rock.png` | 灰色の岩（透過PNG）。素材選択の漢の絵に一時使ったが、今は未使用・未登録 |
+| `assets/images/copper_medal_spin.webp` | 素材選択から採音画面へ移る緑青付き銅メダル。2026-11-22に提供された「緑青の銅メダル_立体回転_高精細_透過.mov」の正面から1回転（1.75秒）を24コマに抜き出した。各コマ320 px四方、6列×4行の透過WebP（1920×1280 px、約529 KiB）。 |
+| `assets/images/workshop_room.webp` | 磨き屋の下地（852 × 1846）。奥に暗い壁、手前に奥行きのある木の天板を描いた。 |
+| `assets/images/workshop_curtain.webp` | 朱と藍の波柄のれん。吊り輪の周囲と裾の隙間を透過。 |
+| `assets/images/workshop_brush.webp` | 右柱の鋲から革ひもで吊るした磨き刷毛（249 × 512、透過）。鋲を支点に、毛先の影を画面描画で右へ落とす。 |
+| `assets/images/workshop_jacket.webp` | 参考画の右端の人物と同じ、袖を折った藍色のデニムジャケット。ハンガーのフックを右柱に掛ける。 |
+| `assets/images/workshop_cloth.webp` | ワックスの下に敷く藍布。折り返しと生成りの縫い目がある。 |
+| `assets/images/workshop_books.webp` | 赤茶と苔色の布張りの本を2冊重ね、朱のしおりを挟んだ。 |
+| `assets/images/workshop_dumbbell.webp` | 天板に横置きする鉄製ダンベル。くすんだ青灰色の面で重さを表現した。 |
+| `assets/images/workshop_wax.webp` | 赤茶のヘアワックス容器と藍色の蓋。生成りのワックスに指ですくった跡を入れた。 |
 | `assets/images/shavings.png` | メダル・漢の研磨中の削りかす（透過PNG）。2026-11-22にチームから受け取った1536×1024を512×341へ縮小。出典の詳細は未記録。押し引きの途中に出る粉の軌跡として使う |
 | `assets/images/shards/` | 同じ削りかす画像の元サイズから切り出した赤茶4枚・青緑3枚の破片（周囲の薄い粉は透明化）。1往復が確定すると、やすりの目に応じた大きさ・数の破片を飛ばす。素材とその時点の仕上がりに合わせて削り粉・破片を着色する |
 
-2026-11-22にチームから受け取った未使用の画像も同じ場所に置いている（出典の詳細は未記録）。`assets/fonts/kagami.jpg`（磨きすぎ用）、`assets/images/gyansu.jpg`、`assets/images/yansu.jpg` と `assets/images/shards/yansu.jpg` は未使用。アプリには使用中の画像だけを個別に登録する。
+2026-11-22にチームから受け取った未使用の画像も同じ場所に置いている（出典の詳細は未記録）。`assets/fonts/kagami.jpg`（磨きすぎ用）、`assets/images/yansu.jpg` と `assets/images/shards/yansu.jpg` は未使用。アプリには使用中の画像だけを個別に登録する。
+
+工房の8枚は2026-11-22にユーザー提供のキャラクター画を参照して、本アプリ用に内蔵ImageGenで制作した。小物はそれぞれ背景を透過し、ヤンスの墨の輪郭、紙の粒、つやを抑えた色面に合わせた。位置と表示寸法は `lib/ui/workshop_layout.dart` に画面ごとに保存する。[最初の背景案](images/workshop-concept.webp)
+
+`assets/images/kanji_bronze.png` は「漢磨き」用の画像案（透過PNG、1254 × 1254）。2026-11-22にユーザーが提供した岩肌の「漢」をもとに、同梱のYuji Syukuの字形と銅メダルの質感を参照し、ImageGenで古銅色の地金と磨かれた稜線を表現した。ゲーム画面への組み込みは未実施。
+
+`assets/images/kanji_stone.png` は同じ「漢」を石彫りにした画像案（透過PNG、1254 × 1254）。2026-11-22に上記の銅版とYuji Syukuの字形を参照し、ImageGenで灰色の安山岩の細かな粒、浅いノミ跡、つや消しの字面を表現した。ゲーム画面への組み込みは未実施。
+
+`assets/images/kanji_rough_stone.png` は、上記の石彫りとYuji Syukuの「漢」を参照し、2026-11-22にImageGenで編集した透過PNG（1254 × 1254）。元絵のごつごつした岩肌に合わせ、画に厚みを持たせて大きな割れ面と深い起伏を付けた。岩肌を用いた初期案の研磨前の姿。
+
+岩肌から銀に移る初期案は、以下の透過WebP（各896 × 896）として保管している。[3段階の比較画像](images/kanji-polish.webp)
+
+| 研磨率 | 使用画像 | 制作時の指定 |
+|---|---|---|
+| 0%以上38%未満 | `assets/images/kanji_polish_rough.webp` | 指定の岩肌の原画を使用。大きな割れ面と凹凸を残す |
+| 38%以上80%未満 | `assets/images/kanji_polish_satin.webp` | 岩肌と完成形を参照し、凸部にやすり目と鈍い銀色の反射を出す。側面と穴の内側には荒れを残す |
+| 80%以上 | `assets/images/kanji_polish_gloss.webp` | 最初に提供された角張った「漢」の字形と厚みを保ち、滑らかな銀色の面に明暗が映り込む鏡面にする |
+
+中間・仕上げの絵は2026-11-22に本アプリ向けに内蔵のImageGenで生成。3枚とも背景と字の穴を透過し、表示時の高さと中心をそろえた。
 
 紙やすりの質感には、2026-11-22にユーザーが本アプリ用に提供した無地の紙の画像を使用。透明な余白を詰めた `assets/images/sandpaper_plain.webp`（1320 × 785、約114 KiB）を同梱した。紙の端の繊維と右上の折れは原画のもの。2枚目の画像にある斜めの印字を参考に、`lib/ui/sandpaper.dart` で各ラウンドの測定値を重ねる。紙色を調整する入口は `sandpaperColorFor`、印字は `sandpaperStampFor`。
 

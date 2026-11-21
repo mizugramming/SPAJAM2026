@@ -7,9 +7,9 @@ import 'package:flutter/gestures.dart' show GestureBinding;
 enum GamePhase { select, voice, ready, polishing, result }
 
 enum Grit {
-  coarse('粗目', 5, 68, 245),
-  medium('中目', 3, 47, 183),
-  fine('細目', 1.5, 29, 124);
+  coarse('粗目', 3.5, 68, 245),
+  medium('中目', 2.25, 47, 183),
+  fine('細目', 1.25, 29, 124);
 
   const Grit(
     this.label,
@@ -26,6 +26,32 @@ enum Grit {
 
 enum VoiceMode { pitch, volume }
 
+/// Game thresholds around the typical speaking pitch of each selectable range.
+enum VoiceProfile {
+  male('男性用', 110, 135, [100, 120, 150]),
+  female('女性用', 220, 270, [200, 240, 300]);
+
+  const VoiceProfile(
+    this.label,
+    this.mediumFromHz,
+    this.fineFromHz,
+    this._demoHz,
+  );
+
+  final String label;
+  final double mediumFromHz;
+  final double fineFromHz;
+  final List<double> _demoHz;
+
+  double demoHz(Grit grit) => _demoHz[grit.index];
+
+  Grit gritAt(double hz) {
+    if (hz < mediumFromHz) return Grit.coarse;
+    if (hz < fineFromHz) return Grit.medium;
+    return Grit.fine;
+  }
+}
+
 class VoiceSample {
   const VoiceSample(this.hz, this.level);
 
@@ -36,7 +62,11 @@ class VoiceSample {
   final double level;
 }
 
-Grit? classify(VoiceSample sample, VoiceMode mode) {
+Grit? classify(
+  VoiceSample sample,
+  VoiceMode mode, {
+  VoiceProfile profile = VoiceProfile.male,
+}) {
   if (!sample.level.isFinite || sample.level < 0.15 || sample.level > 1) {
     return null;
   }
@@ -47,9 +77,7 @@ Grit? classify(VoiceSample sample, VoiceMode mode) {
   }
   final hz = sample.hz;
   if (hz == null || !hz.isFinite || hz <= 0) return null;
-  if (hz < 150) return Grit.coarse;
-  if (hz < 230) return Grit.medium;
-  return Grit.fine;
+  return profile.gritAt(hz);
 }
 
 class FinishStage {
@@ -83,6 +111,7 @@ class WorkMaterial {
     this.description,
     this.glyph,
     this.targetValue,
+    this.finishAtLeast,
   }) : assert(maxRemoval > 0);
 
   final String id;
@@ -98,6 +127,10 @@ class WorkMaterial {
   /// Ordered by increasing threshold, starting at zero.
   final List<FinishStage> stages;
 
+  /// The progress every play reaches by the end of the last round, however
+  /// little was polished. Null keeps the polished amount as it is.
+  final double? finishAtLeast;
+
   double progressAt(double value) =>
       ((initialValue - value) / maxRemoval).clamp(0.0, 1.0);
 
@@ -106,11 +139,41 @@ class WorkMaterial {
     orElse: () => stages.first,
   );
 
-  double valueAfterStroke(double value, Grit grit) {
-    final polish = stageAt(progressAt(value)).polishing[grit];
-    final limit = initialValue - maxRemoval * (polish?.limit ?? 1.0);
+  /// On the last round, all grits can reach the medal's guaranteed finish.
+  /// This minimum amount uses the same stroke-count scale as the grit rates.
+  static const _finalRoundAmount = 2.5;
+
+  double valueAfterStroke(
+    double value,
+    Grit grit, {
+    int strokesToGold = GameController.defaultStrokesToGold,
+    bool finalRound = false,
+  }) {
+    assert(strokesToGold > 0);
+    final progress = progressAt(value);
+    final polish = stageAt(progress).polishing[grit];
+    var share = polish?.limit ?? 1.0;
+    var amount = polish?.amount ?? grit.removal;
+    final floor = finishAtLeast;
+    // Only the gold stages limit each grit, so only they are lifted.
+    if (finalRound && polish != null && floor != null && progress < floor) {
+      if (share < floor) share = floor;
+      if (amount < _finalRoundAmount) amount = _finalRoundAmount;
+    }
+    final limit = initialValue - maxRemoval * share;
     if (value <= limit) return value;
-    return (value - (polish?.amount ?? grit.removal)).clamp(limit, value);
+    // Preserve the relative removal of each grit and each polishing stage.
+    final coarseStep = _medalMaxRemoval * _goldThreshold / strokesToGold;
+    final step = coarseStep * amount / Grit.coarse.removal;
+    final next = (value - step).clamp(limit, value);
+    // Repeated fractional strokes can land a few ULPs short of a boundary.
+    for (final stage in stages) {
+      final boundary = initialValue - maxRemoval * stage.threshold;
+      if ((next - boundary).abs() < maxRemoval * 1e-12) {
+        return boundary.clamp(limit, value);
+      }
+    }
+    return next;
   }
 
   // Use the same anchors for all appearance channels. Beyond the last anchor
@@ -145,10 +208,14 @@ class WorkMaterial {
 }
 
 const _goldPolishing = {
-  Grit.coarse: (amount: 0.5, limit: 0.70),
-  Grit.medium: (amount: 2.0, limit: 0.85),
-  Grit.fine: (amount: 5.0, limit: 1.0),
+  Grit.coarse: (amount: 0.25, limit: 0.70),
+  Grit.medium: (amount: 1.5, limit: 0.85),
+  Grit.fine: (amount: 3.5, limit: 1.0),
 };
+
+const _medalMaxRemoval = 100.0;
+const _goldThreshold = .50;
+const _shinyGoldThreshold = .95;
 
 const materials = [
   WorkMaterial(
@@ -156,13 +223,14 @@ const materials = [
     name: 'メダル磨き',
     description: '銅・銀・金の輝き',
     initialValue: 100,
-    maxRemoval: 100,
+    maxRemoval: _medalMaxRemoval,
+    finishAtLeast: _shinyGoldThreshold,
     stages: [
       FinishStage(0, 'サビた銅メダル', Color(0xFF9B6447), 0.90, 0.05),
       FinishStage(0.12, '銅メダル', Color(0xFFC88356), 0.04, 0.28),
       FinishStage(0.30, '銀メダル', Color(0xFFBBC8CE), 0.01, 0.54),
       FinishStage(
-        0.50,
+        _goldThreshold,
         '金メダル',
         Color(0xFFD9A540),
         0,
@@ -170,7 +238,7 @@ const materials = [
         polishing: _goldPolishing,
       ),
       FinishStage(
-        0.95,
+        _shinyGoldThreshold,
         '金ピカのメダル',
         Color(0xFFFFD777),
         0,
@@ -218,11 +286,37 @@ class GameController extends ChangeNotifier {
 
   static const roundCount = 3;
   static const polishDuration = Duration(seconds: 10);
+  static const minStrokesToGold = 5;
+  static const maxStrokesToGold = 60;
+  static const defaultStrokesToGold = 22;
 
   final FinishJudge? judge;
 
   GamePhase _phase = GamePhase.select;
   GamePhase get phase => _phase;
+  int _strokesToGold = defaultStrokesToGold;
+  int get strokesToGold => _strokesToGold;
+
+  void setStrokesToGold(int count) {
+    if (_phase != GamePhase.select ||
+        count == _strokesToGold ||
+        count < minStrokesToGold ||
+        count > maxStrokesToGold) {
+      return;
+    }
+    _strokesToGold = count;
+    notifyListeners();
+  }
+
+  VoiceProfile _voiceProfile = VoiceProfile.male;
+  VoiceProfile get voiceProfile => _voiceProfile;
+
+  void setVoiceProfile(VoiceProfile profile) {
+    if (_phase != GamePhase.select || _voiceProfile == profile) return;
+    _voiceProfile = profile;
+    notifyListeners();
+  }
+
   WorkMaterial? _material;
   WorkMaterial? get material => _material;
   int _round = 1;
@@ -251,6 +345,10 @@ class GameController extends ChangeNotifier {
       stage.polishing.containsKey(Grit.fine);
   Grit? _grit;
   Grit? get grit => _grit;
+
+  /// The grit chosen in each round so far, in order.
+  final _grits = <Grit>[];
+  List<Grit> get grits => List.unmodifiable(_grits);
   VoiceSample? _sample;
   VoiceSample? get sample => _sample;
   String? _verdict;
@@ -271,10 +369,11 @@ class GameController extends ChangeNotifier {
 
   bool acceptVoice(VoiceSample sample, VoiceMode mode) {
     if (_phase != GamePhase.voice || _paused) return false;
-    final selected = classify(sample, mode);
+    final selected = classify(sample, mode, profile: _voiceProfile);
     if (selected == null) return false;
     _sample = sample;
     _grit = selected;
+    _grits.add(selected);
     _phase = GamePhase.ready;
     notifyListeners();
     return true;
@@ -300,7 +399,12 @@ class GameController extends ChangeNotifier {
     final grit = _grit!;
     _strokes++;
     _totalStrokes++;
-    _value = material.valueAfterStroke(_value, grit);
+    _value = material.valueAfterStroke(
+      _value,
+      grit,
+      strokesToGold: strokesToGold,
+      finalRound: _round == roundCount,
+    );
     final pulse = pulseFor(grit, progress);
     notifyListeners();
     return pulse;
@@ -342,6 +446,11 @@ class GameController extends ChangeNotifier {
     _stopClock();
     if (_round == roundCount) {
       _remainingSeconds = 0;
+      final material = _material!;
+      final floor = material.finishAtLeast;
+      if (floor != null && material.progressAt(_value) < floor) {
+        _value = material.initialValue - material.maxRemoval * floor;
+      }
       _phase = GamePhase.result;
       _verdict = judge?.call(_material!, _value);
     } else {
@@ -370,6 +479,7 @@ class GameController extends ChangeNotifier {
     _totalStrokes = 0;
     _sample = null;
     _grit = null;
+    _grits.clear();
     _verdict = null;
   }
 

@@ -193,8 +193,8 @@ import 'layout_tuner.dart';
 const screenLayouts = <Screen, Map<String, Box>>{
 ''';
 
-/// 画面に置く部品。[fill] は四角いっぱいに広げる部品（素材・カード・ボタン）。
-/// それ以外は四角の幅で並べ、高さが足りなければ縮めて収める。
+/// [fill] は素材やボタンを枠いっぱいに広げる。[singleLine] は短い見出しを
+/// 一行の幅で測って枠に収める。本文は枠の幅で折り返す。
 class Part {
   const Part(
     this.id,
@@ -202,6 +202,7 @@ class Part {
     this.child, {
     this.transition,
     this.fill = false,
+    this.singleLine = false,
     this.align = Alignment.topLeft,
   });
   final String id;
@@ -211,6 +212,7 @@ class Part {
   final Widget? child;
   final Widget Function(Size canvas, Rect bounds, Widget child)? transition;
   final bool fill;
+  final bool singleLine;
   final Alignment align;
 }
 
@@ -221,26 +223,33 @@ class LayoutStage extends StatelessWidget {
     required this.screen,
     required this.parts,
     this.background,
+    this.backgroundParts = const [],
+    this.backgroundShade,
   });
   final Screen screen;
   final List<Part> parts;
 
   /// 部品の後ろに画面いっぱいに敷くもの（背景画像など）。
   final Widget? background;
+  final List<Part> backgroundParts;
+  final Decoration? backgroundShade;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: layoutTuner,
     builder: (context, _) {
+      final canvas = _Canvas(
+        screen: screen,
+        parts: parts,
+        background: background,
+        backgroundParts: backgroundParts,
+        backgroundShade: backgroundShade,
+      );
       if (!kIsWeb) {
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 540),
-            child: _Canvas(
-              screen: screen,
-              parts: parts,
-              background: background,
-            ),
+            child: canvas,
           ),
         );
       }
@@ -258,11 +267,7 @@ class LayoutStage extends StatelessWidget {
                         aspectRatio: _previewAspect,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(18),
-                          child: _Canvas(
-                            screen: screen,
-                            parts: parts,
-                            background: background,
-                          ),
+                          child: canvas,
                         ),
                       ),
                     ),
@@ -287,7 +292,10 @@ class LayoutStage extends StatelessWidget {
           if (editing)
             SizedBox(
               width: 340,
-              child: _EditorPanel(screen: screen, parts: parts),
+              child: _EditorPanel(
+                screen: screen,
+                parts: [...backgroundParts, ...parts],
+              ),
             ),
         ],
       );
@@ -296,10 +304,18 @@ class LayoutStage extends StatelessWidget {
 }
 
 class _Canvas extends StatelessWidget {
-  const _Canvas({required this.screen, required this.parts, this.background});
+  const _Canvas({
+    required this.screen,
+    required this.parts,
+    this.background,
+    required this.backgroundParts,
+    this.backgroundShade,
+  });
   final Screen screen;
   final List<Part> parts;
   final Widget? background;
+  final List<Part> backgroundParts;
+  final Decoration? backgroundShade;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -322,13 +338,30 @@ class _Canvas extends StatelessWidget {
         fit: StackFit.expand,
         clipBehavior: Clip.none,
         children: [
-          if (background case final background?)
-            Positioned.fill(child: background),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                foregroundDecoration: backgroundShade,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ?background,
+                    for (final part in backgroundParts)
+                      if (part.child != null) position(part),
+                  ],
+                ),
+              ),
+            ),
+          ),
           for (final part in parts)
             if (part.child != null) position(part),
           if (editing)
             Positioned.fill(
-              child: _EditLayer(screen: screen, parts: parts, size: size),
+              child: _EditLayer(
+                screen: screen,
+                parts: [...backgroundParts, ...parts],
+                size: size,
+              ),
             ),
         ],
       );
@@ -353,7 +386,9 @@ class _PartView extends StatelessWidget {
           return FittedBox(
             fit: BoxFit.scaleDown,
             alignment: part.align,
-            child: SizedBox(width: box.maxWidth, child: part.child),
+            child: part.singleLine
+                ? part.child
+                : SizedBox(width: box.maxWidth, child: part.child),
           );
         },
       ),
@@ -438,6 +473,7 @@ class _EditLayerState extends State<_EditLayer> {
   @override
   Widget build(BuildContext context) {
     final size = widget.size;
+    final selectedId = layoutTuner.selected;
     return Focus(
       focusNode: _focus,
       autofocus: true,
@@ -448,8 +484,13 @@ class _EditLayerState extends State<_EditLayer> {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            for (final part in widget.parts)
+            // 一覧で選んだ背景部品も、手前の部品に隠されずドラッグできる。
+            for (final part in [
+              ...widget.parts.where((p) => p.id != selectedId),
+              ...widget.parts.where((p) => p.id == selectedId),
+            ])
               Builder(
+                key: ValueKey(part.id),
                 builder: (context) {
                   final b = layoutTuner.boxOf(widget.screen, part.id);
                   final selected = layoutTuner.selected == part.id;

@@ -13,7 +13,7 @@ void main() {
   runApp(
     MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'いろみがき 端末の計測',
+      title: '磨くでヤンス！ 端末の計測',
       theme: ThemeData(brightness: Brightness.dark, fontFamily: 'WorkshopSans'),
       locale: const Locale('ja'),
       supportedLocales: const [Locale('ja')],

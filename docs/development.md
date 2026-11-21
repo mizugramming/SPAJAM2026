@@ -2,7 +2,7 @@
 
 ## SDKと依存
 
-リポジトリは `mizugramming/SPAJAM2026`。本選の統合先は `honsen`。初期基盤が未統合の間は[担当手順](handoff.md)の取得元を使う。Git・FVM・Chromeを用意する。Androidを扱うPCにはJDK 17、Android SDK Platform 36、Platform-Tools、Build-Tools 35.0.0、NDK 28.2.13676358を用意してSDKライセンスに同意する。FVMはDartがある環境なら `dart pub global activate fvm` で導入できる。実行ファイルのパスを通してからリポジトリ直下で次を実行する。
+リポジトリは `mizugramming/SPAJAM2026`。本選の統合先は `honsen`。[担当手順](handoff.md)に従い、最新の `origin/honsen` から各自の作業を始める。Git・FVM・Chromeを用意する。Androidを扱うPCにはJDK 17、Android SDK Platform 36、Platform-Tools、Build-Tools 35.0.0、NDK 28.2.13676358を用意してSDKライセンスに同意する。FVMはDartがある環境なら `dart pub global activate fvm` で導入できる。実行ファイルのパスを通してからリポジトリ直下で次を実行する。
 
 ```bash
 fvm install
@@ -29,7 +29,7 @@ fvm flutter devices
 fvm flutter run -d <端末ID> -t lib/device_main.dart
 ```
 
-計測専用入口はゲーム画面に依存しない。通常プレイは次のコマンドで起動し、最初の採音でマイクを許可する。素材選択画面の右上から同じ計測画面にも入れる。[4条件の手順と記録欄](device_trials.md)
+計測専用入口はゲーム画面に依存しない。通常プレイは次のコマンドで起動し、最初の採音でマイクを許可する。素材選択画面の右上の「設定」→「端末の計測」から同じ計測画面にも入れる。[4条件の手順と記録欄](device_trials.md)
 
 ```bash
 fvm flutter run -d <端末ID>
@@ -51,7 +51,7 @@ Start-Process wsl.exe -ArgumentList $argsWeb
 Start-Process 'http://127.0.0.1:8766/'
 ```
 
-配信ウィンドウはプレイ中は開いたままにし、止めるときはそのウィンドウで Ctrl+C を押す。起動を確認するには、素材選択で「メダルを磨く」を表示し「これを磨く」を押す。「低い」を選んで丸いマイクを押し、中央に「110 Hz」「粗目のやすり」が出ることを確認する。紙の着地後、メダルに重なる「磨く！」を押す。「磨け」の合図から「こする」を押すと、メダルに削り粉が舞い、表面の色が変わる。
+配信ウィンドウはプレイ中は開いたままにし、止めるときはそのウィンドウで Ctrl+C を押す。起動を確認するには、素材選択を「男性用」にして「メダルを磨く」を表示し「これを磨く」を押す。「低い」を選んで丸いマイクを押し、中央に「100 Hz」「粗目のやすり」が出ることを確認する。紙が画面下に着地し、一拍置いて「磨け！」が出る。「残り 10 秒」の表示から「こする」を押すと、メダルに削り粉が舞い、表面の色が変わる。
 
 ### 固定SDKの検証とビルド
 
