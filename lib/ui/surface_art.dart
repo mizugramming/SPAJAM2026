@@ -38,6 +38,7 @@ class _SurfaceArtState extends State<SurfaceArt>
 
   final _tarnish = _TarnishTexture();
   bool _initialReveal = false;
+  double _rustRemoved = 0;
 
   @override
   void didChangeDependencies() {
@@ -53,9 +54,17 @@ class _SurfaceArtState extends State<SurfaceArt>
   @override
   void didUpdateWidget(SurfaceArt oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if ((widget.strokeCount > oldWidget.strokeCount ||
-            (widget.reveal && !oldWidget.reveal)) &&
-        !MediaQuery.disableAnimationsOf(context)) {
+    if (MediaQuery.disableAnimationsOf(context)) return;
+    if (widget.reveal && !oldWidget.reveal) {
+      _rustRemoved = 0;
+      _flash.duration = const Duration(milliseconds: 520);
+      _flash.forward(from: 0);
+    } else if (widget.strokeCount > oldWidget.strokeCount) {
+      _rustRemoved =
+          (oldWidget.material.rustAt(oldWidget.progress) -
+                  widget.material.rustAt(widget.progress))
+              .clamp(0.0, 1.0);
+      _flash.duration = const Duration(milliseconds: 180);
       _flash.forward(from: 0);
     }
   }
@@ -76,6 +85,8 @@ class _SurfaceArtState extends State<SurfaceArt>
           widget.progress,
           _flash,
           widget.strokeCount,
+          widget.reveal,
+          _rustRemoved,
           _tarnish,
         ),
         size: Size.infinite,
@@ -90,6 +101,8 @@ class _SurfacePainter extends CustomPainter {
     this.progress,
     this.flash,
     this.strokes,
+    this.reveal,
+    this.rustRemoved,
     this.tarnish,
   ) : super(repaint: flash);
 
@@ -97,6 +110,8 @@ class _SurfacePainter extends CustomPainter {
   final double progress;
   final Animation<double> flash;
   final int strokes;
+  final bool reveal;
+  final double rustRemoved;
   final _TarnishTexture tarnish;
 
   static const _white = Color(0xFFFFF3D8);
@@ -188,7 +203,8 @@ class _SurfacePainter extends CustomPainter {
     }
     tarnish.draw(canvas, rust, plaque: glyph != null);
     if (flash.value < 1 && shine > .02) {
-      final x = -2.1 + flash.value * 4.2;
+      // Start a stroke on the face so even a quick reversal catches the light.
+      final x = reveal ? -2.1 + flash.value * 4.2 : -.68 + flash.value * 2.1;
       final area = Rect.fromLTWH(x - .34, -1.8, .68, 3.6);
       canvas.save();
       canvas.rotate(.44);
@@ -206,8 +222,8 @@ class _SurfacePainter extends CustomPainter {
       canvas.restore();
     }
     canvas.restore();
-    if (flash.value < 1 && strokes > 0 && rust > .01) {
-      _flakes(canvas, rust);
+    if (flash.value < 1 && rustRemoved > 0) {
+      _flakes(canvas);
     }
     canvas.restore();
   }
@@ -380,9 +396,9 @@ class _SurfacePainter extends CustomPainter {
     c.restore();
   }
 
-  void _flakes(Canvas c, double rust) {
+  void _flakes(Canvas c) {
     final t = flash.value;
-    final count = (8 + 14 * rust).round();
+    final count = (rustRemoved * 160).ceil().clamp(0, 28);
     for (var i = 0; i < count; i++) {
       final g = _grains[(strokes * 23 + i) % _grains.length];
       final x = (.67 + .3 * g.r) * (g.x.sign) + g.x * t * .30;
@@ -408,6 +424,8 @@ class _SurfacePainter extends CustomPainter {
       material != old.material ||
       progress != old.progress ||
       strokes != old.strokes ||
+      reveal != old.reveal ||
+      rustRemoved != old.rustRemoved ||
       flash != old.flash;
 }
 

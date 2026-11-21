@@ -32,6 +32,7 @@ class MainActivity : FlutterActivity(), SensorEventListener {
         }
     }
     private var detector: StrokeDetector? = null
+    private var lastPulseFollowedStroke = false
     private var sensorStarted = 0L
     private var events: EventChannel.EventSink? = null
     private var methods: MethodChannel? = null
@@ -66,7 +67,11 @@ class MainActivity : FlutterActivity(), SensorEventListener {
                     "cancelCapture" -> { cancelCapture(); result.success(null) }
                     "startMotion" -> startMotion(result)
                     "stopMotion" -> { stopMotion(); result.success(null) }
-                    "pulse" -> pulse(call.argument<Int>("durationMs"), call.argument<Int>("amplitude"), result)
+                    "hasAmplitudeControl" -> result.success(hasAmplitudeControl())
+                    "pulse" -> pulse(
+                        call.argument<Int>("durationMs"), call.argument<Int>("amplitude"),
+                        call.argument<Boolean>("followStroke") == true, result
+                    )
                     "stopPulse" -> { motor.cancel(); result.success(null) }
                     else -> result.notImplemented()
                 }
@@ -184,19 +189,28 @@ class MainActivity : FlutterActivity(), SensorEventListener {
     private fun stopMotion() {
         if (detector != null) sensors.unregisterListener(this)
         detector = null
+        if (lastPulseFollowedStroke) {
+            motor.cancel()
+            lastPulseFollowedStroke = false
+        }
     }
 
     override fun onSensorChanged(event: SensorEvent) {
-        if (event.timestamp >= sensorStarted && detector?.update(event.timestamp, event.values) == true) {
-            events?.success(1)
-        }
+        val activeDetector = detector ?: return
+        if (event.timestamp < sensorStarted) return
+        if (activeDetector.update(event.timestamp, event.values)) events?.success(1)
+        if (activeDetector.takeEarlyStop(SystemClock.elapsedRealtimeNanos())) motor.cancel()
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
+    private fun hasAmplitudeControl(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && motor.hasAmplitudeControl()
+
     @Suppress("DEPRECATION")
-    private fun pulse(duration: Int?, amplitude: Int?, result: MethodChannel.Result) {
-        if (duration == null || duration !in 1..300 || amplitude == null || amplitude !in 1..255) {
+    private fun pulse(requestedMs: Int?, amplitude: Int?, followStroke: Boolean, result: MethodChannel.Result) {
+        val maxDurationMs = if (followStroke) 1000 else 300
+        if (requestedMs == null || requestedMs !in 1..maxDurationMs || amplitude == null || amplitude !in 1..255) {
             result.error("pulse", "振動の長さまたは強さを確認してください。", null)
             return
         }
@@ -204,9 +218,21 @@ class MainActivity : FlutterActivity(), SensorEventListener {
             result.error("vibrator", "振動を利用できません。", null)
             return
         }
-        detector?.maskMotor(SystemClock.elapsedRealtimeNanos(), duration)
+        val startNs = SystemClock.elapsedRealtimeNanos()
+        val adjustable = hasAmplitudeControl()
+        val activeDetector = detector
+        val duration = if (followStroke) {
+            if (activeDetector == null || !activeDetector.takeStrokePulse()) {
+                // A late or duplicate Flutter reply has no stroke in this session.
+                result.success(null)
+                return
+            }
+            activeDetector.strokePulseDuration(requestedMs, startNs, adjustable)
+        } else requestedMs
+        lastPulseFollowedStroke = followStroke
+        activeDetector?.maskMotor(startNs, duration, fixedAmplitudeStroke = followStroke && !adjustable)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val strength = if (motor.hasAmplitudeControl()) amplitude else VibrationEffect.DEFAULT_AMPLITUDE
+            val strength = if (adjustable) amplitude else VibrationEffect.DEFAULT_AMPLITUDE
             motor.vibrate(VibrationEffect.createOneShot(duration.toLong(), strength))
         } else {
             motor.vibrate(duration.toLong())

@@ -17,10 +17,12 @@
 
 ```dart
 final pulse = game.stroke();
-if (pulse != null && device.vibrationEnabled) await device.pulse(pulse);
+if (pulse != null && device.vibrationEnabled) {
+  await device.pulse(pulse, followStroke: true);
+}
 ```
 
-`pulseFor(grit, progress)` は粗さから基準振幅・長さを選び、進捗で両方を減らす。振幅を制御できない端末でも長さは変わる。計測画面は同じ関数に明示した前半・後半の値を入れて独立試験する。
+`pulseFor(grit, progress)` は粗さと進捗から振幅・長さの基準値を作る。振幅を指定できないREDMIでは、Android側の `StrokeDetector.strokePulseDuration` が往復の周期に合わせて実際の長さを決める。手触りの基準は、遅い往復では最大1秒の連続振動、速い往復では約250 msの振動と約120 msの休止。検出した1往復につき1回出力し、細目・仕上げ・さらに速い動きではパルスを短くする。計測画面の定周期パルスは独立した固定長で比較できる。
 
 ## 素材の追加と採点の交換
 
@@ -32,4 +34,4 @@ if (pulse != null && device.vibrationEnabled) await device.pulse(pulse);
 
 `polish/device`（MethodChannel）の `capture` は約1.2秒で `{hz: double?, level: double}` を返す。levelはPCM全体のRMSを−60〜0 dBFSから0〜1へ正規化。ゲーム側の `classify` が実機と疑似入力に共通の境界を適用する。安定したHzがない場合はnull。採音失敗・拒否は素材値を保持し再操作できる。
 
-`startMotion` から `stopMotion` の間だけ検出する。`polish/strokes`（EventChannel）の整数1が完了した往復1回。振動は `pulse(durationMs, amplitude)`、中断は `cancelCapture / stopPulse`。ゲームは権限応答・採音の非同期結果に操作番号を持たせ、終了後の古い応答を破棄する。加速度・音声の生データをFlutterへ転送・保存しない。
+`startMotion` から `stopMotion` の間だけ検出する。`polish/strokes`（EventChannel）の整数1が完了した往復1回。振動指令は `pulse(durationMs, amplitude, followStroke?)` で、ゲームは `followStroke: true` を渡す。診断は `hasAmplitudeControl` の応答で振幅表示を切り替える。中断は `cancelCapture / stopPulse`。ゲームは権限応答・採音の非同期結果に操作番号を持たせ、終了後の古い応答を破棄する。加速度・音声の生データをFlutterへ転送・保存しない。

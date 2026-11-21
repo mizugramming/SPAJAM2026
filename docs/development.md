@@ -55,6 +55,12 @@ kotlinc "$native/VoiceAnalysis.kt" "$native/StrokeDetector.kt" tool/native/Signa
 java -jar /tmp/polish-signals.jar
 ```
 
+同じJARにREDMIの計測CSV（列順 `t_s,x_m_s2,y_m_s2,z_m_s2`）を渡すと、各往復を受理したCSV上の時刻を秒単位で1行ずつ出力する。全区間を連続で再生する。CSVに含まれない振動指令や10秒のラウンド境界は加えない。
+
+```bash
+java -jar /tmp/polish-signals.jar /path/to/acceleration.csv
+```
+
 共通キット検証はPython 3.12以降を使う。
 
 ```bash

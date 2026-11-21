@@ -18,6 +18,8 @@ void main() {
       messenger.setMockMethodCallHandler(events, (_) async => null);
       messenger.setMockMethodCallHandler(commands, (call) async {
         switch (call.method) {
+          case 'hasAmplitudeControl':
+            return false;
           case 'pulse':
             pulses.add(call.arguments);
           case 'startMotion':
@@ -66,6 +68,9 @@ void main() {
       ]) {
         await tap(label);
         await tap(progress == 0.1 ? '前半 10%' : '後半 90%');
+        if (motor) {
+          expect(find.textContaining('端末の既定の強さ'), findsOneWidget);
+        }
         pulses.clear();
         await tap('計測を開始');
         expect(starts, history.length + 1);
@@ -73,8 +78,11 @@ void main() {
         expect(find.text('0 往復　／　残り 8 秒'), findsOneWidget);
         expect(pulses, motor ? isNotEmpty : isEmpty);
 
+        final times = <String>[];
         for (var n = 0; n < movements; n++) {
+          await tester.pump(const Duration(milliseconds: 250));
           await sensorEvent();
+          times.add((2 + (n + 1) * 0.25).toStringAsFixed(3));
         }
         expect(find.text('$movements 往復　／　残り 8 秒'), findsOneWidget);
         await tester.pump(const Duration(seconds: 8));
@@ -93,7 +101,8 @@ void main() {
           expect(pulses, isEmpty);
         }
         history.add(
-          '$label　$movements往復・振動指令${pulses.length}回\n中目／進捗${(progress * 100).round()}%',
+          '$label　$movements往復・振動指令${pulses.length}回\n中目／進捗${(progress * 100).round()}%\n'
+          '往復受付（秒）　${times.isEmpty ? '—' : times.join('、')}',
         );
         final pulseCount = pulses.length;
         await sensorEvent();
