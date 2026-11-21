@@ -39,6 +39,22 @@ fvm flutter run -d <端末ID>
 
 ## 再現コマンド
 
+### Windowsでビルド済みのWeb版を試す
+
+WSLで下記のWebビルドを済ませ、WindowsのPowerShellで専用の配信ウィンドウを開く。`$web` にはWSL側の実際のディレクトリを指定する。URLはこのPCで使える。
+
+```powershell
+$web = '/path/to/SPAJAM2026/build/web'
+$argsWeb = '-d', 'Ubuntu', '--exec', '/usr/bin/python3', '-m', 'http.server', '8766',
+           '--bind', '127.0.0.1', '--directory', ('"' + $web + '"')
+Start-Process wsl.exe -ArgumentList $argsWeb
+Start-Process 'http://127.0.0.1:8766/'
+```
+
+配信ウィンドウはプレイ中は開いたままにし、止めるときはそのウィンドウで Ctrl+C を押す。起動を確認するには「メダル磨き」で低い声を選び、「疑似音声を使う」→「10秒間、磨き始める」→「1往復を入力」を押す。粗目なら最初の1往復で研磨率が0%から5%になる。
+
+### 固定SDKの検証とビルド
+
 ```bash
 fvm dart format --output=none --set-exit-if-changed lib test
 fvm flutter analyze --no-pub
