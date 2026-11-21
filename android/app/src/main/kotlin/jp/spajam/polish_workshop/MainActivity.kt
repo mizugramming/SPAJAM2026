@@ -66,7 +66,11 @@ class MainActivity : FlutterActivity(), SensorEventListener {
                     "cancelCapture" -> { cancelCapture(); result.success(null) }
                     "startMotion" -> startMotion(result)
                     "stopMotion" -> { stopMotion(); result.success(null) }
-                    "pulse" -> pulse(call.argument<Int>("durationMs"), call.argument<Int>("amplitude"), result)
+                    "hasAmplitudeControl" -> result.success(hasAmplitudeControl())
+                    "pulse" -> pulse(
+                        call.argument<Int>("durationMs"), call.argument<Int>("amplitude"),
+                        call.argument<Boolean>("followStroke") == true, result
+                    )
                     "stopPulse" -> { motor.cancel(); result.success(null) }
                     else -> result.notImplemented()
                 }
@@ -194,9 +198,12 @@ class MainActivity : FlutterActivity(), SensorEventListener {
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
+    private fun hasAmplitudeControl(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && motor.hasAmplitudeControl()
+
     @Suppress("DEPRECATION")
-    private fun pulse(duration: Int?, amplitude: Int?, result: MethodChannel.Result) {
-        if (duration == null || duration !in 1..300 || amplitude == null || amplitude !in 1..255) {
+    private fun pulse(requestedMs: Int?, amplitude: Int?, followStroke: Boolean, result: MethodChannel.Result) {
+        if (requestedMs == null || requestedMs !in 1..300 || amplitude == null || amplitude !in 1..255) {
             result.error("pulse", "振動の長さまたは強さを確認してください。", null)
             return
         }
@@ -204,9 +211,11 @@ class MainActivity : FlutterActivity(), SensorEventListener {
             result.error("vibrator", "振動を利用できません。", null)
             return
         }
-        detector?.maskMotor(SystemClock.elapsedRealtimeNanos(), duration)
+        val startNs = SystemClock.elapsedRealtimeNanos()
+        val duration = if (followStroke) detector?.strokePulseDuration(requestedMs, startNs) ?: requestedMs else requestedMs
+        detector?.maskMotor(startNs, duration)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val strength = if (motor.hasAmplitudeControl()) amplitude else VibrationEffect.DEFAULT_AMPLITUDE
+            val strength = if (hasAmplitudeControl()) amplitude else VibrationEffect.DEFAULT_AMPLITUDE
             motor.vibrate(VibrationEffect.createOneShot(duration.toLong(), strength))
         } else {
             motor.vibrate(duration.toLong())

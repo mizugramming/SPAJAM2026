@@ -31,7 +31,8 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
   Grit _grit = Grit.medium;
   _Trial _trial = _Trial.still;
   double _progress = 0.1;
-  int _count = 0;
+  final _strokeTimes = <Duration>[];
+  bool? _amplitudeControl;
   int _sent = 0;
   int _seconds = 10;
   int _trialId = 0;
@@ -51,6 +52,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _readAmplitudeControl();
     _events = device.strokes.listen(
       (_) => _countStroke(),
       onError: (Object e) {
@@ -59,9 +61,15 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
     );
   }
 
+  Future<void> _readAmplitudeControl() async {
+    final supported = await device.hasAmplitudeControl();
+    if (mounted) setState(() => _amplitudeControl = supported);
+  }
+
   void _countStroke() {
-    if (_running && _elapsed.elapsed < GameController.polishDuration) {
-      setState(() => _count++);
+    final time = _elapsed.elapsed;
+    if (_running && time < GameController.polishDuration) {
+      setState(() => _strokeTimes.add(time));
     }
   }
 
@@ -117,7 +125,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
       setState(() {
         _running = true;
         _busy = false;
-        _count = 0;
+        _strokeTimes.clear();
         _sent = 0;
         _seconds = 10;
       });
@@ -158,9 +166,14 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
     _release();
     setState(() {
       if (completed) {
+        final times = _strokeTimes.map(
+          (time) => (time.inMilliseconds / 1000).toStringAsFixed(3),
+        );
         _results.insert(
           0,
-          '${_trial.label}　$_count往復・振動指令$_sent回\n${_grit.label}／進捗${(_progress * 100).round()}%',
+          '${_trial.label}　${_strokeTimes.length}往復・振動指令$_sent回\n'
+          '${_grit.label}／進捗${(_progress * 100).round()}%\n'
+          '往復受付（秒）　${times.isEmpty ? '—' : times.join('、')}',
         );
         _seconds = 0;
       }
@@ -192,6 +205,11 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
     final sample = _sample;
     final measured = sample == null ? null : classify(sample, _mode);
     final titleStyle = Theme.of(context).textTheme.titleLarge;
+    final strength = switch (_amplitudeControl) {
+      true => '指定振幅 ${pulse.amplitude}/255',
+      false => '端末の既定の強さ',
+      null => '指定振幅 ${pulse.amplitude}/255（対応端末のみ）',
+    };
     return Scaffold(
       appBar: AppBar(title: const Text('端末の計測')),
       body: SafeArea(
@@ -273,12 +291,12 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
             ),
             Text(
               _trial.motor
-                  ? '振動指令　${pulse.durationMs} ms・強さ ${pulse.amplitude}/255（650 ms 間隔）'
+                  ? '振動指令　${pulse.durationMs} ms・$strength（650 ms 間隔）'
                   : '振動指令　オフ',
             ),
             const SizedBox(height: 10),
             Text(
-              '$_count 往復　／　${_running ? '残り $_seconds 秒' : '10秒計測'}',
+              '${_strokeTimes.length} 往復　／　${_running ? '残り $_seconds 秒' : '10秒計測'}',
               style: titleStyle,
             ),
             FilledButton(

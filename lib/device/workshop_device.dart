@@ -37,10 +37,23 @@ class WorkshopDevice {
   Future<void> stopMotion() => _command('stopMotion');
   Future<void> cancelCapture() => _command('cancelCapture');
   Future<void> stopPulse() => _command('stopPulse');
-  Future<void> pulse(HapticPulse pulse) => _command('pulse', {
-    'durationMs': pulse.durationMs,
-    'amplitude': pulse.amplitude,
-  });
+  Future<bool?> hasAmplitudeControl() async {
+    if (simulated) return null;
+    try {
+      return await _commands.invokeMethod<bool>('hasAmplitudeControl');
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  Future<void> pulse(HapticPulse pulse, {bool followStroke = false}) =>
+      _command('pulse', {
+        'durationMs': pulse.durationMs,
+        'amplitude': pulse.amplitude,
+        if (followStroke) 'followStroke': true,
+      });
 }
 
 String deviceMessage(Object error) {

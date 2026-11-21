@@ -2,16 +2,25 @@ package jp.spajam.polish_workshop
 
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** One signed cycle along a measured 3D axis (positive → negative → positive). Units are m/s² and ns. */
 internal class StrokeDetector {
+    private companion object {
+        // The REDMI trace includes hand-like cycles about 230–250 ms apart.
+        const val minHalfNs = 110_000_000L
+    }
+
     private val gravity = DoubleArray(3)
     private val signal = DoubleArray(3)
     private val axis = DoubleArray(3)
     private var lastTime = -1L
     private var ignoreUntil = 0L
     private var lastLobe = 0L
+    private var outwardHalfNs = 0L
+    private var shorterHalfNs = 0L
+    private var lastStrokeNs = 0L
     private var acceptedSign = 0
     private var candidate = 0
     private var candidateSince = 0L
@@ -21,6 +30,18 @@ internal class StrokeDetector {
         ignoreUntil = maxOf(ignoreUntil, startNs + (durationMs + 55L) * 1_000_000)
         candidate = 0
         signal.fill(0.0)
+    }
+
+    fun strokePulseDuration(requestedMs: Int, startNs: Long): Int {
+        if (shorterHalfNs == 0L) return requestedMs
+        // Leave time for the 55 ms motor tail and 35 ms direction confirmation.
+        // Subtract the channel delay since the stroke was detected. At slower
+        // tempos the game can play its full surface-dependent pulse.
+        val delayNs = (startNs - lastStrokeNs).coerceAtLeast(0L)
+        val availableMs = (shorterHalfNs - delayNs) / 1_000_000.0
+        val scale = ((availableMs - 95) / 125).coerceIn(0.10, 1.0)
+        val floorMs = minOf(requestedMs, 6)
+        return (floorMs + (requestedMs - floorMs) * scale).roundToInt()
     }
 
     fun update(time: Long, values: FloatArray): Boolean {
@@ -67,8 +88,21 @@ internal class StrokeDetector {
             return false
         }
         if (time - candidateSince < 35_000_000L) return false
-        if (acceptedSign != 0 && time - lastLobe < 145_000_000L) return false
         val cycleComplete = sign == 1 && acceptedSign == -1
+        if (acceptedSign != 0 && time - lastLobe < minHalfNs) {
+            // A pulse can hide the start of the negative lobe. Its observed
+            // return interval is then short, even if the full cycle is long enough.
+            val maskedReturn = cycleComplete && shorterHalfNs > 0 &&
+                lastStrokeNs < ignoreUntil && ignoreUntil < lastLobe
+            if (!maskedReturn || time - lastStrokeNs < 2 * minHalfNs) return false
+        }
+        if (cycleComplete) {
+            // A preceding pulse may have hidden part of either half-cycle.
+            shorterHalfNs = minOf(outwardHalfNs, time - lastLobe)
+            lastStrokeNs = time
+        } else if (acceptedSign != 0) {
+            outwardHalfNs = time - lastLobe
+        }
         acceptedSign = sign
         lastLobe = time
         candidate = 0
@@ -78,5 +112,6 @@ internal class StrokeDetector {
     private fun resetCycle() {
         acceptedSign = 0
         candidate = 0
+        shorterHalfNs = 0L
     }
 }

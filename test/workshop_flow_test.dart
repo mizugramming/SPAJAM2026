@@ -124,6 +124,7 @@ void main() {
     expect(find.text('研磨 2%'), findsOneWidget);
     expect(pulses.single, containsPair('amplitude', isPositive));
     expect(pulses.single, containsPair('durationMs', isPositive));
+    expect(pulses.single, containsPair('followStroke', true));
     await tester.pump(const Duration(seconds: 10));
     await reportStroke();
     expect(pulses, hasLength(1));

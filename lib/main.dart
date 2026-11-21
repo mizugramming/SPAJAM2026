@@ -172,7 +172,7 @@ class _SessionState extends State<_Session>
     final pulse = game.stroke();
     if (pulse != null && device.vibrationEnabled) {
       unawaited(
-        device.pulse(pulse).catchError((Object e) {
+        device.pulse(pulse, followStroke: true).catchError((Object e) {
           device.vibrationEnabled = false;
           if (mounted) setState(() => _error = deviceMessage(e));
         }),
