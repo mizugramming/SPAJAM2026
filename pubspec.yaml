@@ -35,6 +35,7 @@ flutter:
     - assets/fonts/kin.jpg
     - assets/fonts/kinpika.jpg
     - assets/images/background.jpg
+    - assets/images/copper_medal_spin.webp
     - assets/images/sandpaper_plain.webp
     - assets/images/shavings.png
     - assets/images/shards/copper-1.png

@@ -4,7 +4,7 @@
 |---|---|---|
 | 共通・組み込み | `lib/main.dart` | セッション、入力モード、端末ライフサイクル。WorkshopActionsを実装し、画面からの操作をゲームと端末へ接続 |
 | 共通・ルール | `lib/game/game.dart` | 素材カタログ、やすり、声の分類、研磨量、時計、振動指令、採点 |
-| UI | `lib/ui/workshop.dart`, `workshop_theme.dart`, `surface_art.dart`, `sandpaper.dart` | 段階ごとの画面・共通部品・素材の表面・声で決まる紙やすり。Workshopはgameを読み、actionsへ操作を返す |
+| UI | `lib/ui/workshop.dart`, `workshop_theme.dart`, `surface_art.dart`, `medal_flight.dart`, `sandpaper.dart` | 段階ごとの画面・共通部品・素材の表面・銅メダルの回転遷移・声で決まる紙やすり。Workshopはgameを読み、actionsへ操作を返す |
 | 端末 | `lib/device_main.dart`, `lib/device/workshop_device.dart`, `lib/device/diagnostics.dart` | 計測専用入口、実機／疑似入力、4条件・振動の比較 |
 | 端末 | `android/app/src/main/kotlin/jp/spajam/polish_workshop/` | MainActivityがマイク・加速度・振動を橋渡し。VoiceAnalysisは音高、DeskMotionは作業面に沿う手の動き、DeskHapticsは質感の時間パターンを担当 |
 | 共通・検証 | `test/`, `tool/native/` | 状態と時間境界、入力から再挑戦までのUI、声・接触・往復・振動パターンの回帰確認 |

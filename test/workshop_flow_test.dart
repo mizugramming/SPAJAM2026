@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:polish_workshop/game/game.dart';
 import 'package:polish_workshop/main.dart';
+import 'package:polish_workshop/ui/medal_flight.dart';
 import 'package:polish_workshop/ui/sandpaper.dart';
 import 'package:polish_workshop/ui/surface_art.dart';
 
@@ -40,6 +41,7 @@ Future<void> chooseMaterial(WidgetTester tester, String id) async {
   }
   expect(find.text(_headings[id]!), findsOneWidget);
   await tapControl(tester, 'confirm-material');
+  await tester.pumpAndSettle();
 }
 
 /// 研磨画面の素材の研磨率。
@@ -191,6 +193,79 @@ void main() {
     expect(sandpaperStampFor(second), '195 Hz');
     expect(sandpaperStampFor(const VoiceSample(null, .80)), contains('80%'));
   });
+
+  testWidgets(
+    'selected medal spins out of the carousel and lands on the voice screen',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(393, 852);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(const WorkshopApp(simulated: true));
+      await tapControl(tester, 'title-start');
+      await tester.pumpAndSettle();
+
+      final departure = find.byKey(const ValueKey('medal-departure'));
+      final landing = find.byKey(const ValueKey('medal-landing'));
+      final confirm = find.byKey(const ValueKey('confirm-material'));
+      await tapControl(tester, 'confirm-material');
+      Offset paintedCenter(Finder flight) => tester.getCenter(
+        find.descendant(of: flight, matching: find.byType(Opacity)).first,
+      );
+      final source = paintedCenter(departure);
+      final initialFrame = tester
+          .widget<Image>(
+            find.descendant(of: departure, matching: find.byType(Image)).first,
+          )
+          .alignment;
+      await tester.tapAt(tester.getCenter(confirm));
+      await tester.pump(const Duration(milliseconds: 260));
+      expect(paintedCenter(departure).dy, lessThan(source.dy));
+      expect(
+        tester
+            .widget<Image>(
+              find
+                  .descendant(of: departure, matching: find.byType(Image))
+                  .first,
+            )
+            .alignment,
+        isNot(initialFrame),
+      );
+      expect(find.byKey(const ValueKey('capture')), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      expect(departure, findsNothing);
+      expect(find.text('やすりを作る'), findsOneWidget);
+      final fromAbove = paintedCenter(landing);
+      await tester.pump(const Duration(milliseconds: 300));
+      final inFlight = paintedCenter(landing);
+      expect(inFlight.dy, greaterThan(fromAbove.dy));
+      await tester.pumpAndSettle();
+      expect(landing, findsNothing);
+      expect(tester.getCenter(surfaceArt).dy, greaterThan(inFlight.dy));
+      expect(SurfaceArtProbe.progress(tester), 0);
+      expect(find.text('1 回目 / 全3回'), findsOneWidget);
+
+      // Leaving during departure must not navigate after the user goes back.
+      await tapControl(tester, 'back');
+      await tapControl(tester, 'confirm-material');
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('title-start')), findsOneWidget);
+      expect(find.byType(MedalFlight), findsNothing);
+
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tapControl(tester, 'title-start');
+      await tapControl(tester, 'confirm-material');
+      expect(find.byType(MedalFlight), findsNothing);
+      expect(find.text('やすりを作る'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   // Medal reaches copper -> silver -> gold. The glyph retains its first-round
   // outline through a whole round without motion, then gains a polished finish.

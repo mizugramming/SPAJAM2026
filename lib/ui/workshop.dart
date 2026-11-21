@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../game/game.dart';
 import 'layout_tuner.dart';
+import 'medal_flight.dart';
 import 'sandpaper.dart';
 import 'surface_art.dart';
 import 'workshop_theme.dart';
@@ -187,6 +188,13 @@ class Workshop extends StatelessWidget {
                 'workpiece',
                 '素材',
                 _Workpiece(game: game, inContact: inContact),
+                transition:
+                    screen == Screen.voice &&
+                        game.round == 1 &&
+                        game.material!.id == 'medal' &&
+                        !MediaQuery.disableAnimationsOf(context)
+                    ? _landMedal
+                    : null,
                 fill: true,
               ),
               ..._controls(context),
@@ -406,6 +414,21 @@ class Workshop extends StatelessWidget {
     }
   }
 }
+
+Widget _landMedal(Size canvas, Rect bounds, Widget face) =>
+    TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: medalLandingDuration,
+      child: face,
+      builder: (context, t, child) => t >= 1
+          ? child!
+          : MedalFlight(
+              progress: t,
+              entering: true,
+              distanceToTop: bounds.bottom,
+              face: child!,
+            ),
+    );
 
 /// A single timeline carries the captured mic to the middle, reveals the paper,
 /// and unlocks start at its landing. The game clock begins with that button.
@@ -681,44 +704,38 @@ class _BoxButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox.expand(
-    child: Stack(
-      fit: StackFit.expand,
-      children: [
-        FilledButton(
-          style: FilledButton.styleFrom(
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(2)),
-            ),
-            textStyle: const TextStyle(
-              fontFamily: appFont,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2,
-            ),
-          ),
-          onPressed: onPressed,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 24),
-                const SizedBox(width: 10),
-                Text(label),
-              ],
-            ),
-          ),
+    child: FilledButton(
+      style: FilledButton.styleFrom(
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(2)),
         ),
-        // 文字と地に黒いかすれを重ねる。押す操作は下のボタンへ通す。
-        IgnorePointer(
-          child: CustomPaint(
-            painter: _GrungePainter(label.hashCode, frame: false),
-          ),
+        textStyle: const TextStyle(
+          fontFamily: appFont,
+          fontSize: 34,
+          fontWeight: FontWeight.w900,
+          height: 1.12,
+          letterSpacing: 1.4,
         ),
-      ],
+        backgroundBuilder: (context, states, child) => CustomPaint(
+          painter: _GrungePainter(label.hashCode, frame: false),
+          child: child,
+        ),
+      ),
+      onPressed: onPressed,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 28),
+            const SizedBox(width: 10),
+            Text(label, maxLines: 1),
+          ],
+        ),
+      ),
     ),
   );
 }
@@ -1132,17 +1149,24 @@ class _SelectStage extends StatefulWidget {
   State<_SelectStage> createState() => _SelectStageState();
 }
 
-class _SelectStageState extends State<_SelectStage> {
+class _SelectStageState extends State<_SelectStage>
+    with SingleTickerProviderStateMixin {
   static const _pageId = 'material-page';
 
   /// 端のないくり返しにするため、十分大きなページ番号から始める。
   static final _loopBase = materials.length * 1000;
   late int _index;
   late final PageController _pages;
+  late final AnimationController _departure;
+  bool _departing = false;
 
   @override
   void initState() {
     super.initState();
+    _departure = AnimationController(
+      vsync: this,
+      duration: medalDepartureDuration,
+    );
     final saved = PageStorage.maybeOf(
       context,
     )?.readState(context, identifier: _pageId);
@@ -1154,8 +1178,17 @@ class _SelectStageState extends State<_SelectStage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!MediaQuery.disableAnimationsOf(context)) {
+      unawaited(precacheImage(copperSpin, context, onError: (_, _) {}));
+    }
+  }
+
+  @override
   void dispose() {
     _pages.dispose();
+    _departure.dispose();
     super.dispose();
   }
 
@@ -1179,12 +1212,62 @@ class _SelectStageState extends State<_SelectStage> {
       ? (_pages.page ?? _pages.initialPage.toDouble()).round()
       : _loopBase + _index;
 
+  Future<void> _choose(WorkMaterial material) async {
+    if (_departing) return;
+    if (material.id == 'medal' && !MediaQuery.disableAnimationsOf(context)) {
+      // Only the centered page departs, even when confirmation interrupts a swipe.
+      _pages.jumpToPage(_page);
+      setState(() => _departing = true);
+      try {
+        await _departure.forward().orCancel;
+      } on TickerCanceled {
+        return;
+      }
+    }
+    if (mounted) widget.onChoose(material);
+  }
+
+  Widget _carouselWithDeparture(Widget pager) => LayoutBuilder(
+    builder: (context, constraints) {
+      final bounds = constraints.biggest;
+      final placement = layoutTuner.boxOf(Screen.select, 'pager');
+      final top = bounds.height * placement.y / placement.h;
+      final diameter = math.min(
+        bounds.height,
+        bounds.width * _pages.viewportFraction,
+      );
+      return Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
+        children: [
+          pager,
+          if (_departing)
+            Center(
+              child: SizedBox.square(
+                dimension: diameter,
+                child: AnimatedBuilder(
+                  animation: _departure,
+                  child: _MaterialArt(material: materials[_index]),
+                  builder: (context, face) => MedalFlight(
+                    progress: _departure.value,
+                    entering: false,
+                    distanceToTop: top + bounds.height / 2 + diameter / 2,
+                    face: face!,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) {
     final current = materials[_index];
     final next = materials[(_index + 1) % materials.length];
     final previous = materials[(_index - 1) % materials.length];
-    return LayoutStage(
+    final stage = LayoutStage(
       screen: Screen.select,
       background: const _Background(),
       parts: [
@@ -1217,36 +1300,40 @@ class _SelectStageState extends State<_SelectStage> {
         Part(
           'pager',
           '素材画像（左右にスワイプで回る）',
-          Semantics(
-            label: '素材の選択',
-            value: _pickHeading(current),
-            increasedValue: _pickHeading(next),
-            decreasedValue: _pickHeading(previous),
-            onIncrease: () => _turn(_page + 1),
-            onDecrease: () => _turn(_page - 1),
-            // マウスのドラッグでも回せるようにする（Chromeでの確認用）。
-            child: ScrollConfiguration(
-              behavior: ScrollConfiguration.of(
-                context,
-              ).copyWith(dragDevices: PointerDeviceKind.values.toSet()),
-              child: PageView.builder(
-                key: const ValueKey('material-pager'),
-                controller: _pages,
-                onPageChanged: _show,
-                clipBehavior: Clip.none,
-                itemBuilder: (context, page) {
-                  final material = materials[page % materials.length];
-                  return ExcludeSemantics(
-                    child: _CarouselItem(
-                      key: ValueKey('material-page-${material.id}-$page'),
-                      controller: _pages,
-                      page: page,
-                      fallbackPage: _loopBase + _index,
-                      onTap: () => _turn(page),
-                      child: _MaterialArt(material: material),
-                    ),
-                  );
-                },
+          _carouselWithDeparture(
+            Semantics(
+              label: '素材の選択',
+              value: _pickHeading(current),
+              increasedValue: _pickHeading(next),
+              decreasedValue: _pickHeading(previous),
+              onIncrease: () => _turn(_page + 1),
+              onDecrease: () => _turn(_page - 1),
+              // マウスのドラッグでも回せるようにする（Chromeでの確認用）。
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(dragDevices: PointerDeviceKind.values.toSet()),
+                child: PageView.builder(
+                  key: const ValueKey('material-pager'),
+                  controller: _pages,
+                  onPageChanged: _show,
+                  clipBehavior: Clip.none,
+                  itemBuilder: (context, page) {
+                    final material = materials[page % materials.length];
+                    return ExcludeSemantics(
+                      child: _CarouselItem(
+                        key: ValueKey('material-page-${material.id}-$page'),
+                        controller: _pages,
+                        page: page,
+                        fallbackPage: _loopBase + _index,
+                        onTap: () => _turn(page),
+                        child: _departing && page == _page
+                            ? const SizedBox.shrink()
+                            : _MaterialArt(material: material),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -1261,12 +1348,16 @@ class _SelectStageState extends State<_SelectStage> {
               key: const ValueKey('confirm-material'),
               icon: Icons.check_rounded,
               label: 'これを磨く',
-              onPressed: () => widget.onChoose(current),
+              onPressed: () => _choose(current),
             ),
           ),
           fill: true,
         ),
       ],
+    );
+    return IgnorePointer(
+      ignoring: _departing,
+      child: ExcludeFocus(excluding: _departing, child: stage),
     );
   }
 }

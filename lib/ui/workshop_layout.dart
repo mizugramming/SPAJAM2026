@@ -11,7 +11,7 @@ const screenLayouts = <Screen, Map<String, Box>>{
     'tagline': Box(.07, .35, .66, .025),
     'catch': Box(.8, .1, .14, .4),
     'medal': Box(.12, .45, .76, .34),
-    'start': Box(.056, .85, .888, .07),
+    'start': Box(.056, .85, .888, .085),
   },
   Screen.select: {
     'header': Box(0, .01, .885, .065),
@@ -19,7 +19,7 @@ const screenLayouts = <Screen, Map<String, Box>>{
     'title': Box(.185, .135, .8, .045),
     'heading': Box(.056, .215, .888, .05),
     'pager': Box(0, .27, 1, .44),
-    'confirm': Box(.056, .75, .888, .07),
+    'confirm': Box(.056, .75, .888, .082),
   },
   Screen.voice: {
     'header': Box(.056, .011, .888, .046),
@@ -55,7 +55,7 @@ const screenLayouts = <Screen, Map<String, Box>>{
     'workpiece': Box(0, .175, 1, .45),
     'title': Box(.056, .64, .888, .045),
     'body': Box(.056, .69, .888, .09),
-    'action': Box(.056, .79, .888, .065),
+    'action': Box(.056, .78, .888, .08),
     'home': Box(.056, .87, .888, .06),
   },
 };
