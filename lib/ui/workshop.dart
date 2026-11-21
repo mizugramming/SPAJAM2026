@@ -149,55 +149,58 @@ class Workshop extends StatelessWidget {
       GamePhase.result => Screen.result,
     };
     final hasPaper = screen == Screen.ready || screen == Screen.polishing;
+    final stage = LayoutStage(
+      key: ValueKey((game.phase, game.round)),
+      screen: screen,
+      background: _Background(subdued: hasPaper),
+      parts: [
+        if (!hasPaper)
+          Part(
+            'header',
+            'ロゴ行',
+            _Header(
+              onDiagnostics: screen == Screen.select
+                  ? actions.openDiagnostics
+                  : null,
+              simulated: simulated,
+            ),
+          ),
+        if (screen == Screen.select)
+          ..._selectParts(context)
+        else ...[
+          Part('round', 'ラウンド行', _RoundHeader(game: game)),
+          Part(
+            'workpiece',
+            '素材',
+            _Workpiece(game: game, inContact: inContact),
+            fill: true,
+          ),
+          ..._controls(context),
+        ],
+      ],
+    );
     return Scaffold(
       body: SafeArea(
-        child: LayoutStage(
-          key: ValueKey((game.phase, game.round)),
-          screen: screen,
-          background: _Background(subdued: hasPaper),
-          parts: [
-            if (hasPaper)
-              Part(
-                'paper',
-                '紙やすり',
-                SandpaperFace(
-                  grit: game.grit!,
-                  sample: game.sample!,
-                  progress: game.progress,
-                  strokes: game.totalStrokes,
-                  inContact: inContact,
-                ),
-                transition: screen == Screen.ready ? _paperEntrance : null,
-                fill: true,
-              )
-            else
-              Part(
-                'header',
-                'ロゴ行',
-                _Header(
-                  onDiagnostics: screen == Screen.select
-                      ? actions.openDiagnostics
-                      : null,
-                  simulated: simulated,
-                ),
-              ),
-            if (screen == Screen.select)
-              ..._selectParts(context)
-            else ...[
-              Part('round', 'ラウンド行', _RoundHeader(game: game)),
-              Part(
-                'workpiece',
-                '素材',
-                _Workpiece(game: game, inContact: inContact),
-                fill: true,
-              ),
-              ..._controls(context),
-            ],
-          ],
-        ),
+        child: screen == Screen.ready
+            ? _PaperArrival(key: ValueKey(game.round), child: stage)
+            : stage,
       ),
     );
   }
+
+  Part _paper({bool arriving = false}) => Part(
+    'paper',
+    '紙やすり',
+    SandpaperFace(
+      grit: game.grit!,
+      sample: game.sample!,
+      progress: game.progress,
+      strokes: game.totalStrokes,
+      inContact: inContact,
+    ),
+    transition: arriving ? _paperEntrance : null,
+    fill: true,
+  );
 
   List<Part> _selectParts(BuildContext context) => [
     const Part('title', '見出し', _Title('磨く素材を選ぶ')),
@@ -325,6 +328,7 @@ class Workshop extends StatelessWidget {
             '説明文',
             _Body(simulated ? '「1往復を入力」で磨けます。' : 'スマホを持ち上げて、机と平行に構える。'),
           ),
+          _paper(arriving: true),
           errorPart,
           Part(
             'action',
@@ -335,7 +339,7 @@ class Workshop extends StatelessWidget {
               label: busy ? '準備中…' : '10秒間、磨き始める',
               onPressed: busy ? null : actions.start,
             ),
-            transition: _paperEntrance,
+            transition: _afterPaperLands,
             fill: true,
           ),
         ];
@@ -382,6 +386,7 @@ class Workshop extends StatelessWidget {
             ),
             fill: true,
           ),
+          _paper(),
           errorPart,
           Part(
             'action',
@@ -431,45 +436,86 @@ class Workshop extends StatelessWidget {
   }
 }
 
-/// 採音ボタンから紙とその上の開始ボタンだけを引き出す。
+/// The departure, flight and start button share a single clock per round.
+class _PaperArrival extends StatelessWidget {
+  const _PaperArrival({super.key, required this.child});
+  final Widget child;
+  static const duration = Duration(milliseconds: 600);
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    return TweenAnimationBuilder<double>(
+      duration: reduced ? Duration.zero : duration,
+      tween: Tween(begin: reduced ? 1.0 : 0.0, end: 1.0),
+      child: ClipRect(child: child),
+      builder: (context, t, stage) =>
+          _ArrivalProgress(value: reduced ? 1 : t, child: stage!),
+    );
+  }
+}
+
+class _ArrivalProgress extends InheritedWidget {
+  const _ArrivalProgress({required this.value, required super.child});
+  final double value;
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_ArrivalProgress>()!.value;
+
+  @override
+  bool updateShouldNotify(_ArrivalProgress old) => value != old.value;
+}
+
+Widget _afterPaperLands(Size canvas, Rect bounds, Widget child) => Builder(
+  builder: (context) =>
+      _ArrivalProgress.of(context) == 1 ? child : const SizedBox.shrink(),
+);
+
 Widget _paperEntrance(Size canvas, Rect bounds, Widget child) => Builder(
   builder: (context) {
-    if (MediaQuery.disableAnimationsOf(context)) return child;
+    final t = _ArrivalProgress.of(context);
+    const exitEnd = 180 / 600;
+    const fallStart = 220 / 600;
+    final flight = const Interval(
+      fallStart,
+      1,
+      curve: Cubic(.36, .06, .25, 1),
+    ).transform(t);
     final button = layoutTuner.boxOf(Screen.voice, 'action').rectIn(canvas);
-    final paper = layoutTuner.boxOf(Screen.ready, 'paper').rectIn(canvas);
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
-      child: child,
-      builder: (context, amount, sheet) {
-        final window = Rect.lerp(button, paper, amount)!;
-        return ClipRect(
-          clipper: _PaperWindow(
-            amount == 1
-                ? Offset.zero & bounds.size
-                : window.shift(-bounds.topLeft),
-          ),
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: [
+        ExcludeSemantics(
+          excluding: t < 1,
           child: Transform.translate(
-            offset: window.topLeft - paper.topLeft,
-            child: sheet,
+            offset: Offset(0, -(bounds.bottom + 1) * (1 - flight)),
+            child: child,
           ),
-        );
-      },
+        ),
+        if (t < exitEnd)
+          Positioned.fromRect(
+            rect: button
+                .shift(-bounds.topLeft)
+                .translate(
+                  0,
+                  -(button.bottom + 1) *
+                      Curves.easeInCubic.transform(t / exitEnd),
+                ),
+            child: const ExcludeSemantics(
+              child: _BoxButton(
+                key: ValueKey('voice-departure'),
+                icon: Icons.mic_none_outlined,
+                label: '採音完了',
+                onPressed: null,
+                recorded: true,
+              ),
+            ),
+          ),
+      ],
     );
   },
 );
-
-class _PaperWindow extends CustomClipper<Rect> {
-  const _PaperWindow(this.rect);
-  final Rect rect;
-
-  @override
-  Rect getClip(Size size) => rect;
-
-  @override
-  bool shouldReclip(_PaperWindow oldClipper) => rect != oldClipper.rect;
-}
 
 /// 全画面に敷く背景画像。画面の縦横比に合わせて切り抜く。
 class _Background extends StatelessWidget {
@@ -528,10 +574,12 @@ class _BoxButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.recorded = false,
   });
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
+  final bool recorded;
 
   @override
   Widget build(BuildContext context) => SizedBox.expand(
@@ -540,6 +588,8 @@ class _BoxButton extends StatelessWidget {
       children: [
         FilledButton(
           style: FilledButton.styleFrom(
+            disabledBackgroundColor: recorded ? crimson : null,
+            disabledForegroundColor: recorded ? chalk : null,
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -1,3 +1,5 @@
+import 'dart:ui' show SemanticsAction;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +21,13 @@ Future<void> tapControl(WidgetTester tester, String id) async {
 void main() {
   final paper = find.byType(SandpaperFace);
   final surfaceArt = find.byType(SurfaceArt);
+  final departure = find.byKey(const ValueKey('voice-departure'));
+  final startButton = find.byKey(const ValueKey('start'));
+  final startAction = find.semantics.byPredicate(
+    (node) =>
+        node.label.contains('磨き始める') &&
+        node.getSemanticsData().hasAction(SemanticsAction.tap),
+  );
 
   Rect viewportOf(WidgetTester tester) =>
       Offset.zero & (tester.view.physicalSize / tester.view.devicePixelRatio);
@@ -66,6 +75,69 @@ void main() {
     return rect;
   }
 
+  void expectOutsideScreen(WidgetTester tester, Finder item) {
+    if (item.evaluate().isNotEmpty) {
+      expect(tester.getRect(item).overlaps(viewportOf(tester)), isFalse);
+    }
+  }
+
+  Future<void> checkToolHandoff(WidgetTester tester, Rect captureRect) async {
+    final material = upperMaterial(tester);
+    final viewport = viewportOf(tester);
+    expect(tester.getRect(departure), rectMoreOrLessEquals(captureRect));
+    expect(
+      find.descendant(of: departure, matching: find.text('採音完了')),
+      findsOneWidget,
+    );
+    final departureFace = find.descendant(
+      of: departure,
+      matching: find.byType(Material),
+    );
+    expect(
+      tester.widget<Material>(departureFace).color,
+      Theme.of(tester.element(departure)).colorScheme.primary,
+    );
+    expectOutsideScreen(tester, paper);
+    expect(startAction, findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 90));
+    expect(tester.getTopLeft(departure).dy, lessThan(captureRect.top));
+    expectOutsideScreen(tester, paper);
+    expect(upperMaterial(tester), material);
+
+    await tester.pump(const Duration(milliseconds: 110)); // 200 ms: pause.
+    expect(departure, findsNothing);
+    expectOutsideScreen(tester, paper);
+    expect(startAction, findsNothing);
+    await tester.pump(const Duration(milliseconds: 20));
+    if (paper.evaluate().isNotEmpty) {
+      expect(tester.getBottomLeft(paper).dy, lessThanOrEqualTo(viewport.top));
+    }
+
+    await tester.pump(const Duration(milliseconds: 110)); // 330 ms: falling.
+    final earlyTop = tester.getTopLeft(paper).dy;
+    expect(upperMaterial(tester), material);
+    await tester.pump(
+      const Duration(milliseconds: 170),
+    ); // 500 ms: approaching.
+    final lateTop = tester.getTopLeft(paper).dy;
+    expect(lateTop, greaterThan(earlyTop));
+    expect(startAction, findsNothing);
+    expect(startButton, findsNothing);
+    await tester.tapAt(Offset(viewport.center.dx, viewport.height * .92));
+    await tester.pump(const Duration(milliseconds: 99)); // 599 ms.
+    expect(find.text('残り 10 秒'), findsNothing);
+    expect(startButton, findsNothing);
+    expect(startAction, findsNothing);
+    expect(upperMaterial(tester), material);
+
+    await tester.pump(const Duration(milliseconds: 1)); // Landed at 600 ms.
+    final landed = visiblePaper(tester);
+    expect(earlyTop, lessThan(landed.top));
+    expect(upperMaterial(tester), material);
+    expect(startAction, findsOne);
+  }
+
   test('the paper tint and stamp preserve pitch within a single grit', () {
     const first = VoiceSample(180, .55);
     const second = VoiceSample(195, .55);
@@ -107,21 +179,16 @@ void main() {
           expect(paper, findsNothing);
           final pitch = [110, 190, 300][i];
           await tapControl(tester, 'demo-$pitch');
+          final captureRect = tester.getRect(
+            find.byKey(const ValueKey('capture')),
+          );
           await tapControl(tester, 'capture');
           expect(find.text('声を聞いています'), findsOneWidget);
+          expect(departure, findsNothing);
           expect(paper, findsNothing);
           await tester.pump(const Duration(milliseconds: 500));
           await decodeVisibleMedal(tester);
-          final initialMaterial = upperMaterial(tester);
-          final startTop = tester.getTopLeft(paper).dy;
-          await tester.pump(const Duration(milliseconds: 100));
-          final movingTop = tester.getTopLeft(paper).dy;
-          expect(upperMaterial(tester), initialMaterial);
-          await tester.pump(const Duration(milliseconds: 500));
-          final readyRect = visiblePaper(tester);
-          expect(movingTop, lessThan(startTop));
-          expect(readyRect.top, lessThan(movingTop));
-          expect(upperMaterial(tester), initialMaterial);
+          await checkToolHandoff(tester, captureRect);
           final readyPaper = tester.widget<SandpaperFace>(paper);
           expect(readyPaper.grit, Grit.values[i]);
           expect(readyPaper.sample.hz, pitch);
@@ -187,6 +254,33 @@ void main() {
     );
   }
 
+  testWidgets('leaving during the falling sheet clears the unfinished round', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const WorkshopApp(simulated: true));
+    await tester.pumpAndSettle();
+    await tapControl(tester, 'title-start');
+    await tapControl(tester, 'material-kanji');
+    await tapControl(tester, 'capture');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 340));
+    expect(startAction, findsNothing);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('素材選びに戻る'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 12));
+    expect(find.text('磨く素材を選ぶ'), findsOneWidget);
+    expect(departure, findsNothing);
+    expect(paper, findsNothing);
+    expect(startAction, findsNothing);
+    await tapControl(tester, 'material-kanji');
+    expect(find.text('1 回目 / 全3回'), findsOneWidget);
+    expect(find.text('研磨 0%'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('microphone retry and volume fallback keep the chosen material', (
     tester,
   ) async {
@@ -225,15 +319,19 @@ void main() {
     await decodeVisibleMedal(tester);
     await tapControl(tester, 'capture');
     expect(find.textContaining('マイクを許可'), findsOneWidget);
+    expect(departure, findsNothing);
     expect(paper, findsNothing);
     await tapControl(tester, 'capture');
     expect(find.textContaining('高さを読み取れません'), findsOneWidget);
+    expect(departure, findsNothing);
     expect(paper, findsNothing);
     await tapControl(tester, 'voice-mode');
     await tapControl(tester, 'capture');
     expect(attempts, 3);
     expect(find.text('細目のやすり'), findsOneWidget);
     visiblePaper(tester); //「視差効果を減らす」設定では最初のフレームで見える。
+    expectOutsideScreen(tester, departure);
+    expect(startAction, findsOne);
     SandpaperFace face() => tester.widget<SandpaperFace>(paper);
     expect(face().sample.hz, isNull);
     expect(face().sample.level, .8);
