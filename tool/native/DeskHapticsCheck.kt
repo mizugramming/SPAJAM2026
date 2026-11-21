@@ -136,6 +136,20 @@ fun main(args: Array<String>) {
         check(onMs(polished) < onMs(fast[index]))
     }
 
+    // A long push can leave a large peak. The gentle return should start while it accelerates,
+    // continue through its own speed maximum, and end before it reaches rest.
+    val asymmetric = DeskHaptics("coarse", .1, 65, 224)
+    asymmetric.sample(ns(1), motion(1.4, 1.4, 300, began = true))
+    fun returning(speed: Double, acceleration: Double) =
+        motion(-speed, 1.4, 1400).copy(alongAccelerationMps2 = -acceleration)
+    check(asymmetric.sample(ns(160), returning(.024, .9)) == null)
+    val returnWave = checkNotNull(asymmetric.sample(ns(230), returning(.27, 1.1)))
+    check(returnWave.timings[1] >= 180 && returnWave.durationMs >= 300)
+    check(asymmetric.sample(ns(300), returning(.38, -.05)) == null)
+    check(asymmetric.sample(ns(420), returning(.10, -.8)) === DeskFeedback.stop)
+    val fineReturn = packet("fine", .9, 14, 1400, .48)
+    check(fineReturn.timings[1] >= 45 && fineReturn.timings.size >= 4)
+
     val h = DeskHaptics("coarse", .1, 65, 230)
     check(h.sample(ns(5), motion(0.0, .6, 1200, began = true)) == null)
     check(h.sample(ns(90), motion(.5, .6, 1200)) != null)

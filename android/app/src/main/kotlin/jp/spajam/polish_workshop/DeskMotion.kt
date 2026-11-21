@@ -71,6 +71,7 @@ private class PlanarVelocity {
     private var previousPeak = 0.0
     private var sawReversal = false
     private var lastDirectionNs = -1L
+    private var previousHalfMs = 0
     var periodMs: Int? = null
         private set
     private var cycleStartNs = -1L
@@ -117,14 +118,21 @@ private class PlanarVelocity {
         completedPeak = null
         // A small crossing hysteresis stops hand tremor from creating new passes near zero.
         if (magnitude > .032 && speed * direction <= 0) {
+            val halfMs = (timeNs - lastDirectionNs) / 1_000_000L
+            // First contact can begin halfway along a slide. Only time two observed reversals.
+            if (sawReversal && halfMs in 60..1400) {
+                val doubledHalf = 2 * halfMs
+                // The return can be shorter than the push. On long slides, use both
+                // halves so the short side cannot turn the next glide into a tap.
+                val slow = ((doubledHalf - 600) / 360.0).coerceIn(0.0, 1.0)
+                val previous = if (previousHalfMs == 0) halfMs else previousHalfMs.toLong()
+                val observed = (doubledHalf + slow * (previous - halfMs)).toInt()
+                previousHalfMs = halfMs.toInt()
+                periodMs = periodMs?.let { (it + 2 * observed) / 3 } ?: observed
+            }
             if (direction != 0) {
                 if (sawReversal) completedPeak = currentPeak
                 sawReversal = true
-            }
-            val halfMs = (timeNs - lastDirectionNs) / 1_000_000L
-            if (lastDirectionNs >= 0 && halfMs in 60..900) {
-                val observed = (2 * halfMs).toInt()
-                periodMs = periodMs?.let { (it + 2 * observed) / 3 } ?: observed
             }
             lastDirectionNs = timeNs
             previousPeak = currentPeak
@@ -145,6 +153,7 @@ private class PlanarVelocity {
         previousPeak = 0.0
         sawReversal = false
         lastDirectionNs = -1L
+        previousHalfMs = 0
         periodMs = null
         completedPeak = null
         cycleStartNs = -1L
