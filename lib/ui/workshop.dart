@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../game/game.dart';
@@ -35,6 +36,7 @@ class Workshop extends StatelessWidget {
     required this.voiceMode,
     this.inContact = false,
     this.onEnter,
+    this.onTitle,
   });
 
   final GameController game;
@@ -45,6 +47,9 @@ class Workshop extends StatelessWidget {
   final VoiceMode voiceMode;
   final bool inContact;
   final VoidCallback? onEnter;
+
+  /// プレイを初期化してタイトル画面へ戻す。素材選択の「戻る」と結果の「タイトルへ」で使う。
+  final VoidCallback? onTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -149,36 +154,40 @@ class Workshop extends StatelessWidget {
       GamePhase.result => Screen.result,
     };
     final hasPaper = screen == Screen.ready || screen == Screen.polishing;
-    final stage = LayoutStage(
-      key: ValueKey((game.phase, game.round)),
-      screen: screen,
-      background: _Background(subdued: hasPaper),
-      parts: [
-        if (!hasPaper)
-          Part(
-            'header',
-            'ロゴ行',
-            _Header(
-              onDiagnostics: screen == Screen.select
-                  ? actions.openDiagnostics
-                  : null,
-              simulated: simulated,
-            ),
-          ),
-        if (screen == Screen.select)
-          ..._selectParts(context)
-        else ...[
-          Part('round', 'ラウンド行', _RoundHeader(game: game)),
-          Part(
-            'workpiece',
-            '素材',
-            _Workpiece(game: game, inContact: inContact),
-            fill: true,
-          ),
-          ..._controls(context),
-        ],
-      ],
+    final header = Part(
+      'header',
+      'ロゴ行',
+      _Header(
+        onDiagnostics: screen == Screen.select ? actions.openDiagnostics : null,
+        simulated: simulated,
+      ),
     );
+    final stage = screen == Screen.select
+        ? _SelectStage(
+            key: ValueKey((game.phase, game.round)),
+            header: header,
+            onBack: onTitle,
+            onChoose: (material) {
+              unawaited(precacheImage(SandpaperFace.texture, context));
+              actions.choose(material);
+            },
+          )
+        : LayoutStage(
+            key: ValueKey((game.phase, game.round)),
+            screen: screen,
+            background: _Background(subdued: hasPaper),
+            parts: [
+              if (!hasPaper) header,
+              Part('round', 'ラウンド行', _RoundHeader(game: game)),
+              Part(
+                'workpiece',
+                '素材',
+                _Workpiece(game: game, inContact: inContact),
+                fill: true,
+              ),
+              ..._controls(context),
+            ],
+          );
     return Scaffold(
       body: SafeArea(
         child: screen == Screen.ready
@@ -201,24 +210,6 @@ class Workshop extends StatelessWidget {
     transition: arriving ? _paperEntrance : null,
     fill: true,
   );
-
-  List<Part> _selectParts(BuildContext context) => [
-    const Part('title', '見出し', _Title('磨く素材を選ぶ')),
-    for (final option in materials)
-      Part(
-        'material-${option.id}',
-        '${option.name}のカード',
-        _MaterialCard(
-          key: ValueKey('material-${option.id}'),
-          material: option,
-          onTap: () {
-            unawaited(precacheImage(SandpaperFace.texture, context));
-            actions.choose(option);
-          },
-        ),
-        fill: true,
-      ),
-  ];
 
   List<Part> _controls(BuildContext context) {
     final errorText = error;
@@ -248,12 +239,20 @@ class Workshop extends StatelessWidget {
             ? '低い声は粗目、高い声は細目。'
             : '小さな声は粗目、大きな声は細目。';
         return [
-          Part('title', '見出し', _Title(busy ? '声を聞いています' : 'やすりを作る')),
+          // 1回目だけ素材選択へ戻れる。選んでいた素材を表示した状態で戻る。
+          Part(
+            'back',
+            '「戻る」ボタン',
+            game.round == 1
+                ? _BackButton(onPressed: busy ? null : actions.retry)
+                : null,
+          ),
           Part(
             'body',
             '声の出し方',
             _Body(simulated ? voiceHint : 'スマホを机に置いて「あー」とひと声。$voiceHint'),
           ),
+          Part('title', '見出し', _Title(busy ? '声を聞いています' : 'やすりを作る')),
           Part(
             'chips',
             '疑似音声の選択',
@@ -289,9 +288,8 @@ class Workshop extends StatelessWidget {
           Part(
             'action',
             '「声を取る」ボタン',
-            _BoxButton(
+            _InkMicButton(
               key: const ValueKey('capture'),
-              icon: Icons.mic_none_outlined,
               label: busy
                   ? '採音中…'
                   : simulated
@@ -349,26 +347,32 @@ class Workshop extends StatelessWidget {
           Part(
             'timer',
             '残り時間と往復数',
-            FittedBox(
-              fit: BoxFit.scaleDown,
+            // 往復数が増えても折り返さず1行で出す。入りきらないときだけ横に縮める。
+            Align(
               alignment: Alignment.centerLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '残り ${game.remainingSeconds} 秒',
-                    style: const TextStyle(
-                      fontSize: 23,
-                      fontWeight: FontWeight.w800,
-                      color: ember,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  spacing: 16,
+                  children: [
+                    Text(
+                      '残り ${game.remainingSeconds} 秒',
+                      style: const TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
+                        color: ember,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    '${game.grit!.label}   ·   ${game.strokes} 往復',
-                    style: const TextStyle(color: chalk, fontSize: 16),
-                  ),
-                ],
+                    Text(
+                      '${game.grit!.label}   ·   ${game.strokes} 往復',
+                      style: const TextStyle(color: muted, fontSize: 16),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -404,7 +408,7 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.result:
         return [
-          Part('title', '見出し', _Title(game.stage.name)),
+          Part('title', '見出し', _Title(_stageName(game))),
           Part(
             'body',
             '説明文',
@@ -431,6 +435,15 @@ class Workshop extends StatelessWidget {
             ),
             fill: true,
           ),
+          Part('home', '「タイトルへ」ボタン', switch (onTitle) {
+            final VoidCallback toTitle => _QuietButton(
+              key: const ValueKey('to-title'),
+              icon: Icons.home_outlined,
+              label: 'タイトルへ',
+              onPressed: toTitle,
+            ),
+            _ => null,
+          }, fill: true),
         ];
     }
   }
@@ -503,9 +516,8 @@ Widget _paperEntrance(Size canvas, Rect bounds, Widget child) => Builder(
                       Curves.easeInCubic.transform(t / exitEnd),
                 ),
             child: const ExcludeSemantics(
-              child: _BoxButton(
+              child: _InkMicButton(
                 key: ValueKey('voice-departure'),
-                icon: Icons.mic_none_outlined,
                 label: '採音完了',
                 onPressed: null,
                 recorded: true,
@@ -574,12 +586,10 @@ class _BoxButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
-    this.recorded = false,
   });
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
-  final bool recorded;
 
   @override
   Widget build(BuildContext context) => SizedBox.expand(
@@ -588,8 +598,6 @@ class _BoxButton extends StatelessWidget {
       children: [
         FilledButton(
           style: FilledButton.styleFrom(
-            disabledBackgroundColor: recorded ? crimson : null,
-            disabledForegroundColor: recorded ? chalk : null,
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -597,7 +605,7 @@ class _BoxButton extends StatelessWidget {
               borderRadius: BorderRadius.all(Radius.circular(2)),
             ),
             textStyle: const TextStyle(
-              fontFamily: 'WorkshopSans',
+              fontFamily: appFont,
               fontSize: 18,
               fontWeight: FontWeight.w900,
               letterSpacing: 2,
@@ -618,11 +626,195 @@ class _BoxButton extends StatelessWidget {
         ),
         // 文字と地に黒いかすれを重ねる。押す操作は下のボタンへ通す。
         IgnorePointer(
-          child: CustomPaint(painter: _GrungePainter(label.hashCode)),
+          child: CustomPaint(
+            painter: _GrungePainter(label.hashCode, frame: false),
+          ),
         ),
       ],
     ),
   );
+}
+
+/// 朱色の丸いマイクボタン。SPAJAM UI Arsenal の「いろみがきの音声ボタン」
+/// （2026-11-22確認）の形・色・影・押し込みを描き直したもの。にじみ画像は使わず、
+/// かすれの質感で代える。採音は途中で止められないため、採音中は薄くして押せなくする。
+class _InkMicButton extends StatefulWidget {
+  const _InkMicButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.recorded = false,
+  });
+  final String label;
+  final VoidCallback? onPressed;
+  final bool recorded;
+
+  @override
+  State<_InkMicButton> createState() => _InkMicButtonState();
+}
+
+class _InkMicButtonState extends State<_InkMicButton> {
+  static const _face = Color(0xFFCB392C);
+  static const _rim = Color(0xFF82271E);
+  static const _base = Color(0xFF591F18);
+  static const _ivory = Color(0xFFFFF8EC);
+  bool _down = false;
+
+  void _press(bool down) {
+    if (widget.onPressed == null || _down == down) return;
+    setState(() => _down = down);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    final pressed = _down && enabled;
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.topCenter,
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        label: widget.label,
+        onTap: widget.onPressed,
+        excludeSemantics: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkResponse(
+              customBorder: const CircleBorder(),
+              onHighlightChanged: _press,
+              onTap: widget.onPressed,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 150),
+                opacity: enabled || widget.recorded ? 1 : .6,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  width: 76,
+                  height: 76,
+                  transform: Matrix4.translationValues(0, pressed ? 2 : 0, 0),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _face,
+                    border: Border.all(color: _rim),
+                    boxShadow: pressed
+                        ? const [BoxShadow(color: _base, offset: Offset(0, 1))]
+                        : const [
+                            BoxShadow(color: _base, offset: Offset(0, 3)),
+                            BoxShadow(
+                              color: Color(0x57080605),
+                              offset: Offset(0, 6),
+                              blurRadius: 10,
+                            ),
+                          ],
+                  ),
+                  child: ClipOval(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // 上の照り返しと下の陰（見本の内側の影）。
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: pressed
+                                  ? const [Color(0x3368231C), Color(0x00000000)]
+                                  : const [
+                                      Color(0x57FA7559),
+                                      Color(0x00000000),
+                                      Color(0x00000000),
+                                      Color(0x8585251B),
+                                    ],
+                              stops: pressed ? null : const [0, .12, .85, 1],
+                            ),
+                          ),
+                        ),
+                        CustomPaint(
+                          painter: _GrungePainter(
+                            widget.label.hashCode ^ 0x1177,
+                            frame: false,
+                            density: 60,
+                          ),
+                        ),
+                        const Center(
+                          child: CustomPaint(
+                            size: Size(28, 34),
+                            painter: _MicPainter(color: _ivory),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              widget.label,
+              style: const TextStyle(
+                color: Color(0xFFFFF9EF),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 見本のマイク記号（28×34）。カプセル・受け皿・支柱・台座と、赤い切れ込み2本。
+class _MicPainter extends CustomPainter {
+  const _MicPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fill = Paint()..color = color;
+    // 台座と支柱。
+    canvas.drawRect(Rect.fromLTWH(7, 31, 14, 3), fill);
+    canvas.drawRect(Rect.fromLTWH(12.5, 26, 3, 8), fill);
+    // カプセル。
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(7, 0, 14, 22),
+        const Radius.circular(9),
+      ),
+      fill,
+    );
+    // カプセル右側の切れ込み。
+    final slit = Paint()..color = const Color(0xFFA93227);
+    for (final top in [6.0, 10.0]) {
+      canvas.drawRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(16, top, 5, 2),
+          topLeft: const Radius.circular(1),
+          bottomLeft: const Radius.circular(1),
+        ),
+        slit,
+      );
+    }
+    // 受け皿（上の開いたU字）。
+    final cradle = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    final path = Path()
+      ..moveTo(2.5, 13)
+      ..lineTo(2.5, 14)
+      ..arcToPoint(
+        const Offset(25.5, 14),
+        radius: const Radius.circular(11.5),
+        clockwise: false,
+      )
+      ..lineTo(25.5, 13);
+    canvas.drawPath(path, cradle);
+  }
+
+  @override
+  bool shouldRepaint(_MicPainter old) => old.color != color;
 }
 
 /// かすれ・ひっかき傷の質感。模様はボタンごとに固定。
@@ -816,6 +1008,16 @@ String? _imageFor(WorkMaterial material, double progress) {
   return _medalStageImages[index.clamp(0, _medalStageImages.length - 1)];
 }
 
+/// 仕上がり画面に出す段階名。金ピカの画像になるほど磨いたメダルは「金ピカのメダル」と呼ぶ。
+String _stageName(GameController game) {
+  final material = game.material;
+  if (material != null &&
+      _imageFor(material, game.progress) == _medalShineImage) {
+    return '金ピカのメダル';
+  }
+  return game.stage.name;
+}
+
 /// 円形に切り抜いたメダル画像。画像が替わるときは重ねて切り替える。
 class _MedalImage extends StatelessWidget {
   const _MedalImage(this.image, {this.cacheWidth = 720, this.copperTint});
@@ -846,113 +1048,568 @@ class _MedalImage extends StatelessWidget {
   );
 }
 
-/// 四角いっぱいに広がる素材カード。右に素材画、左に名前と説明。
-class _MaterialCard extends StatelessWidget {
-  const _MaterialCard({super.key, required this.material, required this.onTap});
-  final WorkMaterial material;
-  final VoidCallback onTap;
+/// 素材ごとの見出し。素材選択で画像のすぐ上に出す。
+String _pickHeading(WorkMaterial material) => switch (material.id) {
+  'medal' => 'メダルを磨く',
+  'kanji' => '漢字を磨く',
+  _ => '${material.name}を磨く',
+};
+
+/// 素材選択画面。横スワイプでぐるぐる回る回転式で素材を見せ、「これを磨く」で確定する。
+/// 見出し・中央の画像・確定はすべて同じ番号 [_index] を指す。
+/// 表示中のページは PageStorage に残し、採音画面から戻ったときも同じ素材を出す。
+class _SelectStage extends StatefulWidget {
+  const _SelectStage({
+    super.key,
+    required this.header,
+    required this.onBack,
+    required this.onChoose,
+  });
+  final Part header;
+  final VoidCallback? onBack;
+  final void Function(WorkMaterial material) onChoose;
+
+  @override
+  State<_SelectStage> createState() => _SelectStageState();
+}
+
+class _SelectStageState extends State<_SelectStage> {
+  static const _pageId = 'material-page';
+
+  /// 端のないくり返しにするため、十分大きなページ番号から始める。
+  static final _loopBase = materials.length * 1000;
+  late int _index;
+  late final PageController _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = PageStorage.maybeOf(
+      context,
+    )?.readState(context, identifier: _pageId);
+    _index = saved is int ? saved % materials.length : 0;
+    _pages = PageController(
+      initialPage: _loopBase + _index,
+      viewportFraction: .76,
+    );
+  }
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  void _show(int page) {
+    final index = page % materials.length;
+    PageStorage.maybeOf(
+      context,
+    )?.writeState(context, index, identifier: _pageId);
+    setState(() => _index = index);
+  }
+
+  void _turn(int page) => _pages.animateToPage(
+    page,
+    duration: MediaQuery.disableAnimationsOf(context)
+        ? const Duration(milliseconds: 1)
+        : const Duration(milliseconds: 360),
+    curve: Curves.easeOutCubic,
+  );
+
+  int get _page => _pages.hasClients
+      ? (_pages.page ?? _pages.initialPage.toDouble()).round()
+      : _loopBase + _index;
 
   @override
   Widget build(BuildContext context) {
-    final color = material.stages.last.color;
-    return Semantics(
-      button: true,
-      label: material.name,
-      child: Material(
-        color: metalPanel,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(color: seam),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomLeft,
-                end: Alignment.topRight,
-                colors: [
-                  metalPanel,
-                  Color.lerp(metalPanel, color, .055)!,
-                  Color.lerp(metalPanel, color, .14)!,
-                ],
+    final current = materials[_index];
+    final next = materials[(_index + 1) % materials.length];
+    final previous = materials[(_index - 1) % materials.length];
+    return LayoutStage(
+      screen: Screen.select,
+      background: const _Background(),
+      parts: [
+        widget.header,
+        Part('back', '「戻る」ボタン', switch (widget.onBack) {
+          final VoidCallback back => _BackButton(onPressed: back),
+          _ => null,
+        }),
+        const Part('title', '見出し', _Title('磨く素材を選ぶ')),
+        Part(
+          'heading',
+          '素材の見出し',
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              _pickHeading(current),
+              key: const ValueKey('material-heading'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: chalk,
+                fontSize: 30,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+                height: 1.2,
               ),
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: LayoutBuilder(
-                builder: (context, box) {
-                  final artHeight = box.maxHeight;
-                  final artWidth = math.min(box.maxWidth * .5, artHeight / 1.1);
-                  final textWidth = math.max(0.0, box.maxWidth - artWidth - 8);
-                  return Row(
-                    children: [
-                      SizedBox(
-                        width: textWidth,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: SizedBox(
-                            width: textWidth,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ExcludeSemantics(
-                                  child: Text(
-                                    material.name,
-                                    style: const TextStyle(
-                                      color: chalk,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      height: 1.24,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 9),
-                                Text(
-                                  material.description ??
-                                      material.stages.last.name,
-                                  style: const TextStyle(
-                                    color: muted,
-                                    fontSize: 13,
-                                    height: 1.45,
-                                  ),
-                                ),
-                                const SizedBox(height: 18),
-                                const Icon(
-                                  Icons.arrow_forward_rounded,
-                                  color: ember,
-                                  size: 22,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: artWidth,
-                        height: artHeight,
-                        child: ExcludeSemantics(
-                          child: switch (_imageFor(material, 0)) {
-                            final String image => _MedalImage(
-                              image,
-                              cacheWidth: 480,
-                            ),
-                            _ => SurfaceArt(material: material, progress: 1),
-                          },
-                        ),
-                      ),
-                    ],
+          ),
+          align: Alignment.topCenter,
+        ),
+        Part(
+          'pager',
+          '素材画像（左右にスワイプで回る）',
+          Semantics(
+            label: '素材の選択',
+            value: _pickHeading(current),
+            increasedValue: _pickHeading(next),
+            decreasedValue: _pickHeading(previous),
+            onIncrease: () => _turn(_page + 1),
+            onDecrease: () => _turn(_page - 1),
+            // マウスのドラッグでも回せるようにする（Chromeでの確認用）。
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(
+                context,
+              ).copyWith(dragDevices: PointerDeviceKind.values.toSet()),
+              child: PageView.builder(
+                key: const ValueKey('material-pager'),
+                controller: _pages,
+                onPageChanged: _show,
+                clipBehavior: Clip.none,
+                itemBuilder: (context, page) {
+                  final material = materials[page % materials.length];
+                  return ExcludeSemantics(
+                    child: _CarouselItem(
+                      key: ValueKey('material-page-${material.id}-$page'),
+                      controller: _pages,
+                      page: page,
+                      fallbackPage: _loopBase + _index,
+                      onTap: () => _turn(page),
+                      child: _MaterialArt(material: material),
+                    ),
                   );
                 },
               ),
             ),
           ),
+          fill: true,
+        ),
+        Part(
+          'confirm',
+          '「これを磨く」ボタン',
+          Semantics(
+            hint: '${_pickHeading(current)}。左右にスワイプすると素材を切り替えられます',
+            child: _BoxButton(
+              key: const ValueKey('confirm-material'),
+              icon: Icons.check_rounded,
+              label: 'これを磨く',
+              onPressed: () => widget.onChoose(current),
+            ),
+          ),
+          fill: true,
+        ),
+      ],
+    );
+  }
+}
+
+/// 回転式の1枚。中央から離れるほど小さく暗くし、タップで中央へ回す。
+class _CarouselItem extends StatelessWidget {
+  const _CarouselItem({
+    super.key,
+    required this.controller,
+    required this.page,
+    required this.fallbackPage,
+    required this.onTap,
+    required this.child,
+  });
+  final PageController controller;
+  final int page;
+  final int fallbackPage;
+  final VoidCallback onTap;
+  final Widget child;
+
+  /// 左右の素材を中央へ寄せる量（1枚の幅に対する割合）。中央の素材とは重ねない。
+  static const _pull = .18;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) => AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        final position =
+            controller.hasClients && controller.position.haveDimensions
+            ? controller.page ?? fallbackPage.toDouble()
+            : fallbackPage.toDouble();
+        final offset = (page - position).clamp(-1.0, 1.0);
+        final distance = offset.abs();
+        final scale = 1 - .38 * distance;
+        final shade = .62 * distance;
+        return Transform.translate(
+          offset: Offset(-offset * _pull * box.maxWidth, 0),
+          child: Transform.scale(
+            scale: scale,
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                Colors.black.withValues(alpha: shade),
+                BlendMode.srcATop,
+              ),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: GestureDetector(onTap: onTap, child: child),
+    ),
+  );
+}
+
+/// 素材選択で大きく見せる素材の絵。メダルは画像、ほかは描画した見本。
+class _MaterialArt extends StatelessWidget {
+  const _MaterialArt({required this.material});
+  final WorkMaterial material;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: AspectRatio(
+      aspectRatio: 1,
+      child: switch (_imageFor(material, 0)) {
+        final String image => _MedalImage(image, cacheWidth: 640),
+        _ => SurfaceArt(material: material, progress: 1),
+      },
+    ),
+  );
+}
+
+/// ヘッダー直下の左に置く「‹ 戻る」。
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onPressed});
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    alignment: Alignment.centerLeft,
+    child: TextButton.icon(
+      key: const ValueKey('back'),
+      style: TextButton.styleFrom(
+        foregroundColor: chalk,
+        padding: const EdgeInsets.only(left: 4, right: 12),
+        textStyle: const TextStyle(
+          fontFamily: appFont,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
         ),
       ),
+      onPressed: onPressed,
+      icon: const Icon(Icons.chevron_left_rounded, size: 26),
+      label: const Text('戻る', softWrap: false),
+    ),
+  );
+}
+
+/// 主ボタンより控えめな、枠線だけのボタン。
+class _QuietButton extends StatelessWidget {
+  const _QuietButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.expand(
+    child: OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: chalk,
+        backgroundColor: bench.withValues(alpha: .55),
+        side: BorderSide.none,
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(2)),
+        ),
+        textStyle: const TextStyle(
+          fontFamily: appFont,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 2,
+        ),
+      ),
+      onPressed: onPressed,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 22),
+            const SizedBox(width: 8),
+            Text(label),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// メダルの削りかす。往復数が増えた瞬間に1回、メダルの縁から外へ飛ばして消す。
+/// 銅は画像の色のまま、銀・金は [tint] の色に塗り直す。
+/// 添付の粉の画像を薄い軌跡として流し、同じ画像から切り出した赤茶・青緑の破片を
+/// 数粒、角度・速さ・回転を変えて飛ばす。位置・大きさは表示中のメダル
+/// （置き場所の短い辺を直径とする中央の円）を基準にする。
+class _Shavings extends StatefulWidget {
+  const _Shavings({
+    required this.strokes,
+    required this.active,
+    this.tint,
+    this.grit,
+  });
+  final int strokes;
+  final bool active;
+
+  /// やすりの目。粗目ほど大きな破片を少なく、細目ほど細かな粒を多く飛ばす。
+  final Grit? grit;
+
+  /// 削りかすを塗り直す色。null なら画像の色（銅の赤茶・青緑）のまま。
+  final Color? tint;
+
+  @override
+  State<_Shavings> createState() => _ShavingsState();
+}
+
+typedef _Flake = ({
+  AssetImage image,
+  double spread,
+  double distance,
+  double spin,
+  double size,
+  double fall,
+});
+
+typedef _Burst = ({
+  AnimationController controller,
+  double angle,
+  double trailScale,
+  List<_Flake> flakes,
+});
+
+/// やすりの目ごとの削りかす（破片の大きさ・粒の数・飛ぶ距離・粉の軌跡の大きさ）。
+({double size, int count, double reach, double trail}) _shavingsFor(
+  Grit? grit,
+) => switch (grit) {
+  Grit.coarse => (size: 1.5, count: 4, reach: 1.2, trail: 1.15),
+  Grit.fine => (size: .6, count: 7, reach: .85, trail: .85),
+  _ => (size: 1.0, count: 5, reach: 1.0, trail: 1.0),
+};
+
+class _ShavingsState extends State<_Shavings> with TickerProviderStateMixin {
+  static const _trail = AssetImage('assets/images/shavings.png');
+  static const _copper = [
+    AssetImage('assets/images/shards/copper-1.png'),
+    AssetImage('assets/images/shards/copper-2.png'),
+    AssetImage('assets/images/shards/copper-3.png'),
+    AssetImage('assets/images/shards/copper-4.png'),
+  ];
+  static const _teal = [
+    AssetImage('assets/images/shards/teal-1.png'),
+    AssetImage('assets/images/shards/teal-2.png'),
+    AssetImage('assets/images/shards/teal-3.png'),
+  ];
+
+  /// 往復ごとに移る縁の位置（画面の角度。0°が右、-90°が上）。
+  static const _angles = [
+    -45.0,
+    -135.0,
+    0.0,
+    180.0,
+    -70.0,
+    -110.0,
+    25.0,
+    155.0,
+  ];
+
+  /// 粉の画像の中で粉が集まっている点（幅・高さに対する割合）と、破片が散る向き。
+  static const _anchor = Offset(.25, .73);
+  static final _imageDirection = math.atan2(-341, 512);
+  static const _aspect = 512 / 341;
+  static const _trailTravel = 40.0;
+  static const _trailOpacity = .55;
+
+  /// 全体の長さと、そのうち粉の軌跡が消えるまでの長さ。
+  static const _duration = Duration(milliseconds: 420);
+  static const _trailShare = 300 / 420;
+
+  final _bursts = <_Burst>[];
+
+  @override
+  void didUpdateWidget(_Shavings old) {
+    super.didUpdateWidget(old);
+    if (widget.active && widget.strokes > old.strokes) _burst();
+  }
+
+  void _burst() {
+    final random = math.Random(widget.strokes);
+    final kind = _shavingsFor(widget.grit);
+    final copperCount = (kind.count * .6).round();
+    final controller = AnimationController(vsync: this, duration: _duration);
+    final burst = (
+      controller: controller,
+      angle: _angles[widget.strokes % _angles.length] * math.pi / 180,
+      trailScale: kind.trail,
+      flakes: [
+        for (var i = 0; i < kind.count; i++)
+          (
+            image: i < copperCount
+                ? _copper[random.nextInt(_copper.length)]
+                : _teal[random.nextInt(_teal.length)],
+            spread: (random.nextDouble() - .5) * 1.4,
+            distance: (50 + random.nextDouble() * 60) * kind.reach,
+            spin: (random.nextBool() ? 1 : -1) * (4 + random.nextDouble() * 8),
+            size: (.035 + random.nextDouble() * .03) * kind.size,
+            fall: 10 + random.nextDouble() * 22,
+          ),
+      ],
+    );
+    setState(() => _bursts.add(burst));
+    controller.forward().whenComplete(() {
+      if (!mounted) return;
+      setState(() => _bursts.remove(burst));
+      controller.dispose();
+    });
+  }
+
+  /// 画像の明るさの模様を残して、[_Shavings.tint] の色に塗り直す。
+  Widget _tinted(Widget image) {
+    final tint = widget.tint;
+    if (tint == null) return image;
+    const k = 1.35;
+    List<double> row(double c) => [
+      .2126 * c * k,
+      .7152 * c * k,
+      .0722 * c * k,
+      0,
+      0,
+    ];
+    return ColorFiltered(
+      colorFilter: ColorFilter.matrix([
+        ...row(tint.r),
+        ...row(tint.g),
+        ...row(tint.b),
+        0,
+        0,
+        0,
+        1,
+        0,
+      ]),
+      child: image,
+    );
+  }
+
+  @override
+  void dispose() {
+    for (final burst in _bursts) {
+      burst.controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_bursts.isEmpty) return const SizedBox.expand();
+    final still = MediaQuery.disableAnimationsOf(context);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final diameter = math.min(box.maxWidth, box.maxHeight);
+        final center = Offset(box.maxWidth / 2, box.maxHeight / 2);
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            for (final burst in _bursts)
+              AnimatedBuilder(
+                animation: burst.controller,
+                builder: (context, _) {
+                  final v = burst.controller.value;
+                  final trailWidth = diameter / 3 * burst.trailScale;
+                  final trailHeight = trailWidth / _aspect;
+                  final outward = Offset(
+                    math.cos(burst.angle),
+                    math.sin(burst.angle),
+                  );
+                  final origin = center + outward * (diameter / 2 * .97);
+                  final trailT = Curves.easeOut.transform(
+                    (v / _trailShare).clamp(0.0, 1.0),
+                  );
+                  final trailAt =
+                      origin + outward * (still ? 0 : _trailTravel * trailT);
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // 薄い粉の軌跡。粉の集まる側を縁に、散る側を外へ向ける。
+                      Positioned(
+                        left: trailAt.dx - _anchor.dx * trailWidth,
+                        top: trailAt.dy - _anchor.dy * trailHeight,
+                        width: trailWidth,
+                        height: trailHeight,
+                        child: Opacity(
+                          opacity: _trailOpacity * (1 - trailT),
+                          child: Transform.rotate(
+                            angle: burst.angle - _imageDirection,
+                            alignment: Alignment(
+                              _anchor.dx * 2 - 1,
+                              _anchor.dy * 2 - 1,
+                            ),
+                            child: _tinted(
+                              const Image(image: _trail, fit: BoxFit.fill),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // はがれて飛び散る破片。
+                      for (final flake in burst.flakes)
+                        Builder(
+                          builder: (context) {
+                            final t = Curves.easeOutCubic.transform(v);
+                            final angle = burst.angle + flake.spread;
+                            final size = diameter * flake.size;
+                            final at = still
+                                ? origin
+                                : origin +
+                                      Offset(math.cos(angle), math.sin(angle)) *
+                                          (flake.distance * t) +
+                                      Offset(0, flake.fall * v * v);
+                            return Positioned(
+                              left: at.dx - size / 2,
+                              top: at.dy - size / 2,
+                              width: size,
+                              height: size,
+                              child: Opacity(
+                                opacity: (1 - Curves.easeIn.transform(v)).clamp(
+                                  0.0,
+                                  1.0,
+                                ),
+                                child: Transform.rotate(
+                                  angle: still ? 0 : flake.spin * v,
+                                  child: _tinted(
+                                    Image(
+                                      image: flake.image,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  );
+                },
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -989,17 +1646,16 @@ class _RoundHeader extends StatelessWidget {
   );
 }
 
-/// 四角いっぱいに広がる作業面。下端に段階名と研磨の割合。
+/// 四角いっぱいに広がる作業面。枠・段階名・研磨の割合は出さず、素材だけを大きく見せる。
 class _Workpiece extends StatelessWidget {
   const _Workpiece({required this.game, required this.inContact});
   final GameController game;
   final bool inContact;
   @override
   Widget build(BuildContext context) {
-    final stage = game.stage;
     final material = game.material!;
     final image = _imageFor(material, game.progress);
-    final surface = SurfaceArt(
+    final art = SurfaceArt(
       material: material,
       progress: game.progress,
       strokeCount: game.totalStrokes,
@@ -1018,99 +1674,30 @@ class _Workpiece extends StatelessWidget {
                   : null,
             ),
     );
-    final atBench =
-        game.phase == GamePhase.ready || game.phase == GamePhase.polishing;
-    return DecoratedBox(
-      decoration: atBench
-          ? const BoxDecoration()
-          : BoxDecoration(
-              border: Border.all(color: seam),
-              borderRadius: BorderRadius.circular(14),
-              gradient: RadialGradient(
-                center: const Alignment(-.25, -.5),
-                radius: 1.5,
-                colors: [
-                  Color.lerp(metalPanel, material.colorAt(game.progress), .16)!,
-                  metalPanel,
-                  const Color(0xFF140F0F),
-                ],
+    return Semantics(
+      image: true,
+      excludeSemantics: true,
+      label: _stageName(game),
+      value: '研磨 ${(game.progress * 100).round()}%',
+      child: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
+        children: [
+          art,
+          // メダルを磨いている間、1往復ごとに縁から削りかすを飛ばす。銀・金は段階の色に塗る。
+          Positioned.fill(
+            child: IgnorePointer(
+              child: _Shavings(
+                strokes: game.totalStrokes,
+                active: game.phase == GamePhase.polishing && image != null,
+                tint: image == null || image == _medalStageImages.first
+                    ? null
+                    : game.stage.color,
+                grit: game.grit,
               ),
             ),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          final footer = math.min(36.0, box.maxHeight * .25);
-          final footerWidth = math.max(0.0, box.maxWidth - 28);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: image == null || atBench
-                      ? EdgeInsets.zero
-                      : const EdgeInsets.all(10),
-                  child: surface,
-                ),
-              ),
-              SizedBox(
-                height: footer,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      width: footerWidth,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: stage.color,
-                                    border: Border.all(
-                                      color: chalk.withValues(alpha: .45),
-                                    ),
-                                  ),
-                                  child: const SizedBox.square(dimension: 10),
-                                ),
-                                const SizedBox(width: 7),
-                                Flexible(
-                                  child: Text(
-                                    game.phase == GamePhase.result
-                                        ? material.name
-                                        : stage.name,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: chalk,
-                                      fontSize: atBench ? 18 : 14,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '研磨 ${(game.progress * 100).round()}%',
-                            style: TextStyle(
-                              color: atBench ? chalk : muted,
-                              fontSize: atBench ? 17 : 13,
-                              fontWeight: atBench ? FontWeight.w700 : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }

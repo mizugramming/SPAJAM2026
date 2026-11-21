@@ -39,14 +39,19 @@ class Box {
   Box copyWith({double? x, double? y, double? w, double? h, double? t}) =>
       Box(x ?? this.x, y ?? this.y, w ?? this.w, h ?? this.h, t ?? this.t);
 
-  /// 画面からはみ出さないよう収め、小数3桁に丸める。
+  /// 画面からはみ出して置ける最大の大きさ（画面の何倍か）と、画面内に残す最小の端。
+  static const maxSize = 3.0;
+  static const keepVisible = .05;
+
+  /// 大きさと位置を編集できる範囲に収め、小数3桁に丸める。画面からはみ出してよいが、
+  /// つかんで戻せるよう、端の [keepVisible] 分は必ず画面内に残す。
   Box tidy() {
     double r(double v) => double.parse(v.toStringAsFixed(3));
-    final nw = w.clamp(.02, 1.0).toDouble();
-    final nh = h.clamp(.004, 1.0).toDouble();
+    final nw = w.clamp(.02, maxSize).toDouble();
+    final nh = h.clamp(.004, maxSize).toDouble();
     return Box(
-      r(x.clamp(0.0, 1 - nw)),
-      r(y.clamp(0.0, 1 - nh)),
+      r(x.clamp(keepVisible - nw, 1 - keepVisible)),
+      r(y.clamp(keepVisible - nh, 1 - keepVisible)),
       r(nw),
       r(nh),
       double.parse(t.clamp(.5, 2.5).toStringAsFixed(2)),
@@ -79,7 +84,9 @@ String formatLayoutValue(double value) {
       .toStringAsFixed(3)
       .replaceFirst(RegExp(r'0+$'), '')
       .replaceFirst(RegExp(r'\.$'), '');
-  return text.startsWith('0.') ? text.substring(1) : text;
+  if (text.startsWith('0.')) return text.substring(1);
+  if (text.startsWith('-0.')) return '-${text.substring(2)}';
+  return text;
 }
 
 final layoutTuner = LayoutTuner();
@@ -249,19 +256,12 @@ class LayoutStage extends StatelessWidget {
                     child: Center(
                       child: AspectRatio(
                         aspectRatio: _previewAspect,
-                        child: DecoratedBox(
-                          position: DecorationPosition.foreground,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: seam),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: _Canvas(
-                              screen: screen,
-                              parts: parts,
-                              background: background,
-                            ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: _Canvas(
+                            screen: screen,
+                            parts: parts,
+                            background: background,
                           ),
                         ),
                       ),

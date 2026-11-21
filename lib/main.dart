@@ -16,6 +16,9 @@ void main() {
     yield LicenseEntryWithLineBreaks([
       'WorkshopSans (Noto Sans JP)',
     ], await rootBundle.loadString('assets/fonts/OFL.txt'));
+    yield LicenseEntryWithLineBreaks([
+      'YujiSyuku',
+    ], await rootBundle.loadString('assets/fonts/OFL-YujiSyuku.txt'));
   });
   runApp(const WorkshopApp());
 }
@@ -300,12 +303,22 @@ class _SessionState extends State<_Session>
     }
   }
 
+  /// プレイを初期化してタイトル画面へ戻す。素材選択の「戻る」と結果の「タイトルへ」。
+  void _backToTitle() {
+    retry();
+    setState(() => _showTitle = true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: game.phase == GamePhase.select,
+      // タイトル画面でだけ端末の戻る操作でアプリを閉じる。
+      canPop: game.phase == GamePhase.select && _showTitle,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && game.phase != GamePhase.select) {
+        if (didPop) return;
+        if (game.phase == GamePhase.select) {
+          _backToTitle();
+        } else {
           unawaited(_confirmExit());
         }
       },
@@ -336,6 +349,7 @@ class _SessionState extends State<_Session>
               onEnter: _showTitle
                   ? () => setState(() => _showTitle = false)
                   : null,
+              onTitle: _backToTitle,
               actions: this,
               simulated: device.simulated,
               busy: _busy,

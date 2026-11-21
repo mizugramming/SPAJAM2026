@@ -14,16 +14,26 @@ void main() {
     },
   );
 
-  test('moved boxes stay on screen, are copied, and can be reset', () {
+  test('boxes may overflow the screen but keep an edge on it', () {
     final base = layoutTuner.boxOf(Screen.voice, 'action');
     layoutTuner.set(Screen.voice, 'action', base.copyWith(x: .9, y: .5));
-    final moved = layoutTuner.boxOf(Screen.voice, 'action');
-    expect(moved.x, closeTo(1 - base.w, 1e-9));
+    var moved = layoutTuner.boxOf(Screen.voice, 'action');
+    expect(moved.x, .9);
     expect(moved.y, .5);
-    expect(
-      layoutTuner.fileText(),
-      contains("    'action': Box(.112, .5, .888, .065),"),
+
+    // Larger than the screen and pushed off it: limited to 3x and a 5% edge.
+    layoutTuner.set(
+      Screen.voice,
+      'action',
+      base.copyWith(x: 2, y: -5, w: 4, h: 1.5),
     );
+    moved = layoutTuner.boxOf(Screen.voice, 'action');
+    expect(moved.w, Box.maxSize);
+    expect(moved.h, 1.5);
+    expect(moved.x, 1 - Box.keepVisible);
+    expect(moved.y, closeTo(Box.keepVisible - 1.5, 1e-9));
+    expect(moved.code(), 'Box(.95, -1.45, 3, 1.5)');
+    expect(layoutTuner.fileText(), contains("    'action': ${moved.code()},"));
     expect(layoutTuner.changesText(), contains('採音 / action:'));
 
     layoutTuner.reset(screen: Screen.voice, id: 'action');

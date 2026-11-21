@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../game/game.dart';
+import 'workshop_theme.dart' show appFont;
 
 Color _mix(Color a, Color b, double t) => Color.lerp(a, b, t)!;
 
@@ -417,7 +418,7 @@ class _SurfacePainter extends CustomPainter {
       tp.text = TextSpan(
         text: glyph,
         style: TextStyle(
-          fontFamily: 'WorkshopSans',
+          fontFamily: appFont,
           fontFamilyFallback: const ['Noto Sans CJK JP', 'Noto Sans JP'],
           fontSize: 124,
           fontWeight: FontWeight.w900,
