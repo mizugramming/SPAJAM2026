@@ -1,0 +1,28 @@
+name: polish_workshop
+description: 声でやすりを選び、スマホを動かして色を磨き出すゲーム。
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.0
+  flutter: 3.41.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: WorkshopSans
+      fonts:
+        - asset: assets/fonts/workshop-sans.ttf
+  assets:
+    - assets/fonts/OFL.txt
