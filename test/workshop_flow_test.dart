@@ -98,10 +98,15 @@ void main() {
     final messenger = tester.binding.defaultBinaryMessenger;
     var attempts = 0;
     final pulses = <Object?>[];
+    final starts = <Map<Object?, Object?>>[];
     messenger.setMockMethodCallHandler(events, (_) async => null);
     messenger.setMockMethodCallHandler(commands, (call) async {
+      if (call.method == 'startMotion') {
+        starts.add(call.arguments as Map<Object?, Object?>);
+      }
       if (call.method == 'pulse') pulses.add(call.arguments);
       if (call.method != 'capture') return null;
+      expect(call.arguments, {'desk': true});
       if (++attempts == 1) throw PlatformException(code: 'permission');
       return <String, num?>{'hz': null, 'level': 0.8};
     });
@@ -124,26 +129,68 @@ void main() {
     expect(find.text('細目のやすり'), findsOneWidget);
     expect(find.textContaining('音量 80%'), findsOneWidget);
     expect(find.text('1 回目 / 全3回'), findsOneWidget);
-    Future<void> reportStroke() async {
+    Future<void> reportMotion(int code) async {
       await messenger.handlePlatformMessage(
         events.name,
-        events.codec.encodeSuccessEnvelope(1),
+        events.codec.encodeSuccessEnvelope(code),
         null,
       );
       await tester.pump();
     }
 
-    await reportStroke();
+    SurfaceArt surface() => tester.widget<SurfaceArt>(find.byType(SurfaceArt));
+    await reportMotion(2);
+    await reportMotion(1);
+    expect(surface().inContact, isFalse);
     expect(pulses, isEmpty);
     await tapControl(tester, 'start');
-    await reportStroke();
+    expect(starts.single, {
+      'grit': 'fine',
+      'progress': 0.0,
+      'durationMs': 29,
+      'amplitude': 124,
+      'vibrationEnabled': true,
+      'remainingMs': 10000,
+      'sessionId': isA<int>(),
+    });
+    await reportMotion(2);
+    expect(surface().inContact, isTrue);
+    expect(surface().strokeCount, 0);
+    await reportMotion(-1);
+    expect(surface().inContact, isFalse);
+    expect(surface().progress, 0);
+    expect(pulses, isEmpty);
+    await reportMotion(2);
+    await reportMotion(1);
     expect(find.text('細目   ·   1 往復'), findsOneWidget);
     expect(find.text('研磨 2%'), findsOneWidget);
     expect(pulses.single, containsPair('amplitude', isPositive));
     expect(pulses.single, containsPair('durationMs', isPositive));
     expect(pulses.single, containsPair('followStroke', true));
+    expect(pulses.single, containsPair('progress', surface().progress));
+    expect(
+      pulses.single,
+      containsPair('sessionId', starts.single['sessionId']),
+    );
+    await tester.pump(const Duration(milliseconds: 750));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    await reportMotion(2);
+    await reportMotion(1);
+    expect(pulses, hasLength(1));
+    await tester.pump(const Duration(seconds: 3));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(surface().inContact, isFalse);
+    expect(surface().strokeCount, 1);
+    expect(starts, hasLength(2));
+    expect(starts.last, containsPair('progress', surface().progress));
+    expect(starts.last, containsPair('remainingMs', 9250));
+    expect(starts.last['sessionId'], isNot(starts.first['sessionId']));
     await tester.pump(const Duration(seconds: 10));
-    await reportStroke();
+    await reportMotion(2);
+    await reportMotion(1);
+    expect(surface().inContact, isFalse);
     expect(pulses, hasLength(1));
     expect(find.text('2 回目 / 全3回'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());

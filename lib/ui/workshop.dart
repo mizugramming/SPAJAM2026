@@ -31,6 +31,7 @@ class Workshop extends StatelessWidget {
     required this.busy,
     required this.error,
     required this.voiceMode,
+    this.inContact = false,
     this.onEnter,
   });
 
@@ -40,6 +41,7 @@ class Workshop extends StatelessWidget {
   final bool busy;
   final String? error;
   final VoiceMode voiceMode;
+  final bool inContact;
   final VoidCallback? onEnter;
 
   @override
@@ -165,7 +167,12 @@ class Workshop extends StatelessWidget {
               ..._selectParts()
             else ...[
               Part('round', 'ラウンド行', _RoundHeader(game: game)),
-              Part('workpiece', '素材', _Workpiece(game: game), fill: true),
+              Part(
+                'workpiece',
+                '素材',
+                _Workpiece(game: game, inContact: inContact),
+                fill: true,
+              ),
               ..._controls(context),
             ],
           ],
@@ -212,16 +219,15 @@ class Workshop extends StatelessWidget {
       case GamePhase.select:
         return [];
       case GamePhase.voice:
+        final voiceHint = voiceMode == VoiceMode.pitch
+            ? '低い声は粗目、高い声は細目。'
+            : '小さな声は粗目、大きな声は細目。';
         return [
           Part('title', '見出し', _Title(busy ? '声を聞いています' : 'やすりを作る')),
           Part(
             'body',
             '声の出し方',
-            _Body(
-              voiceMode == VoiceMode.pitch
-                  ? '低い声なら粗目、高い声なら細目。ひと息「あー」と声を出してください。'
-                  : '小さな声なら粗目、大きな声なら細目。ひと息「あー」と声を出してください。',
-            ),
+            _Body(simulated ? voiceHint : 'スマホを机に置いて「あー」とひと声。$voiceHint'),
           ),
           Part(
             'chips',
@@ -299,7 +305,11 @@ class Workshop extends StatelessWidget {
           Part(
             'body',
             '説明文',
-            _Body('$measured の声で選ばれました。スマホを持ち、前後に動かす準備をしてください。'),
+            _Body(
+              simulated
+                  ? '$measured の声で選ばれました。'
+                  : '$measured の声で選ばれました。持ち上げて構え、机と平行に磨きます。',
+            ),
           ),
           errorPart,
           Part(
@@ -316,7 +326,7 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.polishing:
         return [
-          const Part('title', '見出し', _Title('スマホを前後に動かす')),
+          const Part('title', '見出し', _Title('机と平行に、前後に磨く')),
           Part(
             'timer',
             '残り時間と往復数',
@@ -870,8 +880,9 @@ class _RoundHeader extends StatelessWidget {
 
 /// 四角いっぱいに広がる作業面。下端に段階名と研磨の割合。
 class _Workpiece extends StatelessWidget {
-  const _Workpiece({required this.game});
+  const _Workpiece({required this.game, required this.inContact});
   final GameController game;
+  final bool inContact;
   @override
   Widget build(BuildContext context) {
     final stage = game.stage;
@@ -907,6 +918,7 @@ class _Workpiece extends StatelessWidget {
                     material: material,
                     progress: game.progress,
                     strokeCount: game.totalStrokes,
+                    inContact: inContact,
                     reveal: game.phase == GamePhase.result,
                     medalImage: image == null
                         ? null
