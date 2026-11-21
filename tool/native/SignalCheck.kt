@@ -82,7 +82,7 @@ fun main(args: Array<String>) {
 
     // Replay 12 known cycles at the REDMI monitor's 60 Hz. In the game a
     // detected stroke triggers the motor, so the next reversal may be masked.
-    fun fastCycles(samplesPerCycle: Int, pulseMs: Int): Int {
+    fun fastCycles(samplesPerCycle: Int, pulseMs: Int, adjustable: Boolean = true): Int {
         val detector = StrokeDetector()
         val lastMotionSample = 12 * samplesPerCycle
         var strokes = 0
@@ -102,11 +102,22 @@ fun main(args: Array<String>) {
                 if (pulseMs > 0) {
                     // Issue the command before the next 60 Hz sensor sample.
                     lastPulseNs = timeNs + 16_000_000L
-                    playMs = detector.strokePulseDuration(pulseMs, lastPulseNs)
+                    playMs = detector.strokePulseDuration(pulseMs, lastPulseNs, adjustable)
                     if (samplesPerCycle == 15) check(playMs < pulseMs)
                     // The signal starts at a peak, so its first half is partial.
-                    if (samplesPerCycle == 48 && strokes > 1) check(playMs == pulseMs)
-                    check(detector.strokePulseDuration(pulseMs / 2, lastPulseNs) in 1 until playMs)
+                    if (samplesPerCycle == 48 && strokes > 1) {
+                        val expected = if (adjustable) pulseMs else pulseMs + 8
+                        check(playMs == expected)
+                    }
+                    // Game pulse requests at 10% and 90%, coarse to fine.
+                    val early = listOf(65, 45, 28).map { detector.strokePulseDuration(it, lastPulseNs, adjustable) }
+                    val late = listOf(37, 26, 16).map { detector.strokePulseDuration(it, lastPulseNs, adjustable) }
+                    check(early.zip(late).all { (rough, polished) -> rough > polished })
+                    if (!adjustable) {
+                        check(early.zipWithNext().all { (a, b) -> a > b })
+                        check(late.zipWithNext().all { (a, b) -> a > b })
+                    }
+                    if (!adjustable && pulseMs == 15) check(playMs >= 9)
                     detector.maskMotor(lastPulseNs, playMs)
                 }
             }
@@ -117,4 +128,7 @@ fun main(args: Array<String>) {
     check(fastCycles(samplesPerCycle = 15, pulseMs = 0) == 12)
     check(fastCycles(samplesPerCycle = 15, pulseMs = 68) == 12)
     check(fastCycles(samplesPerCycle = 48, pulseMs = 68) == 12)
+    check(fastCycles(samplesPerCycle = 15, pulseMs = 68, adjustable = false) == 12)
+    check(fastCycles(samplesPerCycle = 15, pulseMs = 15, adjustable = false) == 12)
+    check(fastCycles(samplesPerCycle = 48, pulseMs = 68, adjustable = false) == 12)
 }

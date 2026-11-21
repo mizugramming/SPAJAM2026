@@ -32,8 +32,9 @@ internal class StrokeDetector {
         signal.fill(0.0)
     }
 
-    fun strokePulseDuration(requestedMs: Int, startNs: Long): Int {
-        if (shorterHalfNs == 0L) return requestedMs
+    fun strokePulseDuration(requestedMs: Int, startNs: Long, hasAmplitudeControl: Boolean): Int {
+        val fullMs = if (hasAmplitudeControl) requestedMs else (requestedMs + 8).coerceAtMost(300)
+        if (shorterHalfNs == 0L) return fullMs
         // Leave time for the 55 ms motor tail and 35 ms direction confirmation.
         // Subtract the channel delay since the stroke was detected. At slower
         // tempos the game can play its full surface-dependent pulse.
@@ -41,7 +42,19 @@ internal class StrokeDetector {
         val availableMs = (shorterHalfNs - delayNs) / 1_000_000.0
         val scale = ((availableMs - 95) / 125).coerceIn(0.10, 1.0)
         val floorMs = minOf(requestedMs, 6)
-        return (floorMs + (requestedMs - floorMs) * scale).roundToInt()
+        val pacedMs = floorMs + (requestedMs - floorMs) * scale
+        if (hasAmplitudeControl) return pacedMs.roundToInt()
+
+        // At 4 Hz, lengthening every pulse can hide the following reversal.
+        // Use part of the headroom below 12 ms for the shortest taps, keeping
+        // a difference between coarse and fine surfaces even near this limit.
+        val fastestMs = floorMs + (requestedMs - floorMs) * 0.10
+        // Just under half the headroom preserves distinct whole-ms taps
+        // for all three grits at the 10% and 90% comparison points.
+        val fastBoostMs = (12.0 - fastestMs).coerceAtLeast(0.0) * 0.49
+        val fastMs = (fastestMs + fastBoostMs).roundToInt()
+        val fraction = (scale - 0.10) / 0.90
+        return (fastMs + (fullMs - fastMs) * fraction).roundToInt()
     }
 
     fun update(time: Long, values: FloatArray): Boolean {

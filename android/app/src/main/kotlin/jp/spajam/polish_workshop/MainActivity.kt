@@ -212,10 +212,13 @@ class MainActivity : FlutterActivity(), SensorEventListener {
             return
         }
         val startNs = SystemClock.elapsedRealtimeNanos()
-        val duration = if (followStroke) detector?.strokePulseDuration(requestedMs, startNs) ?: requestedMs else requestedMs
+        val adjustable = hasAmplitudeControl()
+        val duration = if (followStroke) {
+            detector?.strokePulseDuration(requestedMs, startNs, adjustable) ?: requestedMs
+        } else requestedMs
         detector?.maskMotor(startNs, duration)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val strength = if (hasAmplitudeControl()) amplitude else VibrationEffect.DEFAULT_AMPLITUDE
+            val strength = if (adjustable) amplitude else VibrationEffect.DEFAULT_AMPLITUDE
             motor.vibrate(VibrationEffect.createOneShot(duration.toLong(), strength))
         } else {
             motor.vibrate(duration.toLong())
