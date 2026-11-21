@@ -14,7 +14,7 @@ fvm flutter run -d chrome
 
 | 担当 | 開き方 | 作業の入口 |
 |---|---|---|
-| UI担当 | 上のChrome起動で疑似入力。声を低・中・高から選び、研磨中に「1往復を入力」 | `lib/ui/` の[デザイン・共通部品](docs/app_design.md)、[素材・フォント](docs/assets.md) |
+| UI担当 | Chromeの「はじめる」から疑似音声と「1往復を入力」でプレイ。開発版では「配置を編集」から各画面を調整 | [デザイン・共通部品](docs/app_design.md)、[画面の配置表](lib/ui/workshop_layout.dart)、[素材・フォント](docs/assets.md) |
 | 端末担当 | 登録Androidに `fvm flutter run -d <端末ID> -t lib/device_main.dart`。ゲーム全体は `-t` 以降を外す | `lib/device/` とAndroidのKotlin実装。[声・往復・振動の4条件試験](docs/device_trials.md) |
 | 共通・組み込み | ゲーム、時間、入出力の境界を保って統合 | [共有データ・素材追加・採点の差し替え](docs/project_structure.md)、[2人への引き継ぎ](docs/handoff.md) |
 

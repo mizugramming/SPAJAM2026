@@ -56,6 +56,7 @@ class _SessionState extends State<_Session>
   bool _motion = false;
   bool _busy = false;
   bool _background = false;
+  bool _showTitle = true;
   bool _inLab = false;
   bool _confirmingExit = false;
   VoiceMode _mode = VoiceMode.pitch;
@@ -304,6 +305,9 @@ class _SessionState extends State<_Session>
             )
           : Workshop(
               game: game,
+              onEnter: _showTitle
+                  ? () => setState(() => _showTitle = false)
+                  : null,
               actions: this,
               simulated: device.simulated,
               busy: _busy,
