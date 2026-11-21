@@ -12,11 +12,15 @@ const ember = Color(0xFFFF9A4D);
 /// 赤の差し色。主ボタン・ロゴのマーク。
 const crimson = Color(0xFFC8262E);
 
+/// アプリの文字（Yuji Syuku）。pubspec.yaml の登録名。
+const appFont = 'YujiSyuku';
+
 final workshopTheme = ThemeData(
   useMaterial3: true,
   brightness: Brightness.dark,
-  fontFamily: 'WorkshopSans',
-  fontFamilyFallback: const ['Noto Sans CJK JP', 'sans-serif'],
+  // 全部の文字を筆の明朝 Yuji Syuku に。入っていない文字はゴシックで表示する。
+  fontFamily: appFont,
+  fontFamilyFallback: const ['WorkshopSans', 'Noto Sans CJK JP', 'sans-serif'],
   scaffoldBackgroundColor: bench,
   colorScheme: const ColorScheme.dark(
     primary: crimson,
@@ -35,7 +39,7 @@ final workshopTheme = ThemeData(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       textStyle: const TextStyle(
-        fontFamily: 'WorkshopSans',
+        fontFamily: appFont,
         fontWeight: FontWeight.w700,
         fontSize: 16,
       ),
@@ -43,19 +47,20 @@ final workshopTheme = ThemeData(
   ),
   chipTheme: const ChipThemeData(
     shape: RoundedRectangleBorder(
-      side: BorderSide(color: seam),
+      side: BorderSide.none,
       borderRadius: BorderRadius.all(Radius.circular(2)),
     ),
+    side: BorderSide.none,
     backgroundColor: metalPanel,
     selectedColor: crimson,
     checkmarkColor: Colors.white,
     labelStyle: TextStyle(
-      fontFamily: 'WorkshopSans',
+      fontFamily: appFont,
       fontWeight: FontWeight.w800,
       color: chalk,
     ),
     secondaryLabelStyle: TextStyle(
-      fontFamily: 'WorkshopSans',
+      fontFamily: appFont,
       fontWeight: FontWeight.w800,
       color: Colors.white,
     ),
@@ -64,7 +69,7 @@ final workshopTheme = ThemeData(
     style: TextButton.styleFrom(
       minimumSize: const Size(48, 48),
       textStyle: const TextStyle(
-        fontFamily: 'WorkshopSans',
+        fontFamily: appFont,
         fontWeight: FontWeight.w600,
         fontSize: 14,
       ),

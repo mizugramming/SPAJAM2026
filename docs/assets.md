@@ -13,8 +13,14 @@
 | `assets/fonts/kin.jpg` | 金メダルの段階 |
 | `assets/fonts/kinpika.jpg` | 研磨95%以上の金メダル |
 | `assets/images/background.jpg` | タイトル・素材選択・研磨などの全画面の背景 |
+| `assets/images/shavings.png` | 銅メダル研磨中の削りかす（透過PNG）。2026-11-22にチームから受け取った1536×1024を512×341へ縮小。出典の詳細は未記録。研磨中は不透明度55%の粉の軌跡として使う |
+| `assets/images/shards/` | 同じ削りかす画像の元サイズから切り出した赤茶4枚・青緑3枚の破片（周囲の薄い粉は透明化）。1往復ごとに5粒を飛ばす。銅は画像の色のまま、銀・金は粉の軌跡と破片の明るさを残して段階の色に塗り直す（別画像は不要） |
 
 メダル画像は1枚2MB前後あり、表示時は `cacheWidth` で縮小して読み込む。容量を減らす場合は縮小した画像に差し替える。磨きすぎ用の `kagami.jpg` は、磨きすぎの判定がゲームに入るまで未使用・未登録。UI担当は `lib/ui/surface_art.dart` で形状・明暗・反射を、共通担当は `lib/game/game.dart` の素材定義で段階ごとの色・汚れ・光沢を調整する。Androidの起動アイコンは `res/drawable/workshop_icon.xml` に同じ方位星を描いた。
+
+## 筆の明朝（画面の文字）
+
+画面の文字はすべて Yuji Syuku（筆の明朝）。`assets/fonts/yuji-syuku.ttf` は、2026-11-22に [Google Fonts の配布元](https://github.com/google/fonts/tree/main/ofl/yujisyuku) から取得した `YujiSyuku-Regular.ttf`（8.4MB）を、下の日本語ゴシックと同じ文字範囲（ASCII・かな・全角記号・`lib/` の全文字）へ固定SDKの `font-subset` でサブセット化したもの（約370KB）。Flutterの登録名は `YujiSyuku`、テーマの `appFont`。入っていない文字は日本語ゴシックで表示する。SIL Open Font License 1.1の本文と著作権表示を `assets/fonts/OFL-YujiSyuku.txt` に同梱し、アプリ内のライセンス一覧にも出す。文言を増やした場合は同じ方法で作り直す。太字はフォントにないため描画時に合成される。
 
 ## 日本語ゴシック
 

@@ -24,10 +24,16 @@ flutter:
     - family: WorkshopSans
       fonts:
         - asset: assets/fonts/workshop-sans.ttf
+    - family: YujiSyuku
+      fonts:
+        - asset: assets/fonts/yuji-syuku.ttf
   assets:
     - assets/fonts/OFL.txt
+    - assets/fonts/OFL-YujiSyuku.txt
     - assets/fonts/daou.jpg
     - assets/fonts/gin.jpg
     - assets/fonts/kin.jpg
     - assets/fonts/kinpika.jpg
     - assets/images/background.jpg
+    - assets/images/shavings.png
+    - assets/images/shards/
