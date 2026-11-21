@@ -20,6 +20,7 @@ class SurfaceArt extends StatefulWidget {
     this.inContact = false,
     this.reveal = false,
     this.medalImage,
+    this.overlay = true,
   });
 
   final WorkMaterial material;
@@ -30,6 +31,10 @@ class SurfaceArt extends StatefulWidget {
 
   /// When supplied, the team's medal illustration is the metal underneath the finish.
   final Widget? medalImage;
+
+  /// Whether dirt, reflections and flakes are painted over the art. An
+  /// illustration with transparent gaps (the 漢 letterform) shows its own finish.
+  final bool overlay;
 
   @override
   State<SurfaceArt> createState() => _SurfaceArtState();
@@ -46,6 +51,14 @@ class _SurfaceArtState extends State<SurfaceArt>
   final _tarnish = _TarnishTexture();
   bool _initialReveal = false;
   double _rustRemoved = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Create the controller now: without the overlay painter nothing else
+    // touches it before dispose, where creating it would fail.
+    _flash;
+  }
 
   @override
   void didChangeDependencies() {
@@ -94,16 +107,18 @@ class _SurfaceArtState extends State<SurfaceArt>
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: CustomPaint(
-        foregroundPainter: _SurfacePainter(
-          widget.material,
-          widget.progress,
-          _flash,
-          widget.strokeCount,
-          widget.reveal,
-          _rustRemoved,
-          _tarnish,
-          widget.medalImage != null,
-        ),
+        foregroundPainter: widget.overlay
+            ? _SurfacePainter(
+                widget.material,
+                widget.progress,
+                _flash,
+                widget.strokeCount,
+                widget.reveal,
+                _rustRemoved,
+                _tarnish,
+                widget.medalImage != null,
+              )
+            : null,
         size: Size.infinite,
         child: widget.medalImage,
       ),

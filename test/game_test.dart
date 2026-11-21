@@ -2,6 +2,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:polish_workshop/game/game.dart';
 
 void main() {
+  test('in the last round every grit can polish the medal to 金ピカ', () {
+    final medal = materials.first;
+    final floor = medal.finishAtLeast!;
+    for (final grit in Grit.values) {
+      // Early gold: before the last round, coarse and medium still stop short.
+      var value = medal.initialValue - medal.maxRemoval * .60;
+      var earlier = value;
+      for (var i = 0; i < 100; i++) {
+        earlier = medal.valueAfterStroke(earlier, grit);
+      }
+      if (grit != Grit.fine) expect(medal.progressAt(earlier), lessThan(floor));
+
+      var strokes = 0;
+      while (medal.progressAt(value) < floor && strokes < 40) {
+        value = medal.valueAfterStroke(value, grit, finalRound: true);
+        strokes++;
+      }
+      expect(medal.stageAt(medal.progressAt(value)).name, '金ピカのメダル');
+      expect(strokes, lessThanOrEqualTo(16), reason: grit.label);
+    }
+  });
+
   const coarse = VoiceSample(120, 0.6);
   const medium = VoiceSample(190, 0.6);
   const fine = VoiceSample(270, 0.6);
@@ -119,7 +141,7 @@ void main() {
 
   for (final material in materials) {
     testWidgets(
-      '${material.id} keeps the actual finish through three rounds and replay',
+      '${material.id} keeps the polished finish (or its guaranteed floor) through three rounds and replay',
       (tester) async {
         final game = GameController();
         addTearDown(game.dispose);
@@ -154,8 +176,16 @@ void main() {
           );
           await tester.pump(const Duration(seconds: 7));
         }
+        // A material with a guaranteed finish ends at least there.
+        final floor = material.finishAtLeast;
+        if (floor != null && material.progressAt(expectedValue) < floor) {
+          expectedValue = material.initialValue - material.maxRemoval * floor;
+        }
         expect(game.phase, GamePhase.result);
         expect(game.verdict, isNull);
+        if (material.id == 'medal') {
+          expect(game.stage.name, '金ピカのメダル');
+        }
         expect(
           game.stage,
           material.stageAt(material.progressAt(expectedValue)),

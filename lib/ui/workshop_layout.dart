@@ -52,9 +52,11 @@ const screenLayouts = <Screen, Map<String, Box>>{
   Screen.result: {
     'header': Box(.056, .011, .888, .046),
     'round': Box(.02, .12, .965, .055),
-    'workpiece': Box(0, .175, 1, .45),
+    'workpiece': Box(0, .155, 1, .45),
     'title': Box(.056, .64, .888, .045),
+    'rank': Box(-.235, .54, .715, .165),
     'body': Box(.056, .69, .888, .09),
+    'hint': Box(.056, .74, .888, .04),
     'action': Box(.056, .79, .888, .065),
     'home': Box(.056, .87, .888, .06),
   },

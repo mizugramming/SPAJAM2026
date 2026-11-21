@@ -10,13 +10,20 @@
 |---|---|
 | `assets/fonts/daou.jpg` | サビた銅メダル。タイトル、素材選択カード、研磨のサビた銅・銅の段階 |
 | `assets/fonts/gin.jpg` | 銀メダルの段階 |
-| `assets/fonts/kin.jpg` | 金メダルの段階 |
-| `assets/fonts/kinpika.jpg` | 研磨95%以上の金メダル |
+| `assets/fonts/kin.jpg` | 旧・金メダルの絵（今は画面から参照していない） |
+| `assets/images/medal-gold.png` | 金メダルの段階（つや消し・文字なし）。2026-11-22にチームが用意した「金ピカ.png」を英字名に変更 |
+| `assets/images/medal-gold-polishing.png` | 金ピカの段階（上の方が曇った磨き途中）。同日に用意した「途中の金ピカ.png」を英字名に変更。メダルは最後に必ずこの段階まで届く |
+| `assets/fonts/kinpika.jpg` | 仕上がり画面で、金メダル以上のメダルを指でこすった跡に見せる「最優秀賞」入りの絵 |
+| `assets/images/kanji-silver.png` | 漢磨きの素材選択・採音・研磨で出す銀の立体文字「漢」（くすんだ絵、透過PNG）。2026-11-22にチームが用意した「透明背景の銀色立体漢字「漢」-1.png」を英字名に変更 |
+| `assets/images/kanji-silver-polished.png` | 同じ文字の磨き上がった絵。同日の「透明背景の銀色立体漢字 漢-2.png」を英字名に変更。元の絵（未登録）。文字の位置と大きさが `kanji-silver.png` と少しずれていたため、そろえた `kanji-silver-polished-aligned.png` を研磨の割合だけ上に重ねて、磨くほどこの絵になる |
+| `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png`、`overpolished-01〜05.png` | 漢磨きの仕上がりのキャラクター（合計点と成否の表は app_design.md）。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
+| `assets/images/kanji-rank-1〜5.png` | 漢磨きの結果画面の段位の「漢」（1漢は赤、2漢は金など段位ごとの色）。2026-11-22にチームから受け取った「１漢.jpg」〜「５漢.jpg」の白背景を透明にしたもの |
+| `assets/images/kanji-rock.png` | 灰色の岩（透過PNG）。素材選択の漢の絵に一時使ったが、今は未使用・未登録 |
 | `assets/images/background.jpg` | タイトル・素材選択・研磨などの全画面の背景 |
 | `assets/images/shavings.png` | メダル・漢の研磨中の削りかす（透過PNG）。2026-11-22にチームから受け取った1536×1024を512×341へ縮小。出典の詳細は未記録。押し引きの途中に出る粉の軌跡として使う |
 | `assets/images/shards/` | 同じ削りかす画像の元サイズから切り出した赤茶4枚・青緑3枚の破片（周囲の薄い粉は透明化）。1往復が確定すると、やすりの目に応じた大きさ・数の破片を飛ばす。素材とその時点の仕上がりに合わせて削り粉・破片を着色する |
 
-2026-11-22にチームから受け取った未使用の画像も同じ場所に置いている（出典の詳細は未記録）。`assets/fonts/kagami.jpg`（磨きすぎ用）、`assets/images/gyansu.jpg`、`assets/images/yansu.jpg` と `assets/images/shards/yansu.jpg` は未使用。アプリには使用中の画像だけを個別に登録する。
+2026-11-22にチームから受け取った未使用の画像も同じ場所に置いている（出典の詳細は未記録）。`assets/fonts/kagami.jpg`（磨きすぎ用）、`assets/images/yansu.jpg` と `assets/images/shards/yansu.jpg` は未使用。アプリには使用中の画像だけを個別に登録する。
 
 紙やすりの質感には、2026-11-22にユーザーが本アプリ用に提供した無地の紙の画像を使用。透明な余白を詰めた `assets/images/sandpaper_plain.webp`（1320 × 785、約114 KiB）を同梱した。紙の端の繊維と右上の折れは原画のもの。2枚目の画像にある斜めの印字を参考に、`lib/ui/sandpaper.dart` で各ラウンドの測定値を重ねる。紙色を調整する入口は `sandpaperColorFor`、印字は `sandpaperStampFor`。
 

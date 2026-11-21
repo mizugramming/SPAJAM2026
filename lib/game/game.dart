@@ -83,6 +83,7 @@ class WorkMaterial {
     this.description,
     this.glyph,
     this.targetValue,
+    this.finishAtLeast,
   }) : assert(maxRemoval > 0);
 
   final String id;
@@ -98,6 +99,10 @@ class WorkMaterial {
   /// Ordered by increasing threshold, starting at zero.
   final List<FinishStage> stages;
 
+  /// The progress every play reaches by the end of the last round, however
+  /// little was polished. Null keeps the polished amount as it is.
+  final double? finishAtLeast;
+
   double progressAt(double value) =>
       ((initialValue - value) / maxRemoval).clamp(0.0, 1.0);
 
@@ -106,11 +111,26 @@ class WorkMaterial {
     orElse: () => stages.first,
   );
 
-  double valueAfterStroke(double value, Grit grit) {
+  /// In the last round, every grit can polish up to [finishAtLeast], at
+  /// least this much per stroke, so the guaranteed finish is reached by hand.
+  static const finalRoundAmount = 2.5;
+
+  double valueAfterStroke(double value, Grit grit, {bool finalRound = false}) {
     final polish = stageAt(progressAt(value)).polishing[grit];
-    final limit = initialValue - maxRemoval * (polish?.limit ?? 1.0);
+    var share = polish?.limit ?? 1.0;
+    var amount = polish?.amount ?? grit.removal;
+    final floor = finishAtLeast;
+    // Only the gold stages limit each grit, so only they are lifted.
+    if (finalRound &&
+        polish != null &&
+        floor != null &&
+        progressAt(value) < floor) {
+      if (share < floor) share = floor;
+      if (amount < finalRoundAmount) amount = finalRoundAmount;
+    }
+    final limit = initialValue - maxRemoval * share;
     if (value <= limit) return value;
-    return (value - (polish?.amount ?? grit.removal)).clamp(limit, value);
+    return (value - amount).clamp(limit, value);
   }
 
   // Use the same anchors for all appearance channels. Beyond the last anchor
@@ -157,6 +177,8 @@ const materials = [
     description: '銅・銀・金の輝き',
     initialValue: 100,
     maxRemoval: 100,
+    // 何往復でも、最後は磨き途中の金ピカ（0.95）まで届く。
+    finishAtLeast: 0.95,
     stages: [
       FinishStage(0, 'サビた銅メダル', Color(0xFF9B6447), 0.90, 0.05),
       FinishStage(0.12, '銅メダル', Color(0xFFC88356), 0.04, 0.28),
@@ -251,6 +273,10 @@ class GameController extends ChangeNotifier {
       stage.polishing.containsKey(Grit.fine);
   Grit? _grit;
   Grit? get grit => _grit;
+
+  /// The grit chosen in each round so far, in order.
+  final _grits = <Grit>[];
+  List<Grit> get grits => List.unmodifiable(_grits);
   VoiceSample? _sample;
   VoiceSample? get sample => _sample;
   String? _verdict;
@@ -275,6 +301,7 @@ class GameController extends ChangeNotifier {
     if (selected == null) return false;
     _sample = sample;
     _grit = selected;
+    _grits.add(selected);
     _phase = GamePhase.ready;
     notifyListeners();
     return true;
@@ -300,7 +327,11 @@ class GameController extends ChangeNotifier {
     final grit = _grit!;
     _strokes++;
     _totalStrokes++;
-    _value = material.valueAfterStroke(_value, grit);
+    _value = material.valueAfterStroke(
+      _value,
+      grit,
+      finalRound: _round == roundCount,
+    );
     final pulse = pulseFor(grit, progress);
     notifyListeners();
     return pulse;
@@ -342,6 +373,11 @@ class GameController extends ChangeNotifier {
     _stopClock();
     if (_round == roundCount) {
       _remainingSeconds = 0;
+      final material = _material!;
+      final floor = material.finishAtLeast;
+      if (floor != null && material.progressAt(_value) < floor) {
+        _value = material.initialValue - material.maxRemoval * floor;
+      }
       _phase = GamePhase.result;
       _verdict = judge?.call(_material!, _value);
     } else {
@@ -370,6 +406,7 @@ class GameController extends ChangeNotifier {
     _totalStrokes = 0;
     _sample = null;
     _grit = null;
+    _grits.clear();
     _verdict = null;
   }
 

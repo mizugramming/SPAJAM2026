@@ -379,9 +379,27 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.result:
         return [
-          Part('title', '見出し', _Title(game.stage.name)),
+          // 漢磨きは見出しの代わりに段位（数字と色の「漢」）を出す。
+          Part(
+            'title',
+            '見出し',
+            game.material!.id == 'kanji' ? null : _Title(game.stage.name),
+          ),
+          Part(
+            'rank',
+            '段位（何漢）',
+            game.material!.id == 'kanji'
+                ? _KanjiRank(points: kanjiPoints(game))
+                : null,
+            fill: true,
+          ),
           if (game.verdict case final verdict?)
             Part('body', '仕上がりの判定', _Body(verdict)),
+          Part(
+            'hint',
+            'こする案内',
+            _canRub(game) ? const _Body('メダルを指でこすると、刻まれた文字が浮かび上がります。') : null,
+          ),
           Part(
             'action',
             '「もう一度遊ぶ」ボタン',
@@ -1063,13 +1081,26 @@ class _FilePainter extends CustomPainter {
 
 /// game.dart の段階（サビた銅・銅・銀・金・金ピカ）と同じ順のメダル画像。
 /// 銅の2段階は同じ絵にゲームの研磨率に応じた地金色・サビ・光沢を重ねる。
+/// 金はつや消しの絵、金ピカは上の方が曇った磨き途中の絵。
 const _medalStageImages = [
   'assets/fonts/daou.jpg',
   'assets/fonts/daou.jpg',
   'assets/fonts/gin.jpg',
-  'assets/fonts/kin.jpg',
-  'assets/fonts/kinpika.jpg',
+  'assets/images/medal-gold.png',
+  'assets/images/medal-gold-polishing.png',
 ];
+
+/// 仕上がり画面で指でこすると現れる、「最優秀賞」入りの金ピカの絵。
+const _medalRubImage = 'assets/fonts/kinpika.jpg';
+
+/// 仕上がり画面で指でこすれるのは、金メダル以上で終わったメダル。
+bool _canRub(GameController game) {
+  final material = game.material;
+  return game.phase == GamePhase.result &&
+      material != null &&
+      material.id == 'medal' &&
+      material.stages.indexOf(game.stage) >= 3;
+}
 
 /// 素材と研磨の割合に合う画像。画像のない素材は null（描画で表示する）。
 String? _imageFor(WorkMaterial material, double progress) {
@@ -1079,7 +1110,12 @@ String? _imageFor(WorkMaterial material, double progress) {
 
 /// 円形に切り抜いたメダル画像。画像が替わるときは重ねて切り替える。
 class _MedalImage extends StatelessWidget {
-  const _MedalImage(this.image, {this.cacheWidth = 720, this.copperTint});
+  const _MedalImage(
+    this.image, {
+    super.key,
+    this.cacheWidth = 720,
+    this.copperTint,
+  });
   final String image;
   final int cacheWidth;
   final Color? copperTint;
@@ -1322,7 +1358,131 @@ class _CarouselItem extends StatelessWidget {
   );
 }
 
-/// 素材選択で大きく見せる素材の絵。メダルは画像、ほかは描画した見本。
+/// やすりの目の点数（粗目3・中目2・細目1）。3回の合計は3〜9点。
+int gritPoints(Grit grit) => switch (grit) {
+  Grit.coarse => 3,
+  Grit.medium => 2,
+  Grit.fine => 1,
+};
+
+/// 漢磨きの成否。成功の範囲はもう一人の担当が決める。決まるまでの仮の決まりとして、
+/// 最後の段階（光沢を帯びた漢）まで磨けたら成功にしている。範囲が決まったらここだけ書き換える。
+bool kanjiSucceeded(GameController game) =>
+    game.stage == game.material!.stages.last;
+
+/// 3回のやすりの合計点。
+int kanjiPoints(GameController game) =>
+    game.grits.fold(0, (sum, grit) => sum + gritPoints(grit));
+
+/// 漢磨きの仕上がりの段位（1漢がいちばん上）。合計点で決まる。
+String kanjiRank(int points) => switch (points) {
+  <= 3 => '5漢',
+  <= 5 => '4漢',
+  6 => '3漢',
+  <= 8 => '2漢',
+  _ => '1漢',
+};
+
+/// 段位の数字（1がいちばん上）。
+int kanjiRankNumber(int points) => switch (points) {
+  <= 3 => 5,
+  <= 5 => 4,
+  6 => 3,
+  <= 8 => 2,
+  _ => 1,
+};
+
+/// 段位の色の「漢」の絵。四角いっぱいに収める（数字は出さず、読み上げでは「○漢」）。
+class _KanjiRank extends StatelessWidget {
+  const _KanjiRank({required this.points});
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = 'assets/images/kanji-rank-${kanjiRankNumber(points)}.png';
+    return Semantics(
+      label: kanjiRank(points),
+      excludeSemantics: true,
+      child: Image.asset(
+        image,
+        key: ValueKey(image),
+        fit: BoxFit.contain,
+        alignment: Alignment.centerLeft,
+        cacheWidth: 400,
+      ),
+    );
+  }
+}
+
+/// 漢磨きの仕上がりに出すキャラクター。3回のやすりの合計点と成否で決まる。
+String kanjiResultImage(int points, {required bool success}) {
+  final (ok, ng) = switch (points) {
+    <= 3 => ('character-05.png', 'overpolished-05.png'),
+    <= 5 => ('character-04.png', 'overpolished-04.png'),
+    6 => ('gyansu.jpg', 'overpolished-03.png'),
+    <= 8 => ('character-02.png', 'overpolished-02.png'),
+    _ => ('kyushu-danji.png', 'overpolished-01.png'),
+  };
+  return 'assets/images/${success ? ok : ng}';
+}
+
+/// 仕上がり画面の漢磨きのキャラクター。
+class _KanjiCharacter extends StatelessWidget {
+  const _KanjiCharacter({required this.game});
+  final GameController game;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = kanjiResultImage(
+      kanjiPoints(game),
+      success: kanjiSucceeded(game),
+    );
+    return Center(
+      child: Image.asset(
+        image,
+        key: ValueKey(image),
+        fit: BoxFit.contain,
+        cacheWidth: 900,
+      ),
+    );
+  }
+}
+
+/// 漢磨きの銀の立体文字。磨き始めはくすんだ絵で、磨いた割合だけ光る絵を重ねる。
+class _KanjiImage extends StatelessWidget {
+  const _KanjiImage({required this.progress});
+  final double progress;
+
+  static const dull = 'assets/images/kanji-silver.png';
+  // くすんだ絵と文字の位置・大きさをそろえた版（元の絵は少しずれていて二重に見えた）。
+  static const polished = 'assets/images/kanji-silver-polished-aligned.png';
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: AspectRatio(
+      aspectRatio: 1,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(dull, key: const ValueKey(dull), cacheWidth: 720),
+          Opacity(
+            opacity: progress.clamp(0.0, 1.0),
+            child: Image.asset(
+              polished,
+              key: const ValueKey(polished),
+              cacheWidth: 720,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// 素材選択の回転式に出す絵（漢は磨き始めと同じくすんだ銀の立体文字）。
+const _pickImages = {'kanji': _KanjiImage.dull};
+
+/// 素材選択で大きく見せる素材の絵。メダルはメダル画像、漢は銀の立体文字、ほかは描画した見本。
 class _MaterialArt extends StatelessWidget {
   const _MaterialArt({required this.material});
   final WorkMaterial material;
@@ -1331,8 +1491,14 @@ class _MaterialArt extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: AspectRatio(
       aspectRatio: 1,
-      child: switch (_imageFor(material, 0)) {
-        final String image => _MedalImage(image, cacheWidth: 640),
+      child: switch ((_imageFor(material, 0), _pickImages[material.id])) {
+        (final String image, _) => _MedalImage(image, cacheWidth: 640),
+        (_, final String pick) => Image.asset(
+          pick,
+          key: ValueKey(pick),
+          fit: BoxFit.contain,
+          cacheWidth: 640,
+        ),
         _ => SurfaceArt(material: material, progress: 1),
       },
     ),
@@ -1828,6 +1994,84 @@ class _DustSpray extends CustomPainter {
       old.progress != progress;
 }
 
+/// 指でこすった跡だけ [image] を見せる層。こすった点はメダル（置き場所の短い辺を
+/// 直径とする中央の正方形）に対する割合で持ち、表示の大きさが変わってもずれない。
+class _RubReveal extends StatefulWidget {
+  const _RubReveal({required this.image});
+  final String image;
+
+  @override
+  State<_RubReveal> createState() => _RubRevealState();
+}
+
+class _RubRevealState extends State<_RubReveal> {
+  /// 指の太さ（メダルの直径に対する割合）。
+  static const _brush = .08;
+  final _points = <Offset>[];
+
+  void _rub(Offset local, Size size) {
+    final side = math.min(size.width, size.height);
+    if (side <= 0) return;
+    final origin = Offset((size.width - side) / 2, (size.height - side) / 2);
+    final point = (local - origin) / side;
+    setState(() {
+      // 速くこすっても途切れないよう、前の点との間を埋める。
+      if (_points.isNotEmpty) {
+        final last = _points.last;
+        final steps = ((point - last).distance / (_brush * .5)).floor();
+        for (var i = 1; i < steps; i++) {
+          _points.add(Offset.lerp(last, point, i / steps)!);
+        }
+      }
+      _points.add(point);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final size = box.biggest;
+      return GestureDetector(
+        key: const ValueKey('medal-rub'),
+        behavior: HitTestBehavior.opaque,
+        onPanStart: (d) => _rub(d.localPosition, size),
+        onPanUpdate: (d) => _rub(d.localPosition, size),
+        child: _points.isEmpty
+            ? const SizedBox.expand()
+            : ClipPath(
+                clipper: _RubClipper(List.of(_points), _brush),
+                child: _MedalImage(
+                  widget.image,
+                  key: const ValueKey('medal-revealed'),
+                ),
+              ),
+      );
+    },
+  );
+}
+
+class _RubClipper extends CustomClipper<Path> {
+  _RubClipper(this.points, this.brush);
+  final List<Offset> points;
+  final double brush;
+
+  @override
+  Path getClip(Size size) {
+    final side = math.min(size.width, size.height);
+    final origin = Offset((size.width - side) / 2, (size.height - side) / 2);
+    final path = Path();
+    for (final p in points) {
+      path.addOval(
+        Rect.fromCircle(center: origin + p * side, radius: brush * side),
+      );
+    }
+    return path;
+  }
+
+  @override
+  bool shouldReclip(_RubClipper old) => old.points.length != points.length;
+}
+
 class _RoundHeader extends StatelessWidget {
   const _RoundHeader({required this.game});
   final GameController game;
@@ -1869,13 +2113,19 @@ class _Workpiece extends StatelessWidget {
   Widget build(BuildContext context) {
     final material = game.material!;
     final image = _imageFor(material, game.progress);
+    final kanji = material.id == 'kanji';
     final art = SurfaceArt(
       material: material,
       progress: game.progress,
       strokeCount: game.totalStrokes,
       inContact: inContact,
       reveal: game.phase == GamePhase.result,
-      medalImage: image == null
+      overlay: !kanji,
+      medalImage: kanji
+          ? game.phase == GamePhase.result
+                ? _KanjiCharacter(game: game)
+                : _KanjiImage(progress: game.progress)
+          : image == null
           ? null
           : _MedalImage(
               image,
@@ -1898,6 +2148,9 @@ class _Workpiece extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           art,
+          // 金メダル以上の仕上がりは、指でこすったところから文字が浮かび上がる。
+          if (_canRub(game))
+            const Positioned.fill(child: _RubReveal(image: _medalRubImage)),
           // 接触中のチリと、往復が成立したときの大きな破片を重ねる。
           Positioned.fill(
             child: IgnorePointer(
