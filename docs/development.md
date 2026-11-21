@@ -39,6 +39,22 @@ fvm flutter run -d <端末ID>
 
 ## 再現コマンド
 
+### Windowsでビルド済みのWeb版を試す
+
+WSLで下記のWebビルドを済ませ、WindowsのPowerShellで専用の配信ウィンドウを開く。`$web` にはWSL側の実際のディレクトリを指定する。URLはこのPCで使える。
+
+```powershell
+$web = '/path/to/SPAJAM2026/build/web'
+$argsWeb = '-d', 'Ubuntu', '--exec', '/usr/bin/python3', '-m', 'http.server', '8766',
+           '--bind', '127.0.0.1', '--directory', ('"' + $web + '"')
+Start-Process wsl.exe -ArgumentList $argsWeb
+Start-Process 'http://127.0.0.1:8766/'
+```
+
+配信ウィンドウはプレイ中は開いたままにし、止めるときはそのウィンドウで Ctrl+C を押す。起動を確認するには、素材選択で「メダルを磨く」を表示し「これを磨く」を押す。「低い」を選んで丸いマイクを押し、中央に「110 Hz」「粗目のやすり」が出ることを確認する。紙の着地後、メダルに重なる「磨く！」を押す。「磨け」の合図から「こする」を押すと、メダルに削り粉が舞い、表面の色が変わる。
+
+### 固定SDKの検証とビルド
+
 ```bash
 fvm dart format --output=none --set-exit-if-changed lib test
 fvm flutter analyze --no-pub
@@ -51,14 +67,18 @@ fvm flutter build web --no-pub --no-web-resources-cdn
 
 ```bash
 native=android/app/src/main/kotlin/jp/spajam/polish_workshop
-kotlinc "$native/VoiceAnalysis.kt" "$native/StrokeDetector.kt" tool/native/SignalCheck.kt -include-runtime -d /tmp/polish-signals.jar
-java -jar /tmp/polish-signals.jar
+kotlinc "$native"/{VoiceAnalysis,StrokeDetector,DeskMotion,DeskHaptics}.kt tool/native/*.kt -include-runtime -d /tmp/polish-signals.jar
+java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.SignalCheckKt &&
+  java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskMotionCheckKt &&
+  java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskVelocityCheckKt &&
+  java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskHapticsCheckKt
 ```
 
-同じJARにREDMIの計測CSV（列順 `t_s,x_m_s2,y_m_s2,z_m_s2`）を渡すと、各往復を受理したCSV上の時刻を秒単位で1行ずつ出力する。全区間を連続で再生する。CSVに含まれない振動指令や10秒のラウンド境界は加えない。
+REDMIの計測CSV（列順 `t_s,x_m_s2,y_m_s2,z_m_s2`）を渡すと、全区間を連続で再生し、往復を受理した時刻を秒単位で1行ずつ出力する。現在の作業面判定は `DeskMotionCheckKt`、従来の3軸判定は `SignalCheckKt` で比較する。CSVに含まれない重力センサーの値・振動指令・ラウンド境界は加えない。
 
 ```bash
-java -jar /tmp/polish-signals.jar /path/to/acceleration.csv
+java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskMotionCheckKt /path/to/acceleration.csv
+java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.SignalCheckKt /path/to/acceleration.csv
 ```
 
 共通キット検証はPython 3.12以降を使う。

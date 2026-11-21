@@ -120,7 +120,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
       _error = null;
     });
     try {
-      await device.startMotion();
+      await device.startMotion(deskTrial: true);
       if (!mounted || id != _trialId) return;
       setState(() {
         _running = true;

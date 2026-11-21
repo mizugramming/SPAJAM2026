@@ -58,8 +58,9 @@ class FinishStage {
     this.name,
     this.color,
     this.rust,
-    this.shine,
-  );
+    this.shine, {
+    this.polishing = const {},
+  });
 
   /// The first normalized removal progress at which this name applies.
   final double threshold;
@@ -67,6 +68,9 @@ class FinishStage {
   final Color color;
   final double rust;
   final double shine;
+
+  /// Amount removed per stroke and the furthest finish each grit can produce.
+  final Map<Grit, ({double amount, double limit})> polishing;
 }
 
 class WorkMaterial {
@@ -102,6 +106,13 @@ class WorkMaterial {
     orElse: () => stages.first,
   );
 
+  double valueAfterStroke(double value, Grit grit) {
+    final polish = stageAt(progressAt(value)).polishing[grit];
+    final limit = initialValue - maxRemoval * (polish?.limit ?? 1.0);
+    if (value <= limit) return value;
+    return (value - (polish?.amount ?? grit.removal)).clamp(limit, value);
+  }
+
   // Use the same anchors for all appearance channels. Beyond the last anchor
   // the surface keeps its final material properties.
   (FinishStage, FinishStage, double) _blend(double progress) {
@@ -133,6 +144,12 @@ class WorkMaterial {
   }
 }
 
+const _goldPolishing = {
+  Grit.coarse: (amount: 0.5, limit: 0.70),
+  Grit.medium: (amount: 2.0, limit: 0.85),
+  Grit.fine: (amount: 5.0, limit: 1.0),
+};
+
 const materials = [
   WorkMaterial(
     id: 'medal',
@@ -142,9 +159,24 @@ const materials = [
     maxRemoval: 100,
     stages: [
       FinishStage(0, 'サビた銅メダル', Color(0xFF9B6447), 0.90, 0.05),
-      FinishStage(0.25, '銅メダル', Color(0xFFC88356), 0.04, 0.28),
-      FinishStage(0.55, '銀メダル', Color(0xFFBBC8CE), 0.01, 0.63),
-      FinishStage(0.85, '金メダル', Color(0xFFE5B756), 0, 0.95),
+      FinishStage(0.12, '銅メダル', Color(0xFFC88356), 0.04, 0.28),
+      FinishStage(0.30, '銀メダル', Color(0xFFBBC8CE), 0.01, 0.54),
+      FinishStage(
+        0.50,
+        '金メダル',
+        Color(0xFFD9A540),
+        0,
+        0.60,
+        polishing: _goldPolishing,
+      ),
+      FinishStage(
+        0.95,
+        '金ピカのメダル',
+        Color(0xFFFFD777),
+        0,
+        1,
+        polishing: _goldPolishing,
+      ),
     ],
   ),
   WorkMaterial(
@@ -197,6 +229,12 @@ class GameController extends ChangeNotifier {
   int get round => _round;
   int _remainingSeconds = polishDuration.inSeconds;
   int get remainingSeconds => _remainingSeconds;
+  Duration get remainingPolishTime {
+    if (_phase == GamePhase.result) return Duration.zero;
+    final remaining = polishDuration - (_watch?.elapsed ?? Duration.zero);
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
   int _strokes = 0;
   int get strokes => _strokes;
   int _totalStrokes = 0;
@@ -207,6 +245,10 @@ class GameController extends ChangeNotifier {
 
   /// Available from material selection through the resulting finish.
   FinishStage get stage => _material!.stageAt(progress);
+  bool get finishingWithFine =>
+      _material != null &&
+      stage != _material!.stages.last &&
+      stage.polishing.containsKey(Grit.fine);
   Grit? _grit;
   Grit? get grit => _grit;
   VoiceSample? _sample;
@@ -258,10 +300,7 @@ class GameController extends ChangeNotifier {
     final grit = _grit!;
     _strokes++;
     _totalStrokes++;
-    _value = (_value - grit.removal).clamp(
-      material.initialValue - material.maxRemoval,
-      material.initialValue,
-    );
+    _value = material.valueAfterStroke(_value, grit);
     final pulse = pulseFor(grit, progress);
     notifyListeners();
     return pulse;
@@ -283,7 +322,7 @@ class GameController extends ChangeNotifier {
   }
 
   void _updateClock() {
-    final remaining = polishDuration - _watch!.elapsed;
+    final remaining = remainingPolishTime;
     if (remaining <= Duration.zero) {
       _endRound();
       return;

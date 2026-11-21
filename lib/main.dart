@@ -16,6 +16,9 @@ void main() {
     yield LicenseEntryWithLineBreaks([
       'WorkshopSans (Noto Sans JP)',
     ], await rootBundle.loadString('assets/fonts/OFL.txt'));
+    yield LicenseEntryWithLineBreaks([
+      'YujiSyuku',
+    ], await rootBundle.loadString('assets/fonts/OFL-YujiSyuku.txt'));
   });
   runApp(const WorkshopApp());
 }
@@ -54,12 +57,12 @@ class _SessionState extends State<_Session>
   late final device = WorkshopDevice(simulated: widget.simulated);
   StreamSubscription<int>? _events;
   bool _motion = false;
+  bool _inContact = false;
   bool _busy = false;
   bool _background = false;
   bool _showTitle = true;
   bool _inLab = false;
   bool _confirmingExit = false;
-  VoiceMode _mode = VoiceMode.pitch;
   String? _error;
   int _operation = 0;
   @override
@@ -70,8 +73,8 @@ class _SessionState extends State<_Session>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     game.addListener(_changed);
-    _events = device.strokes.listen(
-      (_) => _stroke(),
+    _events = device.motionEvents.listen(
+      _handleMotion,
       onError: (Object e) {
         if (mounted && !_inLab) setState(() => _error = deviceMessage(e));
       },
@@ -85,6 +88,7 @@ class _SessionState extends State<_Session>
 
   void _stopMotion() {
     _motion = false;
+    _inContact = false;
     unawaited(device.stopMotion());
     unawaited(device.stopPulse());
   }
@@ -109,15 +113,6 @@ class _SessionState extends State<_Session>
   }
 
   @override
-  void useVoiceMode(VoiceMode mode) {
-    if (_busy) return;
-    setState(() {
-      _mode = mode;
-      _error = null;
-    });
-  }
-
-  @override
   Future<void> capture() async {
     if (_busy || _background || game.phase != GamePhase.voice) return;
     final op = ++_operation;
@@ -126,12 +121,14 @@ class _SessionState extends State<_Session>
       _error = null;
     });
     try {
-      final sample = await device.capture(demoPitch);
+      final sample = await device.capture(demoPitch, desk: true);
       if (!mounted || op != _operation) return;
-      if (!game.acceptVoice(sample, _mode)) {
-        _error = _mode == VoiceMode.pitch
-            ? '高さを読み取れませんでした。一定の声で試すか、音量で選んでください。'
-            : '音が小さいようです。もう一度、少し大きな声を出してください。';
+      final hz = sample.hz;
+      final mode = hz != null && hz.isFinite && hz > 0
+          ? VoiceMode.pitch
+          : VoiceMode.volume;
+      if (!game.acceptVoice(sample, mode)) {
+        _error = '音が小さいようです。もう一度、少し大きな声を出してください。';
       }
     } catch (e) {
       if (mounted && op == _operation) _error = deviceMessage(e);
@@ -153,7 +150,12 @@ class _SessionState extends State<_Session>
       _error = null;
     });
     try {
-      await device.startMotion();
+      await device.startPolishingMotion(
+        game.grit!,
+        game.progress,
+        game.remainingPolishTime,
+        sessionId: op,
+      );
       if (!mounted || op != _operation) return;
       _motion = true;
       if (resume) {
@@ -168,22 +170,42 @@ class _SessionState extends State<_Session>
     }
   }
 
+  void _handleMotion(int event) {
+    if (!_motion || _background || game.phase != GamePhase.polishing) return;
+    switch (event) {
+      case WorkshopDevice.contactStarted:
+        if (!_inContact) setState(() => _inContact = true);
+      case WorkshopDevice.contactEnded:
+        if (_inContact) setState(() => _inContact = false);
+      case WorkshopDevice.strokeCompleted:
+        _stroke();
+    }
+  }
+
   void _stroke() {
-    if (!_motion || _background) return;
     final pulse = game.stroke();
     if (pulse != null && device.vibrationEnabled) {
+      final sessionId = _operation;
       unawaited(
-        device.pulse(pulse, followStroke: true).catchError((Object e) {
-          device.vibrationEnabled = false;
-          if (mounted) setState(() => _error = deviceMessage(e));
-        }),
+        device
+            .pulse(
+              pulse,
+              followStroke: true,
+              progress: game.progress,
+              sessionId: sessionId,
+            )
+            .catchError((Object e) {
+              if (!mounted || !_motion || sessionId != _operation) return;
+              device.vibrationEnabled = false;
+              setState(() => _error = deviceMessage(e));
+            }),
       );
     }
   }
 
   @override
   void simulateStroke() {
-    if (device.simulated) _stroke();
+    if (device.simulated) _handleMotion(WorkshopDevice.strokeCompleted);
   }
 
   @override
@@ -273,12 +295,22 @@ class _SessionState extends State<_Session>
     }
   }
 
+  /// プレイを初期化してタイトル画面へ戻す。素材選択の「戻る」と結果の「タイトルへ」。
+  void _backToTitle() {
+    retry();
+    setState(() => _showTitle = true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: game.phase == GamePhase.select,
+      // タイトル画面でだけ端末の戻る操作でアプリを閉じる。
+      canPop: game.phase == GamePhase.select && _showTitle,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && game.phase != GamePhase.select) {
+        if (didPop) return;
+        if (game.phase == GamePhase.select) {
+          _backToTitle();
+        } else {
           unawaited(_confirmExit());
         }
       },
@@ -305,14 +337,15 @@ class _SessionState extends State<_Session>
             )
           : Workshop(
               game: game,
+              inContact: _inContact,
               onEnter: _showTitle
                   ? () => setState(() => _showTitle = false)
                   : null,
+              onTitle: _backToTitle,
               actions: this,
               simulated: device.simulated,
               busy: _busy,
               error: _error,
-              voiceMode: _mode,
             ),
     );
   }

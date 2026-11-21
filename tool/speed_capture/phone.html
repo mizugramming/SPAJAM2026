@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>いろみがき　速度計測</title>
+<style>
+:root { color-scheme: dark; font: 18px system-ui, sans-serif; background: #141717; color: #fafafa }
+main { max-width: 28rem; margin: 10vh auto; padding: 1.2rem } h1 { font-size: 2rem } p { line-height: 1.6 }
+button { font: inherit; padding: .8rem 1.4rem; background: #ffd084; color: #171615; border: 0; border-radius: .6rem }
+output { display:block; font: bold 4rem monospace; min-height: 1.2em; color:#ffd084 }
+</style>
+<main data-profile="slow-fast">
+<h1 id="cue">往復の速度を測る</h1>
+<p id="guide">スマホを机と平行に持ちます。片道は手のひら幅を目安に、ゆっくり・速いの両方を同じ距離で動かします。</p>
+<output id="seconds"></output>
+<button id="start">計測を始める</button>
+</main>
+<script>
+const cue = document.querySelector('#cue'), guide = document.querySelector('#guide');
+const countdown = document.querySelector('#seconds'), button = document.querySelector('#start');
+let origin = null, timer, wakeLock, rows, recording, pending;
+const shortMedium = document.querySelector('main').dataset.profile === 'short-medium';
+if (shortMedium) {
+  cue.textContent = '細かい動きと中速を測る';
+  guide.textContent = '机と平行に構えます。最初は指2本幅で細かく、次は手のひら幅で中くらいの速さ。合図に合わせて動かしてください。';
+}
+function halt() {
+  recording = false;
+  clearInterval(timer);
+  window.removeEventListener('devicemotion', onMotion);
+  if (wakeLock) wakeLock.release().catch(() => {});
+  countdown.textContent = '';
+}
+function retry(message) {
+  halt();
+  pending = null;
+  cue.textContent = '計測をやり直す';
+  guide.textContent = message;
+  button.textContent = 'もう一度計測する';
+  button.hidden = false;
+}
+function onMotion(event) {
+  const a = event.accelerationIncludingGravity;
+  if (!a || ![event.timeStamp, a.x, a.y, a.z].every(Number.isFinite)) return;
+  const t = (event.timeStamp - origin) / 1000;
+  if (t >= 0 && t < 26) rows.push([t, a.x, a.y, a.z]);
+}
+async function save() {
+  button.hidden = true;
+  try {
+    const response = await fetch('/save', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(pending), signal:AbortSignal.timeout(8000)});
+    if (response.status === 400) {
+      retry('加速度を最後まで取得できませんでした。画面を開いたまま、もう一度計測してください。');
+      return;
+    }
+    if (!response.ok) throw new Error();
+    pending = null;
+    cue.textContent = '計測が終わりました';
+    guide.textContent = (shortMedium ? '細かい動き・中速' : 'ゆっくり・速い') + 'の記録をPCに保存しました。';
+    button.textContent = 'もう1組計測する';
+    button.hidden = false;
+  } catch {
+    cue.textContent = 'PCへの送信を確認してください';
+    guide.textContent = 'USB接続を確認して、この画面で送信をやり直せます。';
+    button.hidden = false; button.textContent = 'もう一度送る';
+  }
+}
+function redraw() {
+  const t = (performance.now() - origin) / 1000;
+  if (t >= 26) {
+    halt();
+    if (!rows.length) return retry('加速度が届きませんでした。Chromeのモーションセンサー設定を確認してください。');
+    pending = {id:crypto.randomUUID(), rows};
+    cue.textContent = 'PCへ保存中'; guide.textContent = '';
+    void save(); return;
+  }
+  const rest = t < 3 || (t >= 13 && t < 16);
+  const end = t < 3 ? 3 : t < 13 ? 13 : t < 16 ? 16 : 26;
+  cue.textContent = rest ? '手を止める' : t < 13 ? 'ゆっくり往復' : '速く往復';
+  guide.textContent = rest ? '同じ向きで静止してください。' : t < 13 ? '片道は手のひら幅。1秒に約1往復を目安に磨いてください。' : '同じ振り幅のまま、無理のない速さで1秒に約2〜3往復を目安に磨いてください。';
+  if (shortMedium && !rest) {
+    cue.textContent = t < 13 ? '細かく往復' : '中くらいで往復';
+    guide.textContent = t < 13 ? '片道は指2本幅。いつも細かく磨くときの速さで押し引きします。' : '片道は手のひら幅。楽に続けられる中くらいの速さで押し引きします。';
+  }
+  countdown.textContent = Math.ceil(end-t);
+}
+button.onclick = async () => {
+  if (pending) return save();
+  button.hidden = true;
+  try {
+    if (!window.isSecureContext || !window.DeviceMotionEvent) throw new Error();
+    if (typeof DeviceMotionEvent.requestPermission === 'function' && await DeviceMotionEvent.requestPermission() !== 'granted') throw new Error();
+    if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
+  } catch { retry('端末のChromeで開き、モーションセンサーを許可してください。'); return; }
+  rows = []; recording = true; origin = performance.now();
+  window.addEventListener('devicemotion', onMotion);
+  redraw(); timer = setInterval(redraw,50);
+};
+document.addEventListener('visibilitychange', () => {
+  if (recording && document.hidden) retry('計測中はこの画面を前面に置いてください。');
+});
+</script>
+</html>

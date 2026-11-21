@@ -11,13 +11,17 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.Executors
 
@@ -33,12 +37,58 @@ class MainActivity : FlutterActivity(), SensorEventListener {
     }
     private var detector: StrokeDetector? = null
     private var lastPulseFollowedStroke = false
+    private var baseline: DeskBaseline? = null
+    private class DeskSession(
+        val motion: DeskMotion,
+        val haptics: DeskHaptics?,
+        val id: Int?,
+        var outputEnabled: Boolean,
+        val adjustable: Boolean,
+        val deadlineNs: Long
+    ) {
+        // Enable for a USB timing trial before starting the round.
+        val traceTiming = Log.isLoggable(timingTag, Log.DEBUG)
+        private var lastDirection = 0
+
+        fun trace(eventNs: Long, callbackNs: Long, state: DeskSample, command: DeskFeedback?) {
+            val direction = when {
+                state.signedSpeedMps > .045 -> 1
+                state.signedSpeedMps < -.045 -> -1
+                else -> 0
+            }
+            val reversal = direction != 0 && lastDirection == -direction
+            if (!state.contact) lastDirection = 0
+            else if (direction != 0) lastDirection = direction
+            if (command == null && !state.began && !state.ended && !reversal && !state.stroke) return
+            val handledNs = SystemClock.elapsedRealtimeNanos()
+            Log.d(timingTag, "session=$id sensorNs=$eventNs callbackNs=$callbackNs handledNs=$handledNs " +
+                "motorMs=${command?.durationMs} begin=${state.began} end=${state.ended} reversal=$reversal stroke=${state.stroke}")
+        }
+    }
+    private var desk: DeskSession? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val roundTimeout = Runnable { stopMotion() }
+    private val motorWatch = object : Runnable {
+        override fun run() {
+            val session = desk ?: return
+            val now = SystemClock.elapsedRealtimeNanos()
+            if (session.haptics?.expire(now) == true) {
+                cancelDeskMotor(session, now)
+                if (session.traceTiming) {
+                    Log.d(timingTag, "session=${session.id} handledNs=${SystemClock.elapsedRealtimeNanos()} motorMs=0 reason=timeout")
+                }
+            }
+            if (session.outputEnabled) handler.postDelayed(this, 25)
+        }
+    }
     private var sensorStarted = 0L
     private var events: EventChannel.EventSink? = null
     private var methods: MethodChannel? = null
     private var strokes: EventChannel? = null
 
-    private class Capture(val reply: MethodChannel.Result) {
+    private class Capture(val reply: MethodChannel.Result, val calibrateDesk: Boolean) {
+        var calibration: DeskCalibration? = null
+        var calibrationListener: SensorEventListener? = null
         @Volatile var cancelled = false
     }
 
@@ -63,28 +113,34 @@ class MainActivity : FlutterActivity(), SensorEventListener {
         methods = MethodChannel(messenger, "polish/device").also { channel ->
             channel.setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "capture" -> capture(result)
+                    "capture" -> capture(result, call.argument<Boolean>("desk") == true)
                     "cancelCapture" -> { cancelCapture(); result.success(null) }
-                    "startMotion" -> startMotion(result)
+                    "startMotion" -> startMotion(call, result)
                     "stopMotion" -> { stopMotion(); result.success(null) }
                     "hasAmplitudeControl" -> result.success(hasAmplitudeControl())
                     "pulse" -> pulse(
                         call.argument<Int>("durationMs"), call.argument<Int>("amplitude"),
-                        call.argument<Boolean>("followStroke") == true, result
+                        call.argument<Boolean>("followStroke") == true, call.argument<Double>("progress"),
+                        call.argument<Int>("sessionId"), result
                     )
-                    "stopPulse" -> { motor.cancel(); result.success(null) }
+                    "stopPulse" -> {
+                        motor.cancel()
+                        desk?.motion?.motorStopped(SystemClock.elapsedRealtimeNanos())
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }
         }
     }
 
-    private fun capture(result: MethodChannel.Result) {
+    private fun capture(result: MethodChannel.Result, calibrateDesk: Boolean) {
         if (capturing != null) {
             result.error("busy", "採音中です。", null)
             return
         }
-        val request = Capture(result)
+        val request = Capture(result, calibrateDesk)
+        if (calibrateDesk) baseline = null
         capturing = request
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             beginRecording(request)
@@ -111,10 +167,37 @@ class MainActivity : FlutterActivity(), SensorEventListener {
         val request = capturing ?: return
         request.cancelled = true
         capturing = null
+        finishCalibration(request, false)
         request.reply.error("cancelled", "採音を中断しました。", null)
     }
 
+    private fun startCalibration(request: Capture) {
+        val accelerometer = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
+        val calibration = DeskCalibration()
+        val startNs = SystemClock.elapsedRealtimeNanos()
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                if (capturing === request && event.timestamp >= startNs) {
+                    calibration.add(event.timestamp, event.values)
+                }
+            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+        if (sensors.registerListener(listener, accelerometer, 10_000)) {
+            request.calibrationListener = listener
+            request.calibration = calibration
+        }
+    }
+
+    private fun finishCalibration(request: Capture, save: Boolean) {
+        request.calibrationListener?.let { sensors.unregisterListener(it) }
+        if (save && request.calibrateDesk) baseline = request.calibration?.finish()
+        request.calibrationListener = null
+        request.calibration = null
+    }
+
     private fun beginRecording(request: Capture) {
+        if (request.calibrateDesk) startCalibration(request)
         recorderThread.execute {
             val pcm = ShortArray(VoiceAnalysis.sampleCount)
             try {
@@ -123,6 +206,7 @@ class MainActivity : FlutterActivity(), SensorEventListener {
                     val summary = VoiceAnalysis.measure(pcm)
                     runOnUiThread {
                         if (capturing === request) {
+                            finishCalibration(request, true)
                             capturing = null
                             request.reply.success(mapOf("hz" to summary.hz, "level" to summary.level))
                         }
@@ -131,6 +215,7 @@ class MainActivity : FlutterActivity(), SensorEventListener {
             } catch (error: RuntimeException) {
                 runOnUiThread {
                     if (capturing === request) {
+                        finishCalibration(request, false)
                         capturing = null
                         val code = if (error is SecurityException) "permission" else "microphone"
                         request.reply.error(code, "マイクを確認し、もう一度声を出してください。", null)
@@ -173,33 +258,119 @@ class MainActivity : FlutterActivity(), SensorEventListener {
         }
     }
 
-    private fun startMotion(result: MethodChannel.Result) {
+    private fun startMotion(call: MethodCall, result: MethodChannel.Result) {
         stopMotion()
         val accelerometer = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-        detector = StrokeDetector()
         sensorStarted = SystemClock.elapsedRealtimeNanos()
+        val grit = call.argument<String>("grit")
+        val trial = call.argument<Boolean>("deskTrial") == true
+        if (grit != null || trial) {
+            val haptics = if (grit != null) {
+                val duration = call.argument<Int>("durationMs")
+                val strength = call.argument<Int>("amplitude")
+                val progress = call.argument<Double>("progress")
+                if (grit !in listOf("coarse", "medium", "fine") ||
+                    duration == null || duration !in 1..300 || strength == null || strength !in 1..255 ||
+                    progress == null || !progress.isFinite() || progress !in 0.0..1.0) {
+                    result.error("pulse", "振動の設定を確認してください。", null)
+                    return
+                }
+                DeskHaptics(grit, progress, duration, strength)
+            } else null
+            // Flutter owns the round clock. Bound the local actuator as well if its stop command is delayed.
+            val limitMs = if (trial) Long.MAX_VALUE else
+                (call.argument<Int>("remainingMs") ?: 10_000).coerceIn(0, 10_000).toLong()
+            desk = DeskSession(
+                DeskMotion(baseline), haptics, call.argument<Int>("sessionId"),
+                haptics != null && call.argument<Boolean>("vibrationEnabled") == true && motor.hasVibrator(),
+                hasAmplitudeControl(), if (trial) Long.MAX_VALUE else sensorStarted + limitMs * 1_000_000L
+            )
+            if (!trial) handler.postDelayed(roundTimeout, limitMs)
+        } else detector = StrokeDetector()
         if (accelerometer == null || !sensors.registerListener(this, accelerometer, 10_000)) {
-            detector = null
+            stopMotion()
             result.error("sensor", "加速度センサーを開始できません。", null)
             return
+        }
+        if (desk != null) {
+            sensors.getDefaultSensor(Sensor.TYPE_GRAVITY)?.let { sensors.registerListener(this, it, 10_000) }
+            if (desk?.outputEnabled == true) handler.postDelayed(motorWatch, 25)
         }
         result.success(null)
     }
 
     private fun stopMotion() {
-        if (detector != null) sensors.unregisterListener(this)
+        val activeDesk = desk
+        if (detector != null || activeDesk != null) sensors.unregisterListener(this)
         detector = null
-        if (lastPulseFollowedStroke) {
+        desk = null
+        handler.removeCallbacks(roundTimeout)
+        handler.removeCallbacks(motorWatch)
+        if (lastPulseFollowedStroke || activeDesk != null) {
             motor.cancel()
             lastPulseFollowedStroke = false
         }
     }
 
     override fun onSensorChanged(event: SensorEvent) {
-        val activeDetector = detector ?: return
         if (event.timestamp < sensorStarted) return
+        val session = desk
+        if (session != null) {
+            val now = SystemClock.elapsedRealtimeNanos()
+            if (now >= session.deadlineNs) {
+                stopMotion()
+                return
+            }
+            if (now - event.timestamp > 100_000_000L) return
+            if (event.sensor.type == Sensor.TYPE_GRAVITY) {
+                session.motion.gravity(event.timestamp, event.values)
+                return
+            }
+            val state = session.motion.update(event.timestamp, event.values)
+            val requested = if (session.outputEnabled) session.haptics?.sample(now, state, event.timestamp) else null
+            val command = when {
+                requested == null || requested.timings.isEmpty() -> requested
+                else -> requested.within((session.deadlineNs - now) / 1_000_000L)
+            }
+            if (command != null) {
+                if (command.timings.isEmpty()) cancelDeskMotor(session, now)
+                else playDeskMotor(session, command, now)
+            }
+            if (session.traceTiming) {
+                session.trace(event.timestamp, now, state, if (session.outputEnabled) command else null)
+            }
+            if (state.ended) events?.success(-1)
+            if (state.began) events?.success(2)
+            if (state.stroke) events?.success(1)
+            return
+        }
+        if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+        val activeDetector = detector ?: return
         if (activeDetector.update(event.timestamp, event.values)) events?.success(1)
         if (activeDetector.takeEarlyStop(SystemClock.elapsedRealtimeNanos())) motor.cancel()
+    }
+
+    private fun cancelDeskMotor(session: DeskSession, timeNs: Long) {
+        motor.cancel()
+        session.motion.motorStopped(timeNs)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun playDeskMotor(session: DeskSession, feedback: DeskFeedback, now: Long) {
+        val times = feedback.timings
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val pattern = if (session.adjustable) {
+                    val amplitudes = IntArray(times.size) { if (it % 2 == 1) feedback.amplitude else 0 }
+                    VibrationEffect.createWaveform(times, amplitudes, -1)
+                } else VibrationEffect.createWaveform(times, -1)
+                motor.vibrate(pattern)
+            } else motor.vibrate(times, -1)
+            session.motion.motorStarted(now, feedback.durationMs)
+        } catch (e: SecurityException) {
+            session.outputEnabled = false
+            android.util.Log.w("Iromigaki", "Haptics unavailable", e)
+        }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
@@ -208,10 +379,22 @@ class MainActivity : FlutterActivity(), SensorEventListener {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && motor.hasAmplitudeControl()
 
     @Suppress("DEPRECATION")
-    private fun pulse(requestedMs: Int?, amplitude: Int?, followStroke: Boolean, result: MethodChannel.Result) {
+    private fun pulse(
+        requestedMs: Int?, amplitude: Int?, followStroke: Boolean,
+        progress: Double?, sessionId: Int?, result: MethodChannel.Result
+    ) {
         val maxDurationMs = if (followStroke) 1000 else 300
         if (requestedMs == null || requestedMs !in 1..maxDurationMs || amplitude == null || amplitude !in 1..255) {
             result.error("pulse", "振動の長さまたは強さを確認してください。", null)
+            return
+        }
+        val session = desk
+        if (followStroke && (session != null || sessionId != null)) {
+            if (session != null && session.id == sessionId && progress != null &&
+                progress.isFinite() && progress in 0.0..1.0) {
+                session.haptics?.update(progress, requestedMs, amplitude)
+            }
+            result.success(null)
             return
         }
         if (!motor.hasVibrator()) {
@@ -230,6 +413,7 @@ class MainActivity : FlutterActivity(), SensorEventListener {
             activeDetector.strokePulseDuration(requestedMs, startNs, adjustable)
         } else requestedMs
         lastPulseFollowedStroke = followStroke
+        session?.motion?.motorStarted(startNs, duration)
         activeDetector?.maskMotor(startNs, duration, fixedAmplitudeStroke = followStroke && !adjustable)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val strength = if (adjustable) amplitude else VibrationEffect.DEFAULT_AMPLITUDE
@@ -266,5 +450,6 @@ class MainActivity : FlutterActivity(), SensorEventListener {
 
     private companion object {
         const val microphonePermission = 6281
+        const val timingTag = "IromigakiTiming"
     }
 }

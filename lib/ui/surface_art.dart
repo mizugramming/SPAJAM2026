@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../game/game.dart';
+import 'workshop_theme.dart' show appFont;
 
 Color _mix(Color a, Color b, double t) => Color.lerp(a, b, t)!;
 
@@ -16,6 +17,7 @@ class SurfaceArt extends StatefulWidget {
     required this.material,
     required this.progress,
     this.strokeCount = 0,
+    this.inContact = false,
     this.reveal = false,
     this.medalImage,
   });
@@ -23,6 +25,7 @@ class SurfaceArt extends StatefulWidget {
   final WorkMaterial material;
   final double progress;
   final int strokeCount;
+  final bool inContact;
   final bool reveal;
 
   /// When supplied, the team's medal illustration is the metal underneath the finish.
@@ -63,12 +66,19 @@ class _SurfaceArtState extends State<SurfaceArt>
       _rustRemoved = 0;
       _flash.duration = const Duration(milliseconds: 520);
       _flash.forward(from: 0);
+    } else if (oldWidget.inContact && !widget.inContact) {
+      _rustRemoved = 0;
+      _flash.value = 1;
     } else if (widget.strokeCount > oldWidget.strokeCount) {
       _rustRemoved =
           (oldWidget.material.rustAt(oldWidget.progress) -
                   widget.material.rustAt(widget.progress))
               .clamp(0.0, 1.0);
       _flash.duration = const Duration(milliseconds: 180);
+      _flash.forward(from: 0);
+    } else if (widget.inContact && !oldWidget.inContact) {
+      _rustRemoved = 0;
+      _flash.duration = const Duration(milliseconds: 120);
       _flash.forward(from: 0);
     }
   }
@@ -144,9 +154,16 @@ class _SurfacePainter extends CustomPainter {
     if (size.isEmpty) return;
     // The illustrated coin is centered inside a square with a transparent rim.
     final side = math.min(size.width, size.height);
-    final radius = hasMedalImage
-        ? side * .45
-        : math.min(size.width * .425, size.height * .419);
+    final double radius;
+    if (hasMedalImage) {
+      radius = side * .45;
+    } else if (material.glyph != null) {
+      // The bevel is inset from the drawing bounds. Match the illustrated
+      // medal's visible width while leaving room for the lower edge and shadow.
+      radius = math.min(size.width * .46, size.height * .455);
+    } else {
+      radius = math.min(size.width * .425, size.height * .419);
+    }
     final center = hasMedalImage
         ? size.center(Offset(0, -side * .016))
         : Offset(size.width * .50, size.height * .47);
@@ -199,7 +216,7 @@ class _SurfacePainter extends CustomPainter {
       hasMedalImage ? rust * .68 : rust,
       plaque: glyph != null,
     );
-    if (flash.value < 1 && shine > .02) {
+    if (flash.value < 1 && (!reveal || shine > .02)) {
       // Start a stroke on the face so even a quick reversal catches the light.
       final x = reveal ? -2.1 + flash.value * 4.2 : -.68 + flash.value * 2.1;
       final area = Rect.fromLTWH(x - .34, -1.8, .68, 3.6);
@@ -401,7 +418,7 @@ class _SurfacePainter extends CustomPainter {
       tp.text = TextSpan(
         text: glyph,
         style: TextStyle(
-          fontFamily: 'WorkshopSans',
+          fontFamily: appFont,
           fontFamilyFallback: const ['Noto Sans CJK JP', 'Noto Sans JP'],
           fontSize: 124,
           fontWeight: FontWeight.w900,

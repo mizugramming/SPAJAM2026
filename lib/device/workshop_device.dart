@@ -10,11 +10,17 @@ class WorkshopDevice {
   bool vibrationEnabled = true;
   static const _commands = MethodChannel('polish/device');
   static const _events = EventChannel('polish/strokes');
-  late final Stream<int> strokes = simulated
+  static const strokeCompleted = 1;
+  static const contactStarted = 2;
+  static const contactEnded = -1;
+  late final Stream<int> motionEvents = simulated
       ? const Stream.empty()
       : _events.receiveBroadcastStream().cast<int>();
+  late final Stream<int> strokes = motionEvents.where(
+    (event) => event == strokeCompleted,
+  );
 
-  Future<VoiceSample> capture(double demoPitch) async {
+  Future<VoiceSample> capture(double demoPitch, {bool desk = false}) async {
     if (simulated) {
       await Future<void>.delayed(const Duration(milliseconds: 450));
       return VoiceSample(
@@ -22,7 +28,10 @@ class WorkshopDevice {
         demoPitch < 150 ? 0.30 : (demoPitch < 230 ? 0.55 : 0.80),
       );
     }
-    final data = await _commands.invokeMapMethod<String, num?>('capture');
+    final data = await _commands.invokeMapMethod<String, num?>(
+      'capture',
+      desk ? {'desk': true} : null,
+    );
     return VoiceSample(
       data?['hz']?.toDouble(),
       data?['level']?.toDouble() ?? 0,
@@ -33,7 +42,26 @@ class WorkshopDevice {
     if (!simulated) await _commands.invokeMethod<void>(name, args);
   }
 
-  Future<void> startMotion() => _command('startMotion');
+  Future<void> startMotion({bool deskTrial = false}) =>
+      _command('startMotion', deskTrial ? {'deskTrial': true} : null);
+  Future<void> startPolishingMotion(
+    Grit grit,
+    double progress,
+    Duration remaining, {
+    required int sessionId,
+  }) {
+    final pulse = pulseFor(grit, progress);
+    return _command('startMotion', {
+      'grit': grit.name,
+      'progress': progress,
+      'durationMs': pulse.durationMs,
+      'amplitude': pulse.amplitude,
+      'vibrationEnabled': vibrationEnabled,
+      'sessionId': sessionId,
+      'remainingMs': (remaining.inMicroseconds + 999) ~/ 1000,
+    });
+  }
+
   Future<void> stopMotion() => _command('stopMotion');
   Future<void> cancelCapture() => _command('cancelCapture');
   Future<void> stopPulse() => _command('stopPulse');
@@ -48,12 +76,18 @@ class WorkshopDevice {
     }
   }
 
-  Future<void> pulse(HapticPulse pulse, {bool followStroke = false}) =>
-      _command('pulse', {
-        'durationMs': pulse.durationMs,
-        'amplitude': pulse.amplitude,
-        if (followStroke) 'followStroke': true,
-      });
+  Future<void> pulse(
+    HapticPulse pulse, {
+    bool followStroke = false,
+    double? progress,
+    int? sessionId,
+  }) => _command('pulse', {
+    'durationMs': pulse.durationMs,
+    'amplitude': pulse.amplitude,
+    if (followStroke) 'followStroke': true,
+    'progress': ?progress,
+    'sessionId': ?sessionId,
+  });
 }
 
 String deviceMessage(Object error) {

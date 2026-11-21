@@ -29,17 +29,29 @@ class Box {
   const Box(this.x, this.y, this.w, this.h, [this.t = 1]);
   final double x, y, w, h, t;
 
+  Rect rectIn(Size size) => Rect.fromLTWH(
+    x * size.width,
+    y * size.height,
+    w * size.width,
+    h * size.height,
+  );
+
   Box copyWith({double? x, double? y, double? w, double? h, double? t}) =>
       Box(x ?? this.x, y ?? this.y, w ?? this.w, h ?? this.h, t ?? this.t);
 
-  /// 画面からはみ出さないよう収め、小数3桁に丸める。
+  /// 画面からはみ出して置ける最大の大きさ（画面の何倍か）と、画面内に残す最小の端。
+  static const maxSize = 3.0;
+  static const keepVisible = .05;
+
+  /// 大きさと位置を編集できる範囲に収め、小数3桁に丸める。画面からはみ出してよいが、
+  /// つかんで戻せるよう、端の [keepVisible] 分は必ず画面内に残す。
   Box tidy() {
     double r(double v) => double.parse(v.toStringAsFixed(3));
-    final nw = w.clamp(.02, 1.0).toDouble();
-    final nh = h.clamp(.004, 1.0).toDouble();
+    final nw = w.clamp(.02, maxSize).toDouble();
+    final nh = h.clamp(.004, maxSize).toDouble();
     return Box(
-      r(x.clamp(0.0, 1 - nw)),
-      r(y.clamp(0.0, 1 - nh)),
+      r(x.clamp(keepVisible - nw, 1 - keepVisible)),
+      r(y.clamp(keepVisible - nh, 1 - keepVisible)),
       r(nw),
       r(nh),
       double.parse(t.clamp(.5, 2.5).toStringAsFixed(2)),
@@ -72,7 +84,9 @@ String formatLayoutValue(double value) {
       .toStringAsFixed(3)
       .replaceFirst(RegExp(r'0+$'), '')
       .replaceFirst(RegExp(r'\.$'), '');
-  return text.startsWith('0.') ? text.substring(1) : text;
+  if (text.startsWith('0.')) return text.substring(1);
+  if (text.startsWith('-0.')) return '-${text.substring(2)}';
+  return text;
 }
 
 final layoutTuner = LayoutTuner();
@@ -186,6 +200,7 @@ class Part {
     this.id,
     this.label,
     this.child, {
+    this.transition,
     this.fill = false,
     this.align = Alignment.topLeft,
   });
@@ -194,6 +209,7 @@ class Part {
 
   /// null なら今は表示しない（編集中は四角だけ出る）。
   final Widget? child;
+  final Widget Function(Size canvas, Rect bounds, Widget child)? transition;
   final bool fill;
   final Alignment align;
 }
@@ -240,19 +256,12 @@ class LayoutStage extends StatelessWidget {
                     child: Center(
                       child: AspectRatio(
                         aspectRatio: _previewAspect,
-                        child: DecoratedBox(
-                          position: DecorationPosition.foreground,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: seam),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: _Canvas(
-                              screen: screen,
-                              parts: parts,
-                              background: background,
-                            ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: _Canvas(
+                            screen: screen,
+                            parts: parts,
+                            background: background,
                           ),
                         ),
                       ),
@@ -296,27 +305,27 @@ class _Canvas extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, frame) {
       final size = frame.biggest;
-      Rect rectOf(Box b) => Rect.fromLTWH(
-        b.x * size.width,
-        b.y * size.height,
-        b.w * size.width,
-        b.h * size.height,
-      );
       final editing = layoutEditorEnabled && layoutTuner.editing;
+      Widget position(Part part) {
+        final box = layoutTuner.boxOf(screen, part.id);
+        final bounds = box.rectIn(size);
+        final child = _PartView(part: part, scale: box.t);
+        return Positioned.fromRect(
+          rect: bounds,
+          child: editing
+              ? child
+              : part.transition?.call(size, bounds, child) ?? child,
+        );
+      }
+
       return Stack(
+        fit: StackFit.expand,
         clipBehavior: Clip.none,
         children: [
           if (background case final background?)
             Positioned.fill(child: background),
           for (final part in parts)
-            if (part.child != null)
-              Positioned.fromRect(
-                rect: rectOf(layoutTuner.boxOf(screen, part.id)),
-                child: _PartView(
-                  part: part,
-                  scale: layoutTuner.boxOf(screen, part.id).t,
-                ),
-              ),
+            if (part.child != null) position(part),
           if (editing)
             Positioned.fill(
               child: _EditLayer(screen: screen, parts: parts, size: size),
