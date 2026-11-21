@@ -1,13 +1,17 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../game/game.dart';
 import 'layout_tuner.dart';
+import 'sandpaper.dart';
 import 'surface_art.dart';
 import 'workshop_theme.dart';
 
 export 'workshop_theme.dart' show workshopTheme;
+
+const _paperInk = Color(0xFF2B211A);
 
 abstract interface class WorkshopActions {
   void choose(WorkMaterial material);
@@ -146,31 +150,53 @@ class Workshop extends StatelessWidget {
       GamePhase.polishing => Screen.polishing,
       GamePhase.result => Screen.result,
     };
+    final onPaper = screen == Screen.ready || screen == Screen.polishing;
     return Scaffold(
       body: SafeArea(
         child: LayoutStage(
           key: ValueKey((game.phase, game.round)),
           screen: screen,
           background: const _Background(),
+          partsTransition: screen == Screen.ready
+              ? (content) => _PaperEntrance(child: content)
+              : null,
           parts: [
-            Part(
-              'header',
-              'ロゴ行',
-              _Header(
-                onDiagnostics: screen == Screen.select
-                    ? actions.openDiagnostics
-                    : null,
-                simulated: simulated,
+            if (onPaper)
+              Part(
+                'paper',
+                '紙やすり',
+                SandpaperFace(
+                  grit: game.grit!,
+                  sample: game.sample!,
+                  progress: game.progress,
+                  strokes: game.totalStrokes,
+                  inContact: inContact,
+                ),
+                fill: true,
+              )
+            else
+              Part(
+                'header',
+                'ロゴ行',
+                _Header(
+                  onDiagnostics: screen == Screen.select
+                      ? actions.openDiagnostics
+                      : null,
+                  simulated: simulated,
+                ),
               ),
-            ),
             if (screen == Screen.select)
-              ..._selectParts()
+              ..._selectParts(context)
             else ...[
-              Part('round', 'ラウンド行', _RoundHeader(game: game)),
+              Part(
+                'round',
+                'ラウンド行',
+                _RoundHeader(game: game, onPaper: onPaper),
+              ),
               Part(
                 'workpiece',
                 '素材',
-                _Workpiece(game: game, inContact: inContact),
+                _Workpiece(game: game, inContact: inContact, compact: onPaper),
                 fill: true,
               ),
               ..._controls(context),
@@ -181,7 +207,7 @@ class Workshop extends StatelessWidget {
     );
   }
 
-  List<Part> _selectParts() => [
+  List<Part> _selectParts(BuildContext context) => [
     const Part('title', '見出し', _Title('磨く素材を選ぶ')),
     for (final option in materials)
       Part(
@@ -190,7 +216,10 @@ class Workshop extends StatelessWidget {
         _MaterialCard(
           key: ValueKey('material-${option.id}'),
           material: option,
-          onTap: () => actions.choose(option),
+          onTap: () {
+            unawaited(precacheImage(SandpaperFace.texture, context));
+            actions.choose(option);
+          },
         ),
         fill: true,
       ),
@@ -208,7 +237,9 @@ class Workshop extends StatelessWidget {
               child: Text(
                 errorText,
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
+                  color: game.phase == GamePhase.voice
+                      ? Theme.of(context).colorScheme.error
+                      : const Color(0xFF631318),
                   fontSize: 15,
                   height: 1.45,
                 ),
@@ -296,19 +327,18 @@ class Workshop extends StatelessWidget {
           ),
         ];
       case GamePhase.ready:
-        final measurement = game.sample;
-        final measured = voiceMode == VoiceMode.pitch && measurement?.hz != null
-            ? '${measurement!.hz!.round()} Hz'
-            : '音量 ${((measurement?.level ?? 0) * 100).round()}%';
         return [
-          Part('title', '見出し', _Title('${game.grit!.label}のやすり')),
+          Part(
+            'title',
+            '見出し',
+            _Title('${game.grit!.label}のやすり', color: _paperInk),
+          ),
           Part(
             'body',
             '説明文',
             _Body(
-              simulated
-                  ? '$measured の声で選ばれました。'
-                  : '$measured の声で選ばれました。持ち上げて構え、机と平行に磨きます。',
+              simulated ? '「1往復を入力」で磨けます。' : 'スマホを持ち上げて、机と平行に構える。',
+              color: _paperInk,
             ),
           ),
           errorPart,
@@ -326,28 +356,31 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.polishing:
         return [
-          const Part('title', '見出し', _Title('机と平行に、前後に磨く')),
+          const Part('title', '見出し', _Title('前後に磨く', color: _paperInk)),
           Part(
             'timer',
             '残り時間と往復数',
-            Wrap(
-              spacing: 16,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  '残り ${game.remainingSeconds} 秒',
-                  style: const TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
-                    color: ember,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '残り ${game.remainingSeconds} 秒',
+                    style: const TextStyle(
+                      fontSize: 23,
+                      fontWeight: FontWeight.w800,
+                      color: _paperInk,
+                    ),
                   ),
-                ),
-                Text(
-                  '${game.grit!.label}   ·   ${game.strokes} 往復',
-                  style: const TextStyle(color: muted, fontSize: 16),
-                ),
-              ],
+                  const SizedBox(width: 16),
+                  Text(
+                    '${game.grit!.label}   ·   ${game.strokes} 往復',
+                    style: const TextStyle(color: _paperInk, fontSize: 16),
+                  ),
+                ],
+              ),
             ),
           ),
           Part(
@@ -358,8 +391,8 @@ class Workshop extends StatelessWidget {
                 value: game.remainingSeconds / 10,
                 semanticsLabel: '残り時間',
                 minHeight: box.maxHeight,
-                backgroundColor: seam,
-                color: ember,
+                backgroundColor: _paperInk.withValues(alpha: .18),
+                color: _paperInk,
               ),
             ),
             fill: true,
@@ -411,6 +444,56 @@ class Workshop extends StatelessWidget {
         ];
     }
   }
+}
+
+/// 採音ボタンから紙を引き出す。紙目や文字は伸ばさず、見える面を広げる。
+class _PaperEntrance extends StatelessWidget {
+  const _PaperEntrance({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return child;
+    return LayoutBuilder(
+      builder: (context, frame) {
+        final button = layoutTuner
+            .boxOf(Screen.voice, 'action')
+            .rectIn(frame.biggest);
+        final paper = layoutTuner
+            .boxOf(Screen.ready, 'paper')
+            .rectIn(frame.biggest);
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+          child: child,
+          builder: (context, amount, sheet) {
+            final window = Rect.lerp(button, paper, amount)!;
+            return ClipRect(
+              clipper: _PaperWindow(
+                amount == 1 ? Offset.zero & frame.biggest : window,
+              ),
+              child: Transform.translate(
+                offset: window.topLeft - paper.topLeft,
+                child: sheet,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _PaperWindow extends CustomClipper<Rect> {
+  const _PaperWindow(this.rect);
+  final Rect rect;
+
+  @override
+  Rect getClip(Size size) => rect;
+
+  @override
+  bool shouldReclip(_PaperWindow oldClipper) => rect != oldClipper.rect;
 }
 
 /// 全画面に敷く背景画像。画面の縦横比に合わせて切り抜く。
@@ -579,15 +662,16 @@ class _GrungePainter extends CustomPainter {
 }
 
 class _Title extends StatelessWidget {
-  const _Title(this.text);
+  const _Title(this.text, {this.color = chalk});
   final String text;
+  final Color color;
   @override
   Widget build(BuildContext context) => Semantics(
     header: true,
     child: Text(
       text,
-      style: const TextStyle(
-        color: chalk,
+      style: TextStyle(
+        color: color,
         fontSize: 28,
         fontWeight: FontWeight.w800,
         height: 1.22,
@@ -598,13 +682,12 @@ class _Title extends StatelessWidget {
 }
 
 class _Body extends StatelessWidget {
-  const _Body(this.text);
+  const _Body(this.text, {this.color = muted});
   final String text;
+  final Color color;
   @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: const TextStyle(color: muted, fontSize: 15, height: 1.55),
-  );
+  Widget build(BuildContext context) =>
+      Text(text, style: TextStyle(color: color, fontSize: 15, height: 1.55));
 }
 
 class _Header extends StatelessWidget {
@@ -847,8 +930,9 @@ class _MaterialCard extends StatelessWidget {
 }
 
 class _RoundHeader extends StatelessWidget {
-  const _RoundHeader({required this.game});
+  const _RoundHeader({required this.game, required this.onPaper});
   final GameController game;
+  final bool onPaper;
 
   @override
   Widget build(BuildContext context) => Wrap(
@@ -859,8 +943,8 @@ class _RoundHeader extends StatelessWidget {
     children: [
       Text(
         game.phase == GamePhase.result ? '今回の仕上がり' : game.material!.name,
-        style: const TextStyle(
-          color: chalk,
+        style: TextStyle(
+          color: onPaper ? _paperInk : chalk,
           fontWeight: FontWeight.w700,
           fontSize: 17,
         ),
@@ -868,8 +952,8 @@ class _RoundHeader extends StatelessWidget {
       if (game.phase != GamePhase.result)
         Text(
           '${game.round} 回目 / 全3回',
-          style: const TextStyle(
-            color: muted,
+          style: TextStyle(
+            color: onPaper ? _paperInk : muted,
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
@@ -880,14 +964,41 @@ class _RoundHeader extends StatelessWidget {
 
 /// 四角いっぱいに広がる作業面。下端に段階名と研磨の割合。
 class _Workpiece extends StatelessWidget {
-  const _Workpiece({required this.game, required this.inContact});
+  const _Workpiece({
+    required this.game,
+    required this.inContact,
+    required this.compact,
+  });
   final GameController game;
   final bool inContact;
+  final bool compact;
   @override
   Widget build(BuildContext context) {
     final stage = game.stage;
     final material = game.material!;
     final image = _imageFor(material, game.progress);
+    final surface = SurfaceArt(
+      material: material,
+      progress: game.progress,
+      strokeCount: game.totalStrokes,
+      inContact: inContact,
+      reveal: game.phase == GamePhase.result,
+      medalImage: image == null
+          ? null
+          : _MedalImage(
+              image,
+              copperTint: image == _medalStageImages.first
+                  ? material
+                        .colorAt(game.progress)
+                        .withValues(
+                          alpha: .60 * (1 - material.rustAt(game.progress)),
+                        )
+                  : null,
+            ),
+    );
+    if (compact) {
+      return _ContactWindow(game: game, surface: surface);
+    }
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border.all(color: seam),
@@ -914,28 +1025,7 @@ class _Workpiece extends StatelessWidget {
                   padding: image == null
                       ? EdgeInsets.zero
                       : const EdgeInsets.all(10),
-                  child: SurfaceArt(
-                    material: material,
-                    progress: game.progress,
-                    strokeCount: game.totalStrokes,
-                    inContact: inContact,
-                    reveal: game.phase == GamePhase.result,
-                    medalImage: image == null
-                        ? null
-                        : _MedalImage(
-                            image,
-                            copperTint: image == _medalStageImages.first
-                                ? material
-                                      .colorAt(game.progress)
-                                      .withValues(
-                                        alpha:
-                                            .60 *
-                                            (1 -
-                                                material.rustAt(game.progress)),
-                                      )
-                                : null,
-                          ),
-                  ),
+                  child: surface,
                 ),
               ),
               SizedBox(
@@ -997,4 +1087,59 @@ class _Workpiece extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 手に持った紙の下に、実際に磨いている素材と削れた割合をのぞかせる。
+class _ContactWindow extends StatelessWidget {
+  const _ContactWindow({required this.game, required this.surface});
+  final GameController game;
+  final Widget surface;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: const Color(0xFF251E19),
+      borderRadius: BorderRadius.circular(5),
+      border: Border.all(color: const Color(0xFF4B3B30)),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
+      child: LayoutBuilder(
+        builder: (context, box) => Row(
+          children: [
+            SizedBox(
+              width: math.min(box.maxWidth * .28, box.maxHeight * 1.2),
+              child: surface,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      game.stage.name,
+                      style: const TextStyle(
+                        color: chalk,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '研磨 ${(game.progress * 100).round()}%',
+                      style: const TextStyle(color: muted, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

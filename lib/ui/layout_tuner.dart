@@ -29,6 +29,13 @@ class Box {
   const Box(this.x, this.y, this.w, this.h, [this.t = 1]);
   final double x, y, w, h, t;
 
+  Rect rectIn(Size size) => Rect.fromLTWH(
+    x * size.width,
+    y * size.height,
+    w * size.width,
+    h * size.height,
+  );
+
   Box copyWith({double? x, double? y, double? w, double? h, double? t}) =>
       Box(x ?? this.x, y ?? this.y, w ?? this.w, h ?? this.h, t ?? this.t);
 
@@ -205,12 +212,14 @@ class LayoutStage extends StatelessWidget {
     required this.screen,
     required this.parts,
     this.background,
+    this.partsTransition,
   });
   final Screen screen;
   final List<Part> parts;
 
   /// 部品の後ろに画面いっぱいに敷くもの（背景画像など）。
   final Widget? background;
+  final Widget Function(Widget)? partsTransition;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -224,6 +233,7 @@ class LayoutStage extends StatelessWidget {
               screen: screen,
               parts: parts,
               background: background,
+              partsTransition: partsTransition,
             ),
           ),
         );
@@ -252,6 +262,7 @@ class LayoutStage extends StatelessWidget {
                               screen: screen,
                               parts: parts,
                               background: background,
+                              partsTransition: partsTransition,
                             ),
                           ),
                         ),
@@ -287,36 +298,47 @@ class LayoutStage extends StatelessWidget {
 }
 
 class _Canvas extends StatelessWidget {
-  const _Canvas({required this.screen, required this.parts, this.background});
+  const _Canvas({
+    required this.screen,
+    required this.parts,
+    this.background,
+    this.partsTransition,
+  });
   final Screen screen;
   final List<Part> parts;
   final Widget? background;
+  final Widget Function(Widget)? partsTransition;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, frame) {
       final size = frame.biggest;
-      Rect rectOf(Box b) => Rect.fromLTWH(
-        b.x * size.width,
-        b.y * size.height,
-        b.w * size.width,
-        b.h * size.height,
-      );
       final editing = layoutEditorEnabled && layoutTuner.editing;
-      return Stack(
+      final content = Stack(
+        fit: StackFit.expand,
         clipBehavior: Clip.none,
         children: [
-          if (background case final background?)
-            Positioned.fill(child: background),
           for (final part in parts)
             if (part.child != null)
               Positioned.fromRect(
-                rect: rectOf(layoutTuner.boxOf(screen, part.id)),
+                rect: layoutTuner.boxOf(screen, part.id).rectIn(size),
                 child: _PartView(
                   part: part,
                   scale: layoutTuner.boxOf(screen, part.id).t,
                 ),
               ),
+        ],
+      );
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (background case final background?)
+            Positioned.fill(child: background),
+          Positioned.fill(
+            child: editing
+                ? content
+                : partsTransition?.call(content) ?? content,
+          ),
           if (editing)
             Positioned.fill(
               child: _EditLayer(screen: screen, parts: parts, size: size),
