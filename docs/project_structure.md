@@ -6,8 +6,8 @@
 | 共通・ルール | `lib/game/game.dart` | 素材カタログ、やすり、声の分類、研磨量、時計、振動指令、採点 |
 | UI | `lib/ui/workshop.dart`, `workshop_theme.dart`, `surface_art.dart` | 段階ごとの画面・共通部品・表面描画。Workshopはgameを読み、actionsへ操作を返す |
 | 端末 | `lib/device_main.dart`, `lib/device/workshop_device.dart`, `lib/device/diagnostics.dart` | 計測専用入口、実機／疑似入力、4条件・振動の比較 |
-| 端末 | `android/app/src/main/kotlin/jp/spajam/polish_workshop/` | MainActivityがマイク・加速度・振動を橋渡し。VoiceAnalysis、StrokeDetectorが信号を処理 |
-| 共通・検証 | `test/game_test.dart`, `test/workshop_flow_test.dart`, `test/diagnostics_test.dart`, `tool/native/SignalCheck.kt` | 状態と時間境界、入力から再挑戦までのUI、合成信号の回帰確認 |
+| 端末 | `android/app/src/main/kotlin/jp/spajam/polish_workshop/` | MainActivityがマイク・加速度・振動を橋渡し。VoiceAnalysisは音高、DeskMotionは作業面に沿う手の動き、DeskHapticsは質感の時間パターンを担当 |
+| 共通・検証 | `test/`, `tool/native/` | 状態と時間境界、入力から再挑戦までのUI、声・接触・往復・振動パターンの回帰確認 |
 
 ## ゲームが持つ値
 
@@ -15,14 +15,7 @@
 
 素材値は残量で、初期値から1往復あたり粗目5・中目3・細目1.5を引く。初期2素材は100から0。正規化進捗は `(initialValue - value) / maxRemoval` を0〜1に制限した値。画面はこれを `stageAt / colorAt / rustAt / shineAt` に渡し、振動は同じ往復の更新後進捗を使う。停止時の自動加算はない。
 
-```dart
-final pulse = game.stroke();
-if (pulse != null && device.vibrationEnabled) {
-  await device.pulse(pulse, followStroke: true);
-}
-```
-
-`pulseFor(grit, progress)` は粗さと進捗から振幅・長さの基準値を作る。振幅を指定できないREDMIでは、Android側の `StrokeDetector.strokePulseDuration` が往復の周期に合わせて実際の長さを決める。手触りの基準は、遅い往復では最大1秒の連続振動、速い往復では約250 msの振動と約120 msの休止。検出した1往復につき1回出力し、細目・仕上げ・さらに速い動きではパルスを短くする。計測画面の定周期パルスは独立した固定長で比較できる。
+`pulseFor(grit, progress)` がゲームのやすりと研磨率から振幅・長さの基準値を返す。本編ではラウンド開始と各往復の確定時にその値をAndroidへ渡す。Androidは加速度を見ながら短い接触振動を開始し、手の動きが続く間だけ振動を更新する。テンポで一擦りの長さ、やすりで刻み、研磨率で振動を出す割合が変わる。REDMIは振幅指定に非対応なので時間配分で違いを表現する。
 
 ## 素材の追加と採点の交換
 
@@ -34,4 +27,8 @@ if (pulse != null && device.vibrationEnabled) {
 
 `polish/device`（MethodChannel）の `capture` は約1.2秒で `{hz: double?, level: double}` を返す。levelはPCM全体のRMSを−60〜0 dBFSから0〜1へ正規化。ゲーム側の `classify` が実機と疑似入力に共通の境界を適用する。安定したHzがない場合はnull。採音失敗・拒否は素材値を保持し再操作できる。
 
-`startMotion` から `stopMotion` の間だけ検出する。`polish/strokes`（EventChannel）の整数1が完了した往復1回。振動指令は `pulse(durationMs, amplitude, followStroke?)` で、ゲームは `followStroke: true` を渡す。診断は `hasAmplitudeControl` の応答で振幅表示を切り替える。中断は `cancelCapture / stopPulse`。ゲームは権限応答・採音の非同期結果に操作番号を持たせ、終了後の古い応答を破棄する。加速度・音声の生データをFlutterへ転送・保存しない。
+本編の `capture(desk: true)` は採音中だけ机に置いた端末の静止時のデータを集める。安定した区間が得られなくても採音は有効で、研磨開始時の姿勢から判定できる。
+
+本編は `startMotion` にやすり、現在の研磨率、パルス基準値、振動設定、残りミリ秒、開始・再開ごとの `sessionId` を渡す。`polish/strokes` の整数は2が接触開始、−1が離れた合図、1が確定した往復。ゲームは1でだけ削り量を確定し、更新後の `progress` と同じ `sessionId` を `pulse(followStroke: true)` でAndroidへ返す。机と平行な手の動きと重力方向の動きから接触・離脱を判定する。机からの絶対的な高さは測定できない。
+
+診断の `startMotion(deskTrial: true)` は同じ運動判定で、設定した固定パルスだけを出す。中断時は `cancelCapture / stopMotion / stopPulse` で後続の入力と出力を止める。加速度と音声の生データはFlutterへ送らず、保存しない。

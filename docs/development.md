@@ -51,14 +51,17 @@ fvm flutter build web --no-pub --no-web-resources-cdn
 
 ```bash
 native=android/app/src/main/kotlin/jp/spajam/polish_workshop
-kotlinc "$native/VoiceAnalysis.kt" "$native/StrokeDetector.kt" tool/native/SignalCheck.kt -include-runtime -d /tmp/polish-signals.jar
-java -jar /tmp/polish-signals.jar
+kotlinc "$native"/{VoiceAnalysis,StrokeDetector,DeskMotion,DeskHaptics}.kt tool/native/*.kt -include-runtime -d /tmp/polish-signals.jar
+java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.SignalCheckKt &&
+  java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskMotionCheckKt &&
+  java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskHapticsCheckKt
 ```
 
-同じJARにREDMIの計測CSV（列順 `t_s,x_m_s2,y_m_s2,z_m_s2`）を渡すと、各往復を受理したCSV上の時刻を秒単位で1行ずつ出力する。全区間を連続で再生する。CSVに含まれない振動指令や10秒のラウンド境界は加えない。
+REDMIの計測CSV（列順 `t_s,x_m_s2,y_m_s2,z_m_s2`）を渡すと、全区間を連続で再生し、往復を受理した時刻を秒単位で1行ずつ出力する。現在の作業面判定は `DeskMotionCheckKt`、従来の3軸判定は `SignalCheckKt` で比較する。CSVに含まれない重力センサーの値・振動指令・ラウンド境界は加えない。
 
 ```bash
-java -jar /tmp/polish-signals.jar /path/to/acceleration.csv
+java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.DeskMotionCheckKt /path/to/acceleration.csv
+java -cp /tmp/polish-signals.jar jp.spajam.polish_workshop.SignalCheckKt /path/to/acceleration.csv
 ```
 
 共通キット検証はPython 3.12以降を使う。

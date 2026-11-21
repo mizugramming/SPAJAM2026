@@ -8,14 +8,13 @@ import kotlin.math.roundToLong
 import kotlin.math.sin
 import kotlin.random.Random
 
-private fun replayCsv(file: File) {
-    val detector = StrokeDetector()
+internal fun replayCsv(file: File, stroke: (Long, FloatArray) -> Boolean) {
     file.bufferedReader().use { reader ->
         require(reader.readLine() == "t_s,x_m_s2,y_m_s2,z_m_s2") { "Expected a REDMI acceleration CSV" }
         for (line in reader.lineSequence().filter { it.isNotBlank() }) {
             val (t, x, y, z) = line.split(',')
             val timeNs = (t.toDouble() * 1e9).roundToLong()
-            if (detector.update(timeNs, floatArrayOf(x.toFloat(), y.toFloat(), z.toFloat()))) println(t)
+            if (stroke(timeNs, floatArrayOf(x.toFloat(), y.toFloat(), z.toFloat()))) println(t)
         }
     }
 }
@@ -23,7 +22,7 @@ private fun replayCsv(file: File) {
 fun main(args: Array<String>) {
     if (args.isNotEmpty()) {
         require(args.size == 1) { "Pass one acceleration CSV or no arguments for the signal checks" }
-        replayCsv(File(args.single()))
+        replayCsv(File(args.single()), StrokeDetector()::update)
         return
     }
     val random = Random(77)

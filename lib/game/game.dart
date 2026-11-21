@@ -197,6 +197,12 @@ class GameController extends ChangeNotifier {
   int get round => _round;
   int _remainingSeconds = polishDuration.inSeconds;
   int get remainingSeconds => _remainingSeconds;
+  Duration get remainingPolishTime {
+    if (_phase == GamePhase.result) return Duration.zero;
+    final remaining = polishDuration - (_watch?.elapsed ?? Duration.zero);
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
   int _strokes = 0;
   int get strokes => _strokes;
   int _totalStrokes = 0;
@@ -283,7 +289,7 @@ class GameController extends ChangeNotifier {
   }
 
   void _updateClock() {
-    final remaining = polishDuration - _watch!.elapsed;
+    final remaining = remainingPolishTime;
     if (remaining <= Duration.zero) {
       _endRound();
       return;

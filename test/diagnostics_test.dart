@@ -23,6 +23,7 @@ void main() {
           case 'pulse':
             pulses.add(call.arguments);
           case 'startMotion':
+            expect(call.arguments, {'deskTrial': true});
             starts++;
           case 'stopMotion':
             stops++;
@@ -50,10 +51,10 @@ void main() {
         await tester.pump();
       }
 
-      Future<void> sensorEvent() async {
+      Future<void> sensorEvent([int code = 1]) async {
         await messenger.handlePlatformMessage(
           events.name,
-          events.codec.encodeSuccessEnvelope(1),
+          events.codec.encodeSuccessEnvelope(code),
           null,
         );
         await tester.pump();
@@ -75,6 +76,8 @@ void main() {
         await tap('計測を開始');
         expect(starts, history.length + 1);
         await tester.pump(const Duration(seconds: 2));
+        await sensorEvent(2);
+        await sensorEvent(-1);
         expect(find.text('0 往復　／　残り 8 秒'), findsOneWidget);
         expect(pulses, motor ? isNotEmpty : isEmpty);
 

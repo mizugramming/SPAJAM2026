@@ -54,6 +54,7 @@ class _SessionState extends State<_Session>
   late final device = WorkshopDevice(simulated: widget.simulated);
   StreamSubscription<int>? _events;
   bool _motion = false;
+  bool _inContact = false;
   bool _busy = false;
   bool _background = false;
   bool _showTitle = true;
@@ -70,8 +71,8 @@ class _SessionState extends State<_Session>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     game.addListener(_changed);
-    _events = device.strokes.listen(
-      (_) => _stroke(),
+    _events = device.motionEvents.listen(
+      _handleMotion,
       onError: (Object e) {
         if (mounted && !_inLab) setState(() => _error = deviceMessage(e));
       },
@@ -85,6 +86,7 @@ class _SessionState extends State<_Session>
 
   void _stopMotion() {
     _motion = false;
+    _inContact = false;
     unawaited(device.stopMotion());
     unawaited(device.stopPulse());
   }
@@ -126,7 +128,7 @@ class _SessionState extends State<_Session>
       _error = null;
     });
     try {
-      final sample = await device.capture(demoPitch);
+      final sample = await device.capture(demoPitch, desk: true);
       if (!mounted || op != _operation) return;
       if (!game.acceptVoice(sample, _mode)) {
         _error = _mode == VoiceMode.pitch
@@ -153,7 +155,12 @@ class _SessionState extends State<_Session>
       _error = null;
     });
     try {
-      await device.startMotion();
+      await device.startPolishingMotion(
+        game.grit!,
+        game.progress,
+        game.remainingPolishTime,
+        sessionId: op,
+      );
       if (!mounted || op != _operation) return;
       _motion = true;
       if (resume) {
@@ -168,22 +175,42 @@ class _SessionState extends State<_Session>
     }
   }
 
+  void _handleMotion(int event) {
+    if (!_motion || _background || game.phase != GamePhase.polishing) return;
+    switch (event) {
+      case WorkshopDevice.contactStarted:
+        if (!_inContact) setState(() => _inContact = true);
+      case WorkshopDevice.contactEnded:
+        if (_inContact) setState(() => _inContact = false);
+      case WorkshopDevice.strokeCompleted:
+        _stroke();
+    }
+  }
+
   void _stroke() {
-    if (!_motion || _background) return;
     final pulse = game.stroke();
     if (pulse != null && device.vibrationEnabled) {
+      final sessionId = _operation;
       unawaited(
-        device.pulse(pulse, followStroke: true).catchError((Object e) {
-          device.vibrationEnabled = false;
-          if (mounted) setState(() => _error = deviceMessage(e));
-        }),
+        device
+            .pulse(
+              pulse,
+              followStroke: true,
+              progress: game.progress,
+              sessionId: sessionId,
+            )
+            .catchError((Object e) {
+              if (!mounted || !_motion || sessionId != _operation) return;
+              device.vibrationEnabled = false;
+              setState(() => _error = deviceMessage(e));
+            }),
       );
     }
   }
 
   @override
   void simulateStroke() {
-    if (device.simulated) _stroke();
+    if (device.simulated) _handleMotion(WorkshopDevice.strokeCompleted);
   }
 
   @override
@@ -305,6 +332,7 @@ class _SessionState extends State<_Session>
             )
           : Workshop(
               game: game,
+              inContact: _inContact,
               onEnter: _showTitle
                   ? () => setState(() => _showTitle = false)
                   : null,

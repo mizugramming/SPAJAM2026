@@ -129,6 +129,33 @@ internal class StrokeDetector {
             gravity[i] += gravityGain * (values[i] - gravity[i])
             signal[i] += signalGain * (values[i] - gravity[i] - signal[i])
         }
+        return acceptLobe(time, steadyMotor)
+    }
+
+    // DeskMotion supplies an already gravity-corrected, filtered signal in the
+    // work plane. Both game input modes use the same signed-cycle definition.
+    fun beginPlanar(time: Long, direction: DoubleArray) {
+        resetCycle()
+        direction.copyInto(axis)
+        acceptedSign = 1
+        lastLobe = time
+    }
+
+    fun updatePlanar(time: Long, planar: DoubleArray): Boolean {
+        planar.copyInto(signal)
+        return acceptLobe(time, steadyMotor = false)
+    }
+
+    fun copyPlanarAxis(target: DoubleArray) {
+        axis.copyInto(target)
+    }
+
+    val estimatedPeriodMs: Int? get() {
+        val period = if (cycleNs > 0) cycleNs else 2 * outwardHalfNs
+        return if (period > 0) (period / 1_000_000L).toInt() else null
+    }
+
+    private fun acceptLobe(time: Long, steadyMotor: Boolean): Boolean {
         if (acceptedSign != 0 && time - lastLobe > 850_000_000L) resetCycle()
         val magnitude = sqrt(signal.sumOf { it * it })
         // The stationary REDMI stayed below 0.91 m/s² after smoothing during
@@ -204,10 +231,11 @@ internal class StrokeDetector {
         return cycleComplete
     }
 
-    private fun resetCycle() {
+    fun resetCycle() {
         acceptedSign = 0
         candidate = 0
         shorterHalfNs = 0L
+        outwardHalfNs = 0L
         cycleNs = 0L
         previousCycleNs = 0L
         negativeDuringMotor = false

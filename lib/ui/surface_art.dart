@@ -16,6 +16,7 @@ class SurfaceArt extends StatefulWidget {
     required this.material,
     required this.progress,
     this.strokeCount = 0,
+    this.inContact = false,
     this.reveal = false,
     this.medalImage,
   });
@@ -23,6 +24,7 @@ class SurfaceArt extends StatefulWidget {
   final WorkMaterial material;
   final double progress;
   final int strokeCount;
+  final bool inContact;
   final bool reveal;
 
   /// When supplied, the team's medal illustration is the metal underneath the finish.
@@ -63,12 +65,19 @@ class _SurfaceArtState extends State<SurfaceArt>
       _rustRemoved = 0;
       _flash.duration = const Duration(milliseconds: 520);
       _flash.forward(from: 0);
+    } else if (oldWidget.inContact && !widget.inContact) {
+      _rustRemoved = 0;
+      _flash.value = 1;
     } else if (widget.strokeCount > oldWidget.strokeCount) {
       _rustRemoved =
           (oldWidget.material.rustAt(oldWidget.progress) -
                   widget.material.rustAt(widget.progress))
               .clamp(0.0, 1.0);
       _flash.duration = const Duration(milliseconds: 180);
+      _flash.forward(from: 0);
+    } else if (widget.inContact && !oldWidget.inContact) {
+      _rustRemoved = 0;
+      _flash.duration = const Duration(milliseconds: 120);
       _flash.forward(from: 0);
     }
   }
@@ -199,7 +208,7 @@ class _SurfacePainter extends CustomPainter {
       hasMedalImage ? rust * .68 : rust,
       plaque: glyph != null,
     );
-    if (flash.value < 1 && shine > .02) {
+    if (flash.value < 1 && (!reveal || shine > .02)) {
       // Start a stroke on the face so even a quick reversal catches the light.
       final x = reveal ? -2.1 + flash.value * 4.2 : -.68 + flash.value * 2.1;
       final area = Rect.fromLTWH(x - .34, -1.8, .68, 3.6);
