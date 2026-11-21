@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -34,8 +35,19 @@ flutter:
     - assets/fonts/gin.jpg
     - assets/fonts/kin.jpg
     - assets/fonts/kinpika.jpg
-    - assets/images/background.jpg
+    - assets/images/yansu_title.png
+    - assets/images/workshop_room.webp
+    - assets/images/workshop_curtain.webp
+    - assets/images/workshop_jacket.webp
+    - assets/images/workshop_brush.webp
+    - assets/images/workshop_cloth.webp
+    - assets/images/workshop_books.webp
+    - assets/images/workshop_dumbbell.webp
+    - assets/images/workshop_wax.webp
     - assets/images/copper_medal_spin.webp
+    - assets/images/kanji_polish_rough.webp
+    - assets/images/kanji_polish_satin.webp
+    - assets/images/kanji_polish_gloss.webp
     - assets/images/sandpaper_plain.webp
     - assets/images/shavings.png
     - assets/images/shards/copper-1.png

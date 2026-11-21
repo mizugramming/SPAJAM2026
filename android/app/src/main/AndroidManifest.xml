@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <application
-        android:label="いろみがき"
+        android:label="磨くでヤンス！"
         android:name="${applicationName}"
         android:icon="@drawable/workshop_icon">
         <activity

@@ -20,13 +20,19 @@ class WorkshopDevice {
     (event) => event == strokeCompleted,
   );
 
-  Future<VoiceSample> capture(double demoPitch, {bool desk = false}) async {
+  Future<VoiceSample> capture(
+    double demoPitch, {
+    bool desk = false,
+    VoiceProfile profile = VoiceProfile.male,
+  }) async {
     if (simulated) {
       await Future<void>.delayed(const Duration(milliseconds: 450));
-      return VoiceSample(
-        demoPitch,
-        demoPitch < 150 ? 0.30 : (demoPitch < 230 ? 0.55 : 0.80),
-      );
+      final level = switch (profile.gritAt(demoPitch)) {
+        Grit.coarse => 0.30,
+        Grit.medium => 0.55,
+        Grit.fine => 0.80,
+      };
+      return VoiceSample(demoPitch, level);
     }
     final data = await _commands.invokeMapMethod<String, num?>(
       'capture',
@@ -93,13 +99,13 @@ class WorkshopDevice {
 String deviceMessage(Object error) {
   if (error is PlatformException) {
     return switch (error.code) {
-      'permission' => 'マイクを許可して、もう一度声を出してください。許可画面が開かない場合は端末のアプリ設定を確認してください。',
-      'microphone' => '採音できませんでした。マイクを確認して、もう一度声を出してください。',
-      'sensor' => '動きを計測できませんでした。端末を静止させて、もう一度開始してください。',
-      'vibrator' => 'この端末では振動を使えません。',
-      'cancelled' => '採音を中断しました。もう一度声を出してください。',
-      _ => error.message ?? '端末の入力を確認して、もう一度お試しください。',
+      'permission' => 'マイクを許可して、\nもう一度声を出してください。\n許可画面が出ない場合は、\n端末のアプリ設定へ。',
+      'microphone' => '採音できませんでした。\nマイクを確認して、\nもう一度声を出してください。',
+      'sensor' => '動きを計測できませんでした。\n端末を静止させて、\nもう一度開始してください。',
+      'vibrator' => 'この端末では\n振動を使えません。',
+      'cancelled' => '採音を中断しました。\nもう一度\n声を出してください。',
+      _ => error.message ?? '端末の入力を確認して、\nもう一度お試しください。',
     };
   }
-  return '端末の機能を利用できません。Android実機で開き直してください。';
+  return '端末の機能を利用できません。\nAndroid実機で\n開き直してください。';
 }

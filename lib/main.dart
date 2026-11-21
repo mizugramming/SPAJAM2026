@@ -4,13 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'device/diagnostics.dart';
 import 'device/workshop_device.dart';
 import 'game/game.dart';
+import 'ui/game_settings.dart';
+import 'ui/phrase_text.dart';
 import 'ui/workshop.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
@@ -20,31 +23,58 @@ void main() {
       'YujiSyuku',
     ], await rootBundle.loadString('assets/fonts/OFL-YujiSyuku.txt'));
   });
-  runApp(const WorkshopApp());
+  const key = 'strokesToGold';
+  final preferences = SharedPreferencesAsync();
+  int? savedCount;
+  try {
+    savedCount = await preferences.getInt(key);
+  } catch (error) {
+    debugPrint('研磨回数の設定を読み込めませんでした: $error');
+  }
+  runApp(
+    WorkshopApp(
+      initialStrokesToGold: savedCount ?? GameController.defaultStrokesToGold,
+      persistStrokesToGold: (value) => preferences.setInt(key, value),
+    ),
+  );
 }
 
 class WorkshopApp extends StatelessWidget {
   const WorkshopApp({
     super.key,
     this.simulated = kIsWeb || const bool.fromEnvironment('SIMULATE_INPUT'),
+    this.initialStrokesToGold = GameController.defaultStrokesToGold,
+    this.persistStrokesToGold,
   });
   final bool simulated;
+  final int initialStrokesToGold;
+  final Future<void> Function(int)? persistStrokesToGold;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    title: 'いろみがき',
+    title: '磨くでヤンス！',
     theme: workshopTheme,
     locale: const Locale('ja'),
     supportedLocales: const [Locale('ja')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    home: _Session(simulated: simulated),
+    home: _Session(
+      simulated: simulated,
+      initialStrokesToGold: initialStrokesToGold,
+      persistStrokesToGold: persistStrokesToGold,
+    ),
   );
 }
 
 class _Session extends StatefulWidget {
-  const _Session({required this.simulated});
+  const _Session({
+    required this.simulated,
+    required this.initialStrokesToGold,
+    this.persistStrokesToGold,
+  });
   final bool simulated;
+  final int initialStrokesToGold;
+  final Future<void> Function(int)? persistStrokesToGold;
 
   @override
   State<_Session> createState() => _SessionState();
@@ -68,11 +98,12 @@ class _SessionState extends State<_Session>
   String? _error;
   int _operation = 0;
   @override
-  double demoPitch = 190;
+  Grit demoVoice = Grit.medium;
 
   @override
   void initState() {
     super.initState();
+    game.setStrokesToGold(widget.initialStrokesToGold);
     WidgetsBinding.instance.addObserver(this);
     game.addListener(_changed);
     _events = device.motionEvents.listen(
@@ -106,6 +137,9 @@ class _SessionState extends State<_Session>
   }
 
   @override
+  void setVoiceProfile(VoiceProfile profile) => game.setVoiceProfile(profile);
+
+  @override
   void retry() {
     _operation++;
     _busy = false;
@@ -114,8 +148,8 @@ class _SessionState extends State<_Session>
   }
 
   @override
-  void selectDemoPitch(double hz) {
-    if (!_busy) setState(() => demoPitch = hz);
+  void selectDemoVoice(Grit grit) {
+    if (!_busy) setState(() => demoVoice = grit);
   }
 
   @override
@@ -127,14 +161,19 @@ class _SessionState extends State<_Session>
       _error = null;
     });
     try {
-      final sample = await device.capture(demoPitch, desk: true);
+      final profile = game.voiceProfile;
+      final sample = await device.capture(
+        profile.demoHz(demoVoice),
+        desk: true,
+        profile: profile,
+      );
       if (!mounted || op != _operation) return;
       final hz = sample.hz;
       final mode = hz != null && hz.isFinite && hz > 0
           ? VoiceMode.pitch
           : VoiceMode.volume;
       if (!game.acceptVoice(sample, mode)) {
-        _error = '音が小さいようです。もう一度、少し大きな声を出してください。';
+        _error = '音が小さいようです。\nもう一度、\n少し大きな声を\n出してください。';
       }
     } catch (e) {
       if (mounted && op == _operation) _error = deviceMessage(e);
@@ -237,13 +276,32 @@ class _SessionState extends State<_Session>
   }
 
   @override
-  Future<void> openDiagnostics() async {
+  Future<void> openSettings() async {
     if (_inLab || game.phase != GamePhase.select) return;
     _inLab = true;
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => DiagnosticsPage(device: device)),
+      MaterialPageRoute(
+        builder: (settingsContext) => GameSettingsPage(
+          strokesToGold: game.strokesToGold,
+          onSave: _saveStrokesToGold,
+          onOpenDiagnostics: () => Navigator.of(settingsContext).push<void>(
+            MaterialPageRoute(
+              builder: (_) => DiagnosticsPage(
+                device: device,
+                profile: game.voiceProfile,
+                onProfileChanged: setVoiceProfile,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
     _inLab = false;
+  }
+
+  Future<void> _saveStrokesToGold(int value) async {
+    await widget.persistStrokesToGold?.call(value);
+    if (mounted) game.setStrokesToGold(value);
   }
 
   @override
@@ -306,8 +364,10 @@ class _SessionState extends State<_Session>
     final exit = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('素材選びに戻りますか？'),
-        content: const Text('磨いた分はリセットされます。'),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        scrollable: true,
+        title: const PhraseText('素材選びに\n戻りますか？'),
+        content: const PhraseText('磨いた分は\nリセットされます。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -315,7 +375,10 @@ class _SessionState extends State<_Session>
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('素材選びに戻る'),
+            child: const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('素材選びに戻る', softWrap: false),
+            ),
           ),
         ],
       ),
@@ -364,7 +427,10 @@ class _SessionState extends State<_Session>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_error!, textAlign: TextAlign.center),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: PhraseText(_error!, center: true),
+                      ),
                       FilledButton(
                         onPressed: () => _startMotion(resume: true),
                         child: const Text('計測を再開'),

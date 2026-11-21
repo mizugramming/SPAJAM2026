@@ -6,6 +6,89 @@ import 'package:polish_workshop/device/workshop_device.dart';
 import 'package:polish_workshop/game/game.dart';
 
 void main() {
+  testWidgets('changing voice range reclassifies the same diagnostic sample', (
+    tester,
+  ) async {
+    final changed = <VoiceProfile>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DiagnosticsPage(
+          device: WorkshopDevice(simulated: true),
+          onProfileChanged: changed.add,
+        ),
+      ),
+    );
+    Future<void> press(String label) async {
+      await tester.tap(find.text(label));
+      await tester.pump();
+    }
+
+    await press('声を取る');
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.text('高さ 120.0 Hz'), findsOneWidget);
+    expect(find.text('やすり 中目'), findsOneWidget);
+    await press('女性用');
+    expect(changed, [VoiceProfile.female]);
+    expect(find.text('高さ 120.0 Hz'), findsOneWidget);
+    expect(find.text('やすり 粗目'), findsOneWidget);
+    await press('声を取る');
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.text('高さ 240.0 Hz'), findsOneWidget);
+    expect(find.text('やすり 中目'), findsOneWidget);
+    await press('男性用');
+    expect(find.text('やすり 細目'), findsOneWidget);
+    await press('音量で判定');
+    expect(find.text('音量 55%'), findsOneWidget);
+    expect(find.text('やすり 中目'), findsOneWidget);
+  });
+
+  testWidgets(
+    'volume clears the pitch warning while keeping a motion sensor error',
+    (tester) async {
+      const commands = MethodChannel('polish/device');
+      const events = MethodChannel('polish/strokes');
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(events, (_) async => null);
+      messenger.setMockMethodCallHandler(commands, (call) async {
+        if (call.method == 'capture') return {'hz': null, 'level': .55};
+        if (call.method == 'startMotion') {
+          throw PlatformException(code: 'sensor');
+        }
+        return null;
+      });
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(commands, null);
+        messenger.setMockMethodCallHandler(events, null);
+      });
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(500, 1300);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DiagnosticsPage(device: WorkshopDevice(simulated: false)),
+        ),
+      );
+      Future<void> press(String label) async {
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+      }
+
+      await press('声を取る');
+      final pitchWarning = find.text('声の高さを判定できませんでした。');
+      final motionError = find.text('動きを計測できませんでした。');
+      expect(pitchWarning, findsOneWidget);
+      expect(find.text('やすり —'), findsOneWidget);
+      await press('計測を開始');
+      expect(motionError, findsOneWidget);
+      await press('音量で判定');
+      expect(find.text('やすり 中目'), findsOneWidget);
+      expect(pitchWarning, findsNothing);
+      expect(motionError, findsOneWidget);
+      await press('声の高さで判定');
+      expect(pitchWarning, findsOneWidget);
+    },
+  );
+
   testWidgets(
     'four diagnostic trials count sensor events independently from motor commands',
     (tester) async {
@@ -78,7 +161,8 @@ void main() {
         await tester.pump(const Duration(seconds: 2));
         await sensorEvent(2);
         await sensorEvent(-1);
-        expect(find.text('0 往復　／　残り 8 秒'), findsOneWidget);
+        expect(find.text('0 往復'), findsOneWidget);
+        expect(find.text('残り 8 秒'), findsOneWidget);
         expect(pulses, motor ? isNotEmpty : isEmpty);
 
         final times = <String>[];
@@ -87,7 +171,8 @@ void main() {
           await sensorEvent();
           times.add((2 + (n + 1) * 0.25).toStringAsFixed(3));
         }
-        expect(find.text('$movements 往復　／　残り 8 秒'), findsOneWidget);
+        expect(find.text('$movements 往復'), findsOneWidget);
+        expect(find.text('残り 8 秒'), findsOneWidget);
         await tester.pump(const Duration(seconds: 8));
         expect(stops, starts);
         if (motor) {
@@ -104,18 +189,19 @@ void main() {
           expect(pulses, isEmpty);
         }
         history.add(
-          '$label　$movements往復・振動指令${pulses.length}回\n中目／進捗${(progress * 100).round()}%\n'
+          '$label\n$movements往復\n振動指令${pulses.length}回\n中目／進捗${(progress * 100).round()}%\n'
           '往復受付（秒）　${times.isEmpty ? '—' : times.join('、')}',
         );
         final pulseCount = pulses.length;
         await sensorEvent();
         await tester.pump(const Duration(seconds: 1));
         expect(pulses, hasLength(pulseCount));
-        expect(find.text('$movements 往復　／　10秒計測'), findsOneWidget);
+        expect(find.text('$movements 往復'), findsOneWidget);
+        expect(find.text('10秒計測'), findsOneWidget);
       }
 
       for (final result in history.reversed) {
-        final row = find.text(result);
+        final row = find.bySemanticsLabel(result);
         await tester.scrollUntilVisible(row, 110);
         expect(row, findsOneWidget);
       }

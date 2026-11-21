@@ -10,6 +10,13 @@ import 'workshop_theme.dart' show appFont;
 
 Color _mix(Color a, Color b, double t) => Color.lerp(a, b, t)!;
 
+// The three finishes follow the kanji material's stage order in game.dart.
+const _kanjiStageImages = [
+  'assets/images/kanji_polish_rough.webp',
+  'assets/images/kanji_polish_satin.webp',
+  'assets/images/kanji_polish_gloss.webp',
+];
+
 /// A stroke briefly scatters dirt and moves the reflection over the metal.
 class SurfaceArt extends StatefulWidget {
   const SurfaceArt({
@@ -90,6 +97,42 @@ class _SurfaceArtState extends State<SurfaceArt>
     super.dispose();
   }
 
+  Widget _kanjiImage() {
+    final material = widget.material;
+    final index = material.stages.indexOf(material.stageAt(widget.progress));
+    final shine = material.shineAt(widget.progress);
+    return AnimatedBuilder(
+      animation: _flash,
+      child: Image.asset(
+        _kanjiStageImages[index],
+        fit: BoxFit.contain,
+        cacheWidth: 720,
+        gaplessPlayback: true,
+        excludeFromSemantics: true,
+      ),
+      builder: (context, child) {
+        final reflecting = _flash.value < 1 && (!widget.reveal || shine > .02);
+        final x = -1.6 + 3.2 * _flash.value;
+        // Apply the stroke reflection only to the opaque strokes of the glyph.
+        return ShaderMask(
+          blendMode: BlendMode.srcATop,
+          shaderCallback: (bounds) => LinearGradient(
+            begin: Alignment(x - .35, -.12),
+            end: Alignment(x + .35, .12),
+            colors: [
+              Colors.transparent,
+              _SurfacePainter._white.withValues(
+                alpha: reflecting ? .12 + shine * .3 : 0,
+              ),
+              Colors.transparent,
+            ],
+          ).createShader(bounds),
+          child: child,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return RepaintBoundary(
@@ -105,7 +148,9 @@ class _SurfaceArtState extends State<SurfaceArt>
           widget.medalImage != null,
         ),
         size: Size.infinite,
-        child: widget.medalImage,
+        child: widget.material.id == 'kanji'
+            ? _kanjiImage()
+            : widget.medalImage,
       ),
     );
   }
@@ -170,6 +215,11 @@ class _SurfacePainter extends CustomPainter {
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.scale(radius);
+    if (material.id == 'kanji') {
+      if (flash.value < 1 && rustRemoved > 0) _flakes(canvas);
+      canvas.restore();
+      return;
+    }
     if (!hasMedalImage) {
       canvas.drawOval(
         Rect.fromCenter(

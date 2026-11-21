@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import '../game/game.dart';
 import 'layout_tuner.dart';
 import 'medal_flight.dart';
+import 'phrase_text.dart';
+import 'round_introduction.dart';
 import 'sandpaper.dart';
 import 'surface_art.dart';
 import 'workshop_theme.dart';
@@ -15,14 +17,15 @@ export 'workshop_theme.dart' show workshopTheme;
 
 abstract interface class WorkshopActions {
   void choose(WorkMaterial material);
+  void setVoiceProfile(VoiceProfile profile);
   void capture();
   void paperLanded();
   void start();
   void retry();
   void simulateStroke();
-  void openDiagnostics();
-  void selectDemoPitch(double hz);
-  double get demoPitch;
+  void openSettings();
+  void selectDemoVoice(Grit grit);
+  Grit get demoVoice;
 }
 
 /// 各画面の部品を lib/ui/workshop_layout.dart の配置表どおりに置く。
@@ -56,11 +59,10 @@ class Workshop extends StatelessWidget {
     if (start == null || game.phase != GamePhase.select) return _game(context);
     return Scaffold(
       body: SafeArea(
-        child: LayoutStage(
+        child: _workshopStage(
           key: const ValueKey('title'),
           screen: Screen.title,
           parts: _titleParts(start),
-          background: const _Background(),
         ),
       ),
     );
@@ -72,63 +74,11 @@ class Workshop extends StatelessWidget {
       'タイトル文字',
       Semantics(
         header: true,
-        label: 'いろみがき',
-        child: ExcludeSemantics(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.topLeft,
-            child: _GrungeText(
-              'いろ\nみがき',
-              style: TextStyle(
-                color: chalk,
-                fontSize: 96,
-                fontWeight: FontWeight.w900,
-                height: 1.0,
-                letterSpacing: -2,
-              ),
-            ),
-          ),
+        label: '磨くでヤンス！',
+        child: const ExcludeSemantics(
+          child: FittedBox(fit: BoxFit.contain, child: _TitleLettering()),
         ),
       ),
-      fill: true,
-    ),
-    const Part(
-      'tagline',
-      '英字の添え書き',
-      FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.topLeft,
-        child: Text(
-          'POLISH  OUT  YOUR  COLOR',
-          maxLines: 1,
-          style: TextStyle(
-            color: chalk,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 3,
-          ),
-        ),
-      ),
-      fill: true,
-    ),
-    const Part(
-      'catch',
-      '縦書きの一言',
-      _VerticalText(
-        '色を磨き出せ',
-        style: TextStyle(
-          color: chalk,
-          fontSize: 34,
-          fontWeight: FontWeight.w800,
-          height: 1.15,
-        ),
-      ),
-      align: Alignment.topCenter,
-    ),
-    Part(
-      'medal',
-      'メダル',
-      ExcludeSemantics(child: _MedalImage(_medalStageImages.first)),
       fill: true,
     ),
     Part(
@@ -136,7 +86,6 @@ class Workshop extends StatelessWidget {
       '「はじめる」ボタン',
       _BoxButton(
         key: const ValueKey('title-start'),
-        icon: Icons.local_fire_department_rounded,
         label: 'はじめる',
         onPressed: start,
       ),
@@ -152,55 +101,32 @@ class Workshop extends StatelessWidget {
       GamePhase.polishing => Screen.polishing,
       GamePhase.result => Screen.result,
     };
-    final hasPaper = screen == Screen.ready || screen == Screen.polishing;
-    final stage = screen == Screen.select
-        ? _SelectStage(
-            key: ValueKey((game.phase, game.round)),
-            header: Part(
-              'header',
-              'ロゴ行',
-              _Header(
-                onDiagnostics: actions.openDiagnostics,
-                simulated: simulated,
-              ),
-            ),
-            onBack: onTitle,
-            onChoose: (material) {
-              unawaited(precacheImage(SandpaperFace.texture, context));
-              actions.choose(material);
-            },
-          )
-        : LayoutStage(
-            key: ValueKey((game.phase, game.round)),
-            screen: screen,
-            background: _Background(subdued: hasPaper),
-            parts: [
-              if (!hasPaper && simulated)
-                const Part(
-                  'header',
-                  '疑似入力表示',
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _simulatedLabel,
-                  ),
-                ),
-              Part('round', 'ラウンド行', _RoundHeader(game: game)),
-              Part(
-                'workpiece',
-                '素材',
-                _Workpiece(game: game, inContact: inContact),
-                transition:
-                    screen == Screen.voice &&
-                        game.round == 1 &&
-                        game.material!.id == 'medal' &&
-                        !MediaQuery.disableAnimationsOf(context)
-                    ? _landMedal
-                    : null,
-                fill: true,
-              ),
-              ..._controls(context),
-            ],
-          );
+    final stage = switch (screen) {
+      Screen.select => _SelectStage(
+        key: ValueKey((game.phase, game.round)),
+        voiceProfile: game.voiceProfile,
+        onProfileChanged: actions.setVoiceProfile,
+        onSettings: actions.openSettings,
+        onBack: onTitle,
+        onChoose: (material) {
+          unawaited(precacheImage(SandpaperFace.texture, context));
+          actions.choose(material);
+        },
+      ),
+      Screen.voice => RoundIntroduction(
+        key: ValueKey((game.material!.id, game.round)),
+        round: game.round,
+        arrival:
+            game.round == 1 &&
+                game.material!.id == 'medal' &&
+                !MediaQuery.disableAnimationsOf(context)
+            ? medalLandingDuration
+            : Duration.zero,
+        builder: (arrival, intro) =>
+            _playStage(context, screen, arrival: arrival, intro: intro),
+      ),
+      _ => _playStage(context, screen),
+    };
     return Scaffold(
       body: SafeArea(
         child: screen == Screen.ready
@@ -211,6 +137,53 @@ class Workshop extends StatelessWidget {
               )
             : stage,
       ),
+    );
+  }
+
+  Widget _playStage(
+    BuildContext context,
+    Screen screen, {
+    Animation<double>? arrival,
+    Widget? intro,
+  }) {
+    final hasPaper = screen == Screen.ready || screen == Screen.polishing;
+    return _workshopStage(
+      key: ValueKey((game.phase, game.round)),
+      screen: screen,
+      parts: [
+        Part(
+          'workpiece',
+          '素材',
+          _Workpiece(game: game, inContact: inContact),
+          transition: arrival == null
+              ? null
+              : (_, bounds, face) => AnimatedBuilder(
+                  animation: arrival,
+                  child: face,
+                  builder: (context, child) => arrival.value == 1
+                      ? child!
+                      : MedalFlight(
+                          progress: arrival.value,
+                          entering: true,
+                          distanceToTop: bounds.bottom,
+                          face: child!,
+                        ),
+                ),
+          fill: true,
+        ),
+        if (intro != null) Part('intro', '回数のカットイン', intro, fill: true),
+        if (intro == null) ...[
+          if (!hasPaper && simulated)
+            const Part(
+              'header',
+              '疑似入力表示',
+              Align(alignment: Alignment.centerRight, child: _simulatedLabel),
+            ),
+          Part('round', 'ラウンド行', _RoundHeader(game: game), fill: true),
+        ],
+        for (final part in _controls(context))
+          if (intro == null || part.id == 'back') part,
+      ],
     );
   }
 
@@ -240,7 +213,7 @@ class Workshop extends StatelessWidget {
           ? null
           : Semantics(
               liveRegion: true,
-              child: Text(
+              child: PhraseText(
                 errorText,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.error,
@@ -264,48 +237,20 @@ class Workshop extends StatelessWidget {
                 ? _BackButton(onPressed: busy ? null : actions.retry)
                 : null,
           ),
-          Part(
-            'title',
-            '見出し',
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: _Title(
+          if (errorText == null || errorText.isEmpty)
+            Part(
+              'title',
+              '見出し',
+              _Title(
                 busy
                     ? '声を聞いています'
                     : game.finishingWithFine
                     ? '仕上げは高い声で'
                     : 'やすりを作る',
               ),
+              singleLine: true,
+              align: Alignment.center,
             ),
-            align: Alignment.center,
-          ),
-          Part(
-            'chips',
-            '疑似音声の選択',
-            !simulated
-                ? null
-                : Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    children: [
-                      for (final choice in [
-                        (110, '低い'),
-                        (190, '中間'),
-                        (300, '高い'),
-                      ])
-                        ChoiceChip(
-                          key: ValueKey('demo-${choice.$1}'),
-                          label: Text(choice.$2),
-                          selected: actions.demoPitch == choice.$1,
-                          onSelected: busy
-                              ? null
-                              : (_) => actions.selectDemoPitch(
-                                  choice.$1.toDouble(),
-                                ),
-                        ),
-                    ],
-                  ),
-          ),
           errorPart,
           Part(
             'action',
@@ -321,14 +266,44 @@ class Workshop extends StatelessWidget {
             ),
             fill: true,
           ),
+          // Keep the pitch choices above the mic's Web accessibility hit area.
+          Part(
+            'chips',
+            '疑似音声の選択',
+            !simulated
+                ? null
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      for (final choice in const [
+                        (Grit.coarse, '低い'),
+                        (Grit.medium, '中間'),
+                        (Grit.fine, '高い'),
+                      ])
+                        ChoiceChip(
+                          key: ValueKey(
+                            'demo-${game.voiceProfile.demoHz(choice.$1).round()}',
+                          ),
+                          label: Text(choice.$2),
+                          selected: actions.demoVoice == choice.$1,
+                          onSelected: busy
+                              ? null
+                              : (_) => actions.selectDemoVoice(choice.$1),
+                        ),
+                    ],
+                  ),
+            singleLine: true,
+          ),
         ];
       case GamePhase.ready:
         return [
           Part(
             'title',
             'やすりの目',
-            Center(child: _Title('${game.grit!.label}のやすり')),
+            _Title('${game.grit!.label}のやすり'),
             transition: _afterPaperLands,
+            singleLine: true,
             align: Alignment.center,
           ),
           _paper(arriving: true),
@@ -362,6 +337,7 @@ class Workshop extends StatelessWidget {
                 color: ember,
               ),
             ),
+            singleLine: true,
           ),
           Part(
             'bar',
@@ -395,7 +371,7 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.result:
         return [
-          Part('title', '見出し', _Title(game.stage.name)),
+          Part('title', '見出し', _Title(game.stage.name), singleLine: true),
           if (game.verdict case final verdict?)
             Part('body', '仕上がりの判定', _Body(verdict)),
           Part(
@@ -422,21 +398,6 @@ class Workshop extends StatelessWidget {
     }
   }
 }
-
-Widget _landMedal(Size canvas, Rect bounds, Widget face) =>
-    TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: medalLandingDuration,
-      child: face,
-      builder: (context, t, child) => t >= 1
-          ? child!
-          : MedalFlight(
-              progress: t,
-              entering: true,
-              distanceToTop: bounds.bottom,
-              face: child!,
-            ),
-    );
 
 /// A single timeline carries the captured mic to the middle, reveals the paper,
 /// and signals the session when the sheet settles on the workbench.
@@ -671,19 +632,126 @@ class _PolishCueState extends State<_PolishCue>
   }
 }
 
-/// 全画面に敷く背景画像。画面の縦横比に合わせて切り抜く。
-class _Background extends StatelessWidget {
-  const _Background({this.subdued = false});
-  final bool subdued;
+LayoutStage _workshopStage({
+  Key? key,
+  required Screen screen,
+  required List<Part> parts,
+}) => LayoutStage(
+  key: key,
+  screen: screen,
+  parts: parts,
+  background: const Image(
+    image: AssetImage('assets/images/workshop_room.webp'),
+    // 下地の天板と柱を、小物の配置表と同じ画面比率の位置に保つ。
+    fit: BoxFit.fill,
+    excludeFromSemantics: true,
+  ),
+  backgroundParts: [
+    const Part(
+      'curtain',
+      '背景・のれん',
+      _WorkshopProp('curtain', alignment: Alignment.topCenter),
+      fill: true,
+    ),
+    const Part(
+      'jacket',
+      '背景・ジャケット',
+      _HangingProp('jacket', alignment: Alignment.topCenter),
+      fill: true,
+    ),
+    const Part('brush', '背景・磨き刷毛', _HangingProp('brush'), fill: true),
+    // 台の上の小物をヤンスの手前に重ねる。
+    if (screen == Screen.title)
+      const Part(
+        'mascot',
+        'キャラクターのヤンス',
+        Image(
+          image: AssetImage('assets/images/yansu_title.png'),
+          fit: BoxFit.contain,
+          semanticLabel: 'キャラクターのヤンス',
+        ),
+        fill: true,
+      ),
+    const Part(
+      'cloth',
+      '背景・敷き布',
+      _WorkshopProp('cloth', alignment: Alignment.bottomCenter),
+      fill: true,
+    ),
+    const Part(
+      'books',
+      '背景・本',
+      _WorkshopProp('books', alignment: Alignment.bottomCenter),
+      fill: true,
+    ),
+    const Part(
+      'dumbbell',
+      '背景・ダンベル',
+      _WorkshopProp('dumbbell', alignment: Alignment.bottomCenter),
+      fill: true,
+    ),
+    const Part(
+      'wax',
+      '背景・ヘアワックス',
+      _WorkshopProp('wax', alignment: Alignment.bottomCenter),
+      fill: true,
+    ),
+  ],
+  // 道具を動かしても陰影は画面に固定し、上に重なる文字と素材を読みやすくする。
+  backgroundShade: screen == Screen.ready || screen == Screen.polishing
+      ? const BoxDecoration(color: Color(0xC4131010))
+      : const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0x9918100E), Color(0x9918100E), Colors.transparent],
+            stops: [0, .19, .4],
+          ),
+        ),
+);
+
+class _HangingProp extends StatelessWidget {
+  const _HangingProp(this.name, {this.alignment = Alignment.center});
+  final String name;
+  final Alignment alignment;
 
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
-    child: Image(
-      image: const AssetImage('assets/images/background.jpg'),
-      color: subdued ? const Color(0xC4131010) : null,
-      colorBlendMode: BlendMode.srcATop,
-      fit: BoxFit.cover,
+    child: FittedBox(
+      fit: BoxFit.contain,
+      alignment: alignment,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // 柱に触れる鋲を支点に、手前に出る裾や毛先の影を右に落とす。
+          Positioned.fill(
+            child: Transform.rotate(
+              alignment: const Alignment(.08, -.87),
+              angle: -.055,
+              child: Image.asset(
+                'assets/images/workshop_$name.webp',
+                color: const Color(0x77281A10),
+              ),
+            ),
+          ),
+          Image.asset('assets/images/workshop_$name.webp'),
+        ],
+      ),
     ),
+  );
+}
+
+class _WorkshopProp extends StatelessWidget {
+  const _WorkshopProp(this.name, {this.alignment = Alignment.center});
+  final String name;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) => Image.asset(
+    'assets/images/workshop_$name.webp',
+    fit: BoxFit.contain,
+    alignment: alignment,
+    excludeFromSemantics: true,
   );
 }
 
@@ -708,16 +776,28 @@ class _GrungeText extends StatelessWidget {
   );
 }
 
-/// 1文字ずつ縦に並べた文字。
-class _VerticalText extends StatelessWidget {
-  const _VerticalText(this.text, {required this.style});
-  final String text;
-  final TextStyle style;
+class _TitleLettering extends StatelessWidget {
+  const _TitleLettering();
+
+  static const brush = TextStyle(
+    fontFamily: appFont,
+    fontSize: 116,
+    fontWeight: FontWeight.w900,
+    color: chalk,
+    height: 1,
+  );
 
   @override
   Widget build(BuildContext context) => Column(
     mainAxisSize: MainAxisSize.min,
-    children: [for (final c in text.characters) Text(c, style: style)],
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _GrungeText('磨くで', style: brush.copyWith(fontSize: 82)),
+      const Padding(
+        padding: EdgeInsets.only(left: 24),
+        child: _GrungeText('ヤンス！', style: brush),
+      ),
+    ],
   );
 }
 
@@ -725,11 +805,11 @@ class _VerticalText extends StatelessWidget {
 class _BoxButton extends StatelessWidget {
   const _BoxButton({
     super.key,
-    required this.icon,
+    this.icon,
     required this.label,
     required this.onPressed,
   });
-  final IconData icon;
+  final IconData? icon;
   final String label;
   final VoidCallback? onPressed;
 
@@ -761,8 +841,10 @@ class _BoxButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 28),
-            const SizedBox(width: 10),
+            if (icon != null) ...[
+              Icon(icon, size: 28),
+              const SizedBox(width: 10),
+            ],
             Text(label, maxLines: 1),
           ],
         ),
@@ -1037,78 +1119,6 @@ const _simulatedLabel = Text(
   style: TextStyle(fontSize: 12, color: muted),
 );
 
-class _Header extends StatelessWidget {
-  const _Header({required this.onDiagnostics, required this.simulated});
-  final VoidCallback onDiagnostics;
-  final bool simulated;
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      const _FileMark(),
-      const SizedBox(width: 9),
-      const Expanded(
-        child: Text(
-          'いろみがき',
-          style: TextStyle(
-            fontSize: 17,
-            letterSpacing: 1.0,
-            color: chalk,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-      if (simulated) _simulatedLabel,
-      IconButton(
-        key: const ValueKey('diagnostics'),
-        tooltip: '端末の入力と振動を確認',
-        onPressed: onDiagnostics,
-        icon: const Icon(Icons.tune_rounded, size: 21, color: muted),
-      ),
-    ],
-  );
-}
-
-class _FileMark extends StatelessWidget {
-  const _FileMark();
-  @override
-  Widget build(BuildContext context) => SizedBox.square(
-    dimension: 26,
-    child: CustomPaint(painter: _FilePainter()),
-  );
-}
-
-class _FilePainter extends CustomPainter {
-  @override
-  void paint(Canvas c, Size s) {
-    c.translate(s.width / 2, s.height / 2);
-    c.rotate(-math.pi / 4);
-    final p = Paint()..color = crimson;
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-11, -7, 17, 14),
-        const Radius.circular(2),
-      ),
-      p,
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(4, -2.2, 9, 4.4),
-        const Radius.circular(2),
-      ),
-      p,
-    );
-    final notch = Paint()
-      ..color = bench
-      ..strokeWidth = 1.2;
-    for (final x in [-8.0, -4.0, 0.0]) {
-      c.drawLine(Offset(x, -4), Offset(x + 2, 4), notch);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_FilePainter oldDelegate) => false;
-}
-
 /// game.dart の段階（サビた銅・銅・銀・金・金ピカ）と同じ順のメダル画像。
 /// 銅の2段階は同じ絵にゲームの研磨率に応じた地金色・サビ・光沢を重ねる。
 const _medalStageImages = [
@@ -1168,11 +1178,15 @@ String _pickHeading(WorkMaterial material) => switch (material.id) {
 class _SelectStage extends StatefulWidget {
   const _SelectStage({
     super.key,
-    required this.header,
+    required this.voiceProfile,
+    required this.onProfileChanged,
+    required this.onSettings,
     required this.onBack,
     required this.onChoose,
   });
-  final Part header;
+  final VoiceProfile voiceProfile;
+  final ValueChanged<VoiceProfile> onProfileChanged;
+  final VoidCallback onSettings;
   final VoidCallback? onBack;
   final void Function(WorkMaterial material) onChoose;
 
@@ -1298,16 +1312,28 @@ class _SelectStageState extends State<_SelectStage>
     final current = materials[_index];
     final next = materials[(_index + 1) % materials.length];
     final previous = materials[(_index - 1) % materials.length];
-    final stage = LayoutStage(
+    final stage = _workshopStage(
       screen: Screen.select,
-      background: const _Background(),
       parts: [
-        widget.header,
+        Part(
+          'header',
+          'ゲームの設定',
+          Align(
+            alignment: Alignment.topRight,
+            child: IconButton(
+              key: const ValueKey('diagnostics'),
+              tooltip: '設定',
+              onPressed: widget.onSettings,
+              icon: const Icon(Icons.tune_rounded, size: 23, color: muted),
+            ),
+          ),
+          fill: true,
+        ),
         Part('back', '「戻る」ボタン', switch (widget.onBack) {
           final VoidCallback back => _BackButton(onPressed: back),
           _ => null,
         }),
-        const Part('title', '見出し', _Title('磨く素材を選ぶ')),
+        const Part('title', '見出し', _Title('磨く素材を選ぶ'), singleLine: true),
         Part(
           'heading',
           '素材の見出し',
@@ -1326,6 +1352,7 @@ class _SelectStageState extends State<_SelectStage>
               ),
             ),
           ),
+          singleLine: true,
           align: Alignment.topCenter,
         ),
         Part(
@@ -1371,6 +1398,15 @@ class _SelectStageState extends State<_SelectStage>
           fill: true,
         ),
         Part(
+          'voiceProfile',
+          '声の高さ',
+          _VoiceProfilePicker(
+            profile: widget.voiceProfile,
+            onChanged: widget.onProfileChanged,
+          ),
+          fill: true,
+        ),
+        Part(
           'confirm',
           '「これを磨く」ボタン',
           Semantics(
@@ -1391,6 +1427,74 @@ class _SelectStageState extends State<_SelectStage>
       child: ExcludeFocus(excluding: _departing, child: stage),
     );
   }
+}
+
+class _VoiceProfilePicker extends StatelessWidget {
+  const _VoiceProfilePicker({required this.profile, required this.onChanged});
+
+  final VoiceProfile profile;
+  final ValueChanged<VoiceProfile> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    spacing: 8,
+    children: [
+      const Expanded(
+        flex: 2,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '声の高さ',
+            style: TextStyle(
+              color: chalk,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+      Expanded(
+        flex: 5,
+        child: SegmentedButton<VoiceProfile>(
+          expandedInsets: EdgeInsets.zero,
+          style: SegmentedButton.styleFrom(
+            foregroundColor: chalk,
+            backgroundColor: metalPanel,
+            selectedForegroundColor: bench,
+            selectedBackgroundColor: ember,
+            side: const BorderSide(color: muted),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(4)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            minimumSize: const Size(0, 48),
+            textStyle: const TextStyle(
+              fontFamily: appFont,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          segments: [
+            for (final item in VoiceProfile.values)
+              ButtonSegment(
+                value: item,
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    item.label,
+                    key: ValueKey('voice-profile-${item.name}'),
+                    softWrap: false,
+                  ),
+                ),
+              ),
+          ],
+          selected: {profile},
+          onSelectionChanged: (choice) => onChanged(choice.single),
+        ),
+      ),
+    ],
+  );
 }
 
 /// 回転式の1枚。中央から離れるほど小さく暗くし、タップで中央へ回す。
@@ -1444,7 +1548,7 @@ class _CarouselItem extends StatelessWidget {
   );
 }
 
-/// 素材選択で大きく見せる素材の絵。メダルは画像、ほかは描画した見本。
+/// 素材選択ではメダルと漢を研磨前の状態で見せる。
 class _MaterialArt extends StatelessWidget {
   const _MaterialArt({required this.material});
   final WorkMaterial material;
@@ -1459,7 +1563,10 @@ class _MaterialArt extends StatelessWidget {
           progress: 0,
           medalImage: _MedalImage(image, cacheWidth: 640),
         ),
-        _ => SurfaceArt(material: material, progress: 1),
+        _ => SurfaceArt(
+          material: material,
+          progress: material.id == 'kanji' ? 0 : 1,
+        ),
       },
     ),
   );
@@ -1959,31 +2066,41 @@ class _RoundHeader extends StatelessWidget {
   final GameController game;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    alignment: WrapAlignment.spaceBetween,
-    crossAxisAlignment: WrapCrossAlignment.center,
-    spacing: 12,
-    runSpacing: 5,
-    children: [
-      Text(
-        game.phase == GamePhase.result ? '今回の仕上がり' : game.material!.name,
-        style: const TextStyle(
-          color: chalk,
-          fontWeight: FontWeight.w700,
-          fontSize: 17,
-        ),
-      ),
-      if (game.phase != GamePhase.result)
-        Text(
-          '${game.round} 回目 / 全3回',
+  Widget build(BuildContext context) {
+    final voice = game.phase == GamePhase.voice;
+    final result = game.phase == GamePhase.result;
+    final material = Flexible(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          result ? '今回の仕上がり' : game.material!.name,
           style: const TextStyle(
-            color: muted,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+            color: chalk,
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
           ),
         ),
-    ],
-  );
+      ),
+    );
+    final counter = Flexible(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          '${game.round} 回目 / 全${GameController.roundCount}回',
+          style: TextStyle(
+            color: voice ? chalk : muted,
+            fontWeight: FontWeight.w600,
+            fontSize: voice ? 18 : 14,
+          ),
+        ),
+      ),
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      spacing: 12,
+      children: [if (voice) counter, material, if (!voice && !result) counter],
+    );
+  }
 }
 
 /// 四角いっぱいに広がる作業面。枠・段階名・研磨の割合は出さず、素材だけを大きく見せる。
