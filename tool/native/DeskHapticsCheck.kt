@@ -44,6 +44,12 @@ fun main() {
     interrupted.sample(ns(5), motion(.6, .6, 1200, began = true))
     check(!interrupted.expire(ns(124)) && interrupted.expire(ns(125)) && !interrupted.expire(ns(130)))
     check(interrupted.sample(ns(400), motion(-.5, .6, 1200), ns(70)) == null)
+
+    // A backlog may contain a valid first push but the hand can already have turned.
+    val backlogged = DeskHaptics("coarse", .1, 65, 230)
+    check(backlogged.sample(ns(100), motion(.5, .6, 1200, began = true), ns(20)) == null)
+    check(checkNotNull(backlogged.sample(ns(110), motion(.5, .6, 1200), ns(108))).durationMs > 0)
+    check(backlogged.sample(ns(210), DeskSample(false, ended = true), ns(130)) === DeskFeedback.stop)
     val deadline = DeskFeedback(longArrayOf(0, 20, 10, 20), 130)
     check(deadline.within(0) == null && deadline.within(50) === deadline)
     check(deadline.within(29)?.timings?.contentEquals(longArrayOf(0, 20)) == true)

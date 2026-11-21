@@ -59,6 +59,7 @@ internal data class DeskSample(
     val passPeakMps: Double = 0.0,
     // Training example only when two observed reversals bound a full pass.
     val completedPassPeakMps: Double? = null,
+    val alongAccelerationMps2: Double = 0.0,
 )
 
 /** Short-window velocity relative to a resting grip. Sensor times and acceleration are in SI units. */
@@ -95,9 +96,9 @@ private class PlanarVelocity {
         if (stroke || cycleStartNs < 0) {
             val cycleSeconds = (timeNs - cycleStartNs) / 1e9
             // A complete out-and-back pass has nearly zero net displacement.
-            // Recenter from that cycle's mean velocity, without assuming either
-            // acceleration lobe is itself a point of zero speed.
-            if (cycleStartNs >= 0 && cycleSeconds in .20..1.70) {
+            // A scoring lobe can survive a short pause. After a new touch,
+            // wait for a velocity reversal before using a cycle mean as drift.
+            if (cycleStartNs >= 0 && sawReversal && cycleSeconds in .20..1.70) {
                 driftSpeed = cycleDistance / cycleSeconds
             }
             cycleStartNs = timeNs
@@ -151,6 +152,9 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
     private var lastNs = -1L
     private var gravityNs = -1L
     private var idlePower = 0.0
+    private var quietSinceNs = -1L
+    private var lastQuietNs = -1L
+    private var preserveCycleUntilNs = -1L
     private var candidateNs = -1L
     private var lastMotionNs = -1L
     private var lastGlideNs = -1L
@@ -230,6 +234,12 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
             endContact()
             return DeskSample(false, ended = ended)
         }
+        // Qualify a gentle first push only after sustained quiet in both axes.
+        if (!motorNoise && horizontal < .13 && vertical < .18) {
+            if (quietSinceNs < 0) quietSinceNs = timeNs
+            if (timeNs - quietSinceNs >= 100_000_000L) lastQuietNs = timeNs
+        } else quietSinceNs = -1L
+        val fromRest = lastQuietNs >= 0 && timeNs - lastQuietNs < 250_000_000L
         val opening = !contact
         // Integrate before acquiring the work axis so the first push starts from rest.
         if (opening && candidateNs < 0 && horizontal < .25 && !motorNoise) velocity.reset()
@@ -238,6 +248,10 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
         // first touch. A push from a quiet resting grip keeps the low threshold.
         val onsetThreshold = max(threshold, minOf(2.5, 3.0 * sqrt(idlePower)))
         if (opening) {
+            if (preserveCycleUntilNs >= 0 && timeNs >= preserveCycleUntilNs) {
+                cycle.resetCycle()
+                preserveCycleUntilNs = -1L
+            }
             val bounded = minOf(horizontal, 2.5)
             idlePower += (1 - exp(-dt / 0.32)) * (bounded * bounded - idlePower)
             // A round may begin mid-motion. Consecutive lobes in the same plane
@@ -249,7 +263,8 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
                 return sample(velocity.along(axis, timeNs, true), began = true, stroke = true, moving = true)
             }
         }
-        if (opening && (motorNoise || horizontal < onsetThreshold || horizontal < 1.1 * vertical)) {
+        val gentlePush = fromRest && horizontal >= .55 && horizontal > 2 * vertical
+        if (opening && (motorNoise || (!gentlePush && horizontal < onsetThreshold) || horizontal < 1.1 * vertical)) {
             candidateNs = -1
             return DeskSample(false)
         }
@@ -263,10 +278,11 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
                 candidateNs = -1
                 return DeskSample(false)
             }
-            if (timeNs - candidateNs < 20_000_000L) return DeskSample(false)
-            // The early touch may shortly mask this lobe. Seed the same
-            // direction the hand actually sustained before the motor turned on.
-            cycle.beginPlanar(candidateNs, axis)
+            val holdNs = if (projection >= onsetThreshold) 20_000_000L else 80_000_000L
+            if (timeNs - candidateNs < holdNs) return DeskSample(false)
+            // A pause at an endpoint ends the feel of contact, but the return
+            // still belongs to the same physical out-and-back stroke.
+            if (timeNs >= preserveCycleUntilNs) cycle.beginPlanar(candidateNs, axis)
             contact = true
             lastMotionNs = timeNs
             return sample(velocity.along(axis, timeNs, false), began = true, moving = true)
@@ -289,14 +305,16 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
         // In the middle of a smooth pass acceleration crosses zero at maximum
         // speed. Brief, coherent accelerations can support that glide after a
         // strong hand impulse. They can neither open contact nor renew the limit.
-        val glide = timeNs - lastMotionNs < 320_000_000L && abs(speed) > max(.10, velocity.peak * .46)
+        val glide = timeNs - lastMotionNs < 780_000_000L && abs(speed) > max(.10, velocity.peak * .46)
         if (glide && aligned && abs(projection) >= .32 && abs(direct) >= .27) lastGlideNs = timeNs
         val moving = strong || (glide && lastGlideNs >= 0 && timeNs - lastGlideNs < 65_000_000L)
-        // A slower return can pass through a longer acceleration minimum. Keep
-        // this window independent of the previous rhythm; the motor has its own watchdog.
+        // At the middle of a slow slide acceleration can stay quiet even at
+        // peak speed. Keep its velocity through this coast. Only fresh hand
+        // evidence above can renew the separate 120 ms motor watchdog.
         val lastHandNs = maxOf(lastMotionNs, lastGlideNs)
-        if (!moving && (timeNs - lastHandNs >= 185_000_000L || timeNs - lastMotionNs >= 365_000_000L)) {
-            endContact()
+        val graceNs = if (glide) 300_000_000L else 185_000_000L
+        if (!moving && (timeNs - lastHandNs >= graceNs || timeNs - lastMotionNs >= 800_000_000L)) {
+            endContact(timeNs + 350_000_000L)
             return DeskSample(false, ended = true)
         }
         return sample(speed, stroke = stroke, moving = moving)
@@ -312,11 +330,17 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
             signedSpeedMps = speed,
             passPeakMps = velocity.peak,
             completedPassPeakMps = velocity.completedPeak,
+            alongAccelerationMps2 = (0..2).sumOf { planar[it] * axis[it] },
         )
     }
 
-    private fun endContact() {
-        cycle.resetCycle()
+    private fun endContact(preserveUntil: Long = -1L) {
+        preserveCycleUntilNs = preserveUntil
+        if (preserveUntil < 0) {
+            cycle.resetCycle()
+            quietSinceNs = -1L
+            lastQuietNs = -1L
+        }
         velocity.reset()
         candidateNs = -1
         lastMotionNs = -1

@@ -68,20 +68,31 @@ internal class DeskHaptics(
         val speed = abs(state.signedSpeedMps)
         val direction = if (state.signedSpeedMps >= 0.0) 1 else -1
         val reference = maxOf(state.passPeakMps, .15)
+        val slowPass = state.passPeakMps < slowPeakMps && (state.cadenceMs ?: 1200) >= 650
+        val acceleration = direction * state.alongAccelerationMps2
+        // Lead the motor command briefly on slow glides, including the brake.
+        // Bound the lead relative to this pass so a turn cannot start a pulse by itself.
+        val glideSpeed = if (slowPass) {
+            speed + (acceleration * .045).coerceIn(-reference * .30, reference * .17)
+        } else speed
         // Let a pass sound on the glide and release it as the hand approaches rest.
         if (direction != playedDirection && speed >= maxOf(.055, reference * .16)) {
             // An asymmetric return may be too gentle to sound but still begins a new pass.
             playedDirection = 0
             if (cancelActive(timeNs)) return DeskFeedback.stop
         }
-        if (speed < maxOf(.045, reference * .43)) {
+        if (glideSpeed < maxOf(.045, reference * .43)) {
             return if (cancelActive(timeNs)) DeskFeedback.stop else null
         }
         if (timeNs < endNs && state.passPeakMps >= compactAtMps && timeNs - startedNs >= 80_000_000L) {
             return if (cancelActive(timeNs)) DeskFeedback.stop else null
         }
-        if (!state.moving || direction == playedDirection || speed < maxOf(.075, reference * .65) ||
-            evidenceNs < quietUntilNs) return null
+        // A delayed sensor event can end a command, but must not start one
+        // after the hand has already moved on. The next fresh event may start it.
+        if (!state.moving || direction == playedDirection || evidenceNs < quietUntilNs ||
+            timeNs - evidenceNs > 40_000_000L) return null
+        val minSpeed = if (slowPass) .055 else .075
+        if (speed < minSpeed || glideSpeed < reference * .65 || (slowPass && acceleration < -.25)) return null
         playedDirection = direction
         val fast = compactTexture(state.cadenceMs?.coerceIn(230, 1250) ?: 370)
         val portion = ((state.passPeakMps - slowPeakMps) / (compactAtMps - slowPeakMps)).coerceIn(0.0, 1.0)

@@ -4,6 +4,7 @@ import java.io.File
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private const val dtNs = 10_000_000L
@@ -144,6 +145,93 @@ private fun checkGradualStart() {
     check(strokes.count { it >= 2800 } == 5) { "Gradually established strokes: $strokes" }
 }
 
+private fun checkSeparatedPushes() {
+    val desk = DeskMotion(DeskBaseline(9.81, .08))
+    val gravity = floatArrayOf(0f, 0f, 9.81f)
+    val starts = mutableListOf<Int>()
+    val releases = mutableListOf<Int>()
+    val strokes = mutableListOf<Int>()
+    val resumeMs = 1130
+    for (ms in 0..2000 step 10) {
+        // Both translations are forward and end at rest. The hand never returns.
+        val x = leg((ms - 400) / 1000.0, .18, .06) + leg((ms - resumeMs) / 1000.0, .4, .04)
+        val ns = ms * 1_000_000L
+        desk.gravity(ns, gravity)
+        val sample = desk.update(ns, floatArrayOf(x.toFloat(), 0f, 9.81f))
+        if (sample.began) starts.add(ms)
+        if (sample.ended) releases.add(ms)
+        if (sample.stroke) strokes.add(ms)
+    }
+    check(starts.size == 2 && starts[0] in 400..580 && starts[1] in resumeMs..(resumeMs + 400))
+    check(releases.size == 2 && resumeMs - releases.first() >= 350)
+    check(strokes.isEmpty()) { "Same-direction pushes across an expired contact counted at $strokes" }
+}
+
+/** Six 9 cm slides from rest, with an explicit 200 ms dwell at each end. */
+private fun checkSlowSlidesWithStops(hz: Int, smoothStart: Boolean) {
+    val desk = DeskMotion()
+    val silentDesk = DeskMotion()
+    val haptics = DeskHaptics("coarse", .1, 65, 180)
+    val travelMs = 600
+    val dwellMs = 200
+    val passMs = travelMs + dwellMs
+    val starts = List(6) { mutableListOf<Int>() }
+    var envelopeEndNs = 0L
+    var strokes = 0
+    var silentStrokes = 0
+    for (i in 0..((1000 + starts.size * passMs + 300) * hz / 1000)) {
+        val ns = i * 1_000_000_000L / hz
+        val ms = (ns / 1e6).roundToInt() - 1000
+        val pass = Math.floorDiv(ms, passMs)
+        val phaseMs = Math.floorMod(ms, passMs)
+        val sliding = pass in starts.indices && phaseMs < travelMs
+        // Both trajectories come to rest at the ends and reach peak speed halfway through.
+        val direction = if (pass % 2 == 0) 1 else -1
+        val acceleration = if (sliding) {
+            val seconds = phaseMs / 1000.0
+            val duration = travelMs / 1000.0
+            val omega = PI / duration
+            if (smoothStart) direction * leg(seconds, duration, .09)
+            else direction * .09 / 2 * omega * omega * cos(omega * seconds)
+        } else 0.0
+        // Start with a stationary grip, an independent motor pulse, then rest.
+        if (ms == -800) desk.motorStarted(ns, 300)
+        val motorOnly = if (ms in -800 until -500) 1.2 * sin(2 * PI * 19 * ns / 1e9) else 0.0
+        desk.gravity(ns, down)
+        val hand = desk.update(ns, floatArrayOf((acceleration + motorOnly).toFloat(), 0f, down[2]))
+        silentDesk.gravity(ns, down)
+        if (silentDesk.update(ns, floatArrayOf(acceleration.toFloat(), 0f, down[2])).stroke) silentStrokes++
+        if (hand.stroke) strokes++
+        if (ms < 0) check(!hand.contact && !hand.stroke) { "${hz}Hz false contact at ${ms}ms" }
+        val command = haptics.sample(ns, hand)
+        if (command === DeskFeedback.stop) {
+            desk.motorStopped(ns)
+            envelopeEndNs = ns
+        } else if (command != null) {
+            check(sliding) { "${hz}Hz issued a vibration during rest at ${ms}ms" }
+            starts[pass].add(phaseMs)
+            desk.motorStarted(ns, command.durationMs)
+            envelopeEndNs = ns + command.durationMs * 1_000_000L
+        }
+        // Check the command envelope, independent of short gaps in its texture.
+        if (!sliding && phaseMs >= travelMs + 1000.0 / hz) {
+            check(ns >= envelopeEndNs) { "${hz}Hz pass $pass: active vibration command at ${phaseMs}ms" }
+        }
+    }
+    for ((pass, times) in starts.withIndex()) {
+        check(times.isNotEmpty() && times.first() < travelMs / 2 &&
+                times.last() < 3 * travelMs / 4) {
+            "${hz}Hz pass $pass started at ${times}ms, turnaround at ${travelMs}ms"
+        }
+    }
+    val roundTrips = starts.size / 2
+    check(strokes == roundTrips && silentStrokes == roundTrips) {
+        "${hz}Hz 3 round trips, smoothStart=$smoothStart: motor on $strokes, off $silentStrokes"
+    }
+    println("${hz}Hz 9 cm slides, smoothStart=$smoothStart: first commands (ms) ${starts.map { it.first() }}, " +
+            "turn at ${travelMs}ms, strokes on/off $strokes/$silentStrokes")
+}
+
 fun main(args: Array<String>) {
     if (args.isNotEmpty()) {
         require(args.size == 1) { "Pass one acceleration CSV or no arguments for the desk motion checks" }
@@ -195,6 +283,11 @@ fun main(args: Array<String>) {
     check(starts == 2 && releasedAt in 90..97 && after == 0)
     checkSpeedChanges(fusedGravity = false)
     checkSpeedChanges(fusedGravity = true)
+    for (hz in listOf(60, 100)) {
+        checkSlowSlidesWithStops(hz, smoothStart = false)
+        checkSlowSlidesWithStops(hz, smoothStart = true)
+    }
     checkGradualStart()
+    checkSeparatedPushes()
     println("vertical lifts, pickup, stationary calibration, one-way start, release and recontact passed")
 }
