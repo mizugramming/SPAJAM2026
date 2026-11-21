@@ -16,6 +16,7 @@ export 'workshop_theme.dart' show workshopTheme;
 abstract interface class WorkshopActions {
   void choose(WorkMaterial material);
   void capture();
+  void paperLanded();
   void start();
   void retry();
   void simulateStroke();
@@ -203,7 +204,11 @@ class Workshop extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: screen == Screen.ready
-            ? _PaperArrival(key: ValueKey(game.round), child: stage)
+            ? _PaperArrival(
+                key: ValueKey(game.round),
+                onLanded: actions.paperLanded,
+                child: stage,
+              )
             : stage,
       ),
     );
@@ -262,7 +267,8 @@ class Workshop extends StatelessWidget {
           Part(
             'title',
             '見出し',
-            Center(
+            FittedBox(
+              fit: BoxFit.scaleDown,
               child: _Title(
                 busy
                     ? '声を聞いています'
@@ -329,13 +335,15 @@ class Workshop extends StatelessWidget {
           errorPart,
           Part(
             'action',
-            '開始ボタン',
-            _BoxButton(
-              key: const ValueKey('start'),
-              icon: Icons.play_arrow_rounded,
-              label: busy ? '準備中…' : '磨く！',
-              onPressed: busy ? null : actions.start,
-            ),
+            '計測の再試行',
+            errorText == null
+                ? null
+                : _BoxButton(
+                    key: const ValueKey('retry-motion'),
+                    icon: Icons.refresh,
+                    label: '計測を再試行',
+                    onPressed: busy ? null : actions.start,
+                  ),
             transition: _afterPaperLands,
             fill: true,
           ),
@@ -431,9 +439,10 @@ Widget _landMedal(Size canvas, Rect bounds, Widget face) =>
     );
 
 /// A single timeline carries the captured mic to the middle, reveals the paper,
-/// and unlocks start at its landing. The game clock begins with that button.
+/// and signals the session when the sheet settles on the workbench.
 class _PaperArrival extends StatelessWidget {
-  const _PaperArrival({super.key, required this.child});
+  const _PaperArrival({super.key, required this.onLanded, required this.child});
+  final VoidCallback onLanded;
   final Widget child;
   static const duration = Duration(milliseconds: 1800);
 
@@ -442,7 +451,8 @@ class _PaperArrival extends StatelessWidget {
     final reduced = MediaQuery.disableAnimationsOf(context);
     return TweenAnimationBuilder<double>(
       duration: reduced ? Duration.zero : duration,
-      tween: Tween(begin: reduced ? 1.0 : 0.0, end: 1.0),
+      tween: Tween(begin: 0.0, end: 1.0),
+      onEnd: onLanded,
       child: ClipRect(child: child),
       builder: (context, t, stage) =>
           _ArrivalProgress(value: reduced ? 1 : t, child: stage!),
@@ -578,17 +588,35 @@ Widget _paperEntrance(
 );
 
 /// The banner crosses the material once. Input remains live beneath it.
-class _PolishCue extends StatelessWidget {
+class _PolishCue extends StatefulWidget {
   const _PolishCue();
+
+  @override
+  State<_PolishCue> createState() => _PolishCueState();
+}
+
+class _PolishCueState extends State<_PolishCue>
+    with SingleTickerProviderStateMixin {
+  late final _cue = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 630),
+    animationBehavior: AnimationBehavior.preserve,
+  )..forward();
+
+  @override
+  void dispose() {
+    _cue.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final reduced = MediaQuery.disableAnimationsOf(context);
     return IgnorePointer(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 630),
-        builder: (context, t, banner) {
+      child: AnimatedBuilder(
+        animation: _cue,
+        builder: (context, banner) {
+          final t = _cue.value;
           if (t == 1) return const SizedBox.shrink();
           final enter = const Interval(
             0,
@@ -605,31 +633,34 @@ class _PolishCue extends StatelessWidget {
             child: Opacity(opacity: reduced ? 1 : 1 - leave, child: banner!),
           );
         },
-        child: const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color(0x00751619),
-                Color(0xF88E1D21),
-                Color(0xFA701418),
-                Color(0x00751619),
-              ],
-              stops: [0, .18, .82, 1],
+        child: Semantics(
+          liveRegion: true,
+          child: const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0x00751619),
+                  Color(0xF88E1D21),
+                  Color(0xFA701418),
+                  Color(0x00751619),
+                ],
+                stops: [0, .18, .82, 1],
+              ),
             ),
-          ),
-          child: FittedBox(
-            fit: BoxFit.contain,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                '磨け',
-                style: TextStyle(
-                  color: chalk,
-                  fontFamily: appFont,
-                  fontSize: 72,
-                  height: 1.05,
-                  letterSpacing: 7,
-                  fontWeight: FontWeight.w900,
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  '磨け！',
+                  style: TextStyle(
+                    color: chalk,
+                    fontFamily: appFont,
+                    fontSize: 72,
+                    height: 1.05,
+                    letterSpacing: 7,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ),
@@ -1423,7 +1454,11 @@ class _MaterialArt extends StatelessWidget {
     child: AspectRatio(
       aspectRatio: 1,
       child: switch (_imageFor(material, 0)) {
-        final String image => _MedalImage(image, cacheWidth: 640),
+        final String image => SurfaceArt(
+          material: material,
+          progress: 0,
+          medalImage: _MedalImage(image, cacheWidth: 640),
+        ),
         _ => SurfaceArt(material: material, progress: 1),
       },
     ),

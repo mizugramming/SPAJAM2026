@@ -56,6 +56,8 @@ class _SessionState extends State<_Session>
   final game = GameController();
   late final device = WorkshopDevice(simulated: widget.simulated);
   StreamSubscription<int>? _events;
+  Timer? _readyTimer;
+  bool _paperLanded = false;
   bool _motion = false;
   bool _inContact = false;
   bool _busy = false;
@@ -82,6 +84,10 @@ class _SessionState extends State<_Session>
   }
 
   void _changed() {
+    if (game.phase != GamePhase.ready && _paperLanded) {
+      _paperLanded = false;
+      _readyTimer?.cancel();
+    }
     if (_motion && game.phase != GamePhase.polishing) _stopMotion();
     setState(() {});
   }
@@ -138,8 +144,30 @@ class _SessionState extends State<_Session>
   }
 
   @override
+  void paperLanded() {
+    if (game.phase != GamePhase.ready) return;
+    _paperLanded = true;
+    _scheduleStart();
+  }
+
+  bool get _canStart =>
+      game.phase == GamePhase.ready &&
+      !_busy &&
+      !_background &&
+      !_confirmingExit &&
+      WidgetsBinding.instance.lifecycleState != AppLifecycleState.inactive;
+
+  /// Give the player a moment to move their hand into position after landing.
+  void _scheduleStart() {
+    _readyTimer?.cancel();
+    if (_paperLanded && _canStart && _error == null) {
+      _readyTimer = Timer(const Duration(milliseconds: 650), start);
+    }
+  }
+
+  @override
   Future<void> start() async {
-    if (_busy || _background || game.phase != GamePhase.ready) return;
+    if (!_canStart) return;
     await _startMotion(resume: false);
   }
 
@@ -220,11 +248,18 @@ class _SessionState extends State<_Session>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive || _inLab) return;
+    if (_inLab) return;
+    if (state == AppLifecycleState.inactive && game.phase != GamePhase.ready) {
+      return;
+    }
     final background = state != AppLifecycleState.resumed;
-    if (background == _background) return;
+    if (background == _background) {
+      if (!background) _scheduleStart();
+      return;
+    }
     _background = background;
     if (background) {
+      _readyTimer?.cancel();
       _operation++;
       _busy = false;
       game.setPaused(true);
@@ -237,6 +272,7 @@ class _SessionState extends State<_Session>
       unawaited(_startMotion(resume: true));
     } else {
       game.setPaused(false);
+      _scheduleStart();
       setState(() {});
     }
   }
@@ -244,6 +280,7 @@ class _SessionState extends State<_Session>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _readyTimer?.cancel();
     _operation++;
     game.removeListener(_changed);
     _stopMotion();
@@ -260,6 +297,7 @@ class _SessionState extends State<_Session>
       return;
     }
     _confirmingExit = true;
+    _readyTimer?.cancel();
     _operation++;
     _busy = false;
     game.setPaused(true);
@@ -291,6 +329,7 @@ class _SessionState extends State<_Session>
       await _startMotion(resume: true);
     } else {
       game.setPaused(_background);
+      _scheduleStart();
       setState(() {});
     }
   }
