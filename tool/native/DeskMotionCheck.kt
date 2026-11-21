@@ -78,6 +78,7 @@ private fun checkSpeedChanges(fusedGravity: Boolean) {
     val boundaries = halfMs.runningFold(1000) { start, half -> start + 8 * half }
     val strokes = IntArray(3)
     val envelopes = Array(3) { mutableListOf<Int>() }
+    val fastPasses = IntArray(8)
     for (ms in 0..boundaries.last() + 500 step 10) {
         val ns = ms * 1_000_000L
         val stage = halfMs.indices.firstOrNull { ms in boundaries[it] until boundaries[it + 1] }
@@ -91,14 +92,16 @@ private fun checkSpeedChanges(fusedGravity: Boolean) {
         if (feedback != null) {
             if (feedback.durationMs > 0) {
                 if (stage != null) envelopes[stage].add(feedback.durationMs)
+                if (stage == 1) fastPasses[(ms - boundaries[1]) / halfMs[1]]++
                 desk.motorStarted(ns, feedback.durationMs)
             } else desk.motorStopped(ns)
         }
         if (haptics.expire(ns)) desk.motorStopped(ns)
     }
     check(strokes.all { it == 4 }) { "Count at each speed: ${strokes.toList()}" }
+    check(fastPasses.takeLast(4).all { it == 1 }) { "Taps per fast pass: ${fastPasses.toList()}" }
     val fast = envelopes[1].last()
-    check(fast < envelopes[0].last() && fast < envelopes[2].last()) { "Waveforms: ${envelopes.toList()}" }
+    check(fast in 50..80 && fast < envelopes[0].last() && fast < envelopes[2].last()) { "Waveforms: ${envelopes.toList()}" }
 }
 
 private fun checkGradualStart() {

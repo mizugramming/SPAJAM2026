@@ -55,6 +55,7 @@ internal data class DeskSample(
     val stroke: Boolean = false,
     val cadenceMs: Int? = null,
     val moving: Boolean = false,
+    val lastReversalNs: Long? = null,
 )
 
 /** One play round. All timestamps (including motor commands) share Android's elapsed realtime clock. */
@@ -203,7 +204,8 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
             return DeskSample(false, ended = true)
         }
         val stroke = cycle.updatePlanar(timeNs, planar)
-        return DeskSample(true, stroke = stroke, cadenceMs = cycle.estimatedPeriodMs, moving = moving)
+        return DeskSample(true, stroke = stroke, cadenceMs = cycle.estimatedPeriodMs,
+            moving = moving, lastReversalNs = cycle.lastReversalNs)
     }
 
     private fun endContact() {

@@ -72,14 +72,17 @@ internal class DeskHaptics(
             return if (cancelActive(timeNs)) DeskFeedback.stop else null
         }
         // Require hand evidence after all motor-on slots and their settling time.
-        val nextNs = startedNs + minOf(intervalMs, periodMs) * 1_000_000L
-        if (evidenceNs < quietUntilNs || timeNs < nextNs) return null
-        val envelopeMs = if (state.cadenceMs == null) 110 else when {
-            periodMs <= 275 -> 44
-            periodMs < 370 -> 44 + (periodMs - 275) * 206 / 95
-            periodMs <= 500 -> 250
-            else -> (250 + (periodMs - 500) * 750 / 700).coerceAtMost(1000)
+        if (evidenceNs < quietUntilNs) return null
+        if (state.cadenceMs != null && periodMs <= 500) {
+            // One short rasp on each verified push or pull. Its two directions still score one stroke.
+            val reversalNs = state.lastReversalNs ?: return null
+            if (reversalNs <= startedNs || evidenceNs - reversalNs !in 0L..45_000_000L) return null
+            return play(timeNs, periodMs / 2, compactTexture(periodMs))
         }
+        val nextNs = startedNs + minOf(intervalMs, periodMs) * 1_000_000L
+        if (timeNs < nextNs) return null
+        val envelopeMs = if (state.cadenceMs == null) 80 else
+            (80 + (periodMs - 500) * 920 / 700).coerceAtMost(1000)
         val scaled = (envelopeMs * (.25 + .75 * length / 65).coerceIn(.30, 1.0)).roundToInt()
         val budget = minOf(scaled, periodMs - 90).coerceAtLeast(1)
         return play(timeNs, periodMs, texture(budget))
@@ -103,6 +106,22 @@ internal class DeskHaptics(
         quietUntilNs = endNs + 60_000_000L
         intervalMs = periodMs
         return feedback
+    }
+
+    private fun compactTexture(periodMs: Int): LongArray {
+        // Reserve motor settling time and one 60 Hz sensor frame before the next half-stroke.
+        val maxMs = (periodMs / 2 - 77).coerceIn(50, 80)
+        val widthMs = 50 + ((maxMs - 50) * (length / 68.0).coerceIn(0.0, 1.0)).roundToInt()
+        val duty = when (grit) {
+            "coarse" -> 1.0
+            "medium" -> .78
+            else -> .55
+        }
+        val onMs = (widthMs * duty * (1 - .25 * finish)).roundToInt()
+        val gapMs = widthMs - onMs
+        if (gapMs < 8) return longArrayOf(0, widthMs.toLong())
+        val firstMs = (onMs + 1) / 2
+        return longArrayOf(0, firstMs.toLong(), gapMs.toLong(), (onMs - firstMs).toLong())
     }
 
     private fun texture(budgetMs: Int): LongArray {

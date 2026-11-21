@@ -3,14 +3,16 @@ package jp.spajam.polish_workshop
 /** Pure scheduler checks. DeskMotionCheck exercises recognition; these supply explicit hand evidence. */
 fun main() {
     fun ns(ms: Int) = ms * 1_000_000L
-    fun push(period: Int) = DeskSample(contact = true, moving = true, cadenceMs = period)
+    fun push(period: Int, reversalMs: Int? = null) = DeskSample(
+        contact = true, moving = true, cadenceMs = period, lastReversalNs = reversalMs?.let { ns(it) }
+    )
     val touch = DeskSample(contact = true, began = true, moving = true)
     fun steady(grit: String, progress: Double, baseMs: Int, period: Int): DeskFeedback {
         val haptics = DeskHaptics(grit, progress, baseMs, 160)
         val first = checkNotNull(haptics.sample(ns(5), touch))
         check(first.durationMs in 12..42 && first.timings.size == 2)
         check(haptics.sample(ns(25), push(period)) == null)
-        val packet = checkNotNull(haptics.sample(ns(125), push(period)))
+        val packet = checkNotNull(haptics.sample(ns(125), push(period, 125)))
         check(packet.amplitude == 160 && packet.timings[0] == 0L)
         check(packet.timings.size % 2 == 0 && packet.timings.drop(1).all { it > 0 })
         return packet
@@ -21,10 +23,15 @@ fun main() {
     val moderate = early.map { (grit, len) -> steady(grit, .10, len, 370) }
     val fast = early.map { (grit, len) -> steady(grit, .10, len, 250) }
     check(slow.first().durationMs == 1000)
-    check(moderate.first().durationMs == 250)
-    check(fast.first().durationMs == 44)
+    check(moderate.all { it.durationMs in 50..80 } && fast.all { it.durationMs in 50..80 })
+    check(fast.first().durationMs < moderate.first().durationMs)
     for (packets in listOf(slow, moderate, fast)) {
         check(onMs(packets[0]) > onMs(packets[1]) && onMs(packets[1]) > onMs(packets[2]))
+    }
+    // A fixed-amplitude phone must still feel the finish change at the fastest cadence.
+    for ((i, profile) in early.withIndex()) {
+        val polished = steady(profile.first, .9, (profile.second * .58).toInt(), 250)
+        check(onMs(polished) < onMs(fast[i]))
     }
     check(slow[0].timings[1] > slow[1].timings[1] && slow[1].timings[1] > slow[2].timings[1])
     val deadline = DeskFeedback(longArrayOf(0, 20, 10, 20), 130)
@@ -45,13 +52,17 @@ fun main() {
     lift.sample(ns(125), push(1200))
     check(lift.sample(ns(150), DeskSample(contact = false, ended = true)) === DeskFeedback.stop)
     check(lift.sample(ns(160), DeskSample(false)) == null)
-    // A sample collected during the motor tail cannot schedule the next packet, even if delivered late.
+    // During fast play each new measured half-cycle can pulse once. Old, unconfirmed
+    // or delayed samples cannot turn repeated sensor updates into extra taps.
     val lag = DeskHaptics("coarse", .1, 65, 230)
     lag.sample(ns(5), touch)
-    lag.sample(ns(125), push(370))
-    for (t in 130..420 step 10) lag.sample(ns(t), push(370))
-    check(lag.sample(ns(496), push(370), ns(424)) == null)
-    check(lag.sample(ns(504), push(370), ns(496))?.durationMs == 250)
+    check(lag.sample(ns(125), push(370, 125))?.durationMs in 50..80)
+    for (t in 130..300 step 10) check(lag.sample(ns(t), push(370, 125)) == null)
+    check(lag.sample(ns(310), push(370)) == null)
+    check(lag.sample(ns(315), push(370, 150), ns(175)) == null)
+    check(lag.sample(ns(320), push(370, 310))?.durationMs in 50..80)
+    check(lag.sample(ns(470), push(370, 410)) == null)
+    check(lag.sample(ns(500), push(370, 495))?.durationMs in 50..80)
     println("coarse/medium/fine, slow total/on ms: " + slow.joinToString { "${it.durationMs}/${onMs(it)}" })
     println("coarse/medium/fine, fast total/on ms: " + moderate.joinToString { "${it.durationMs}/${onMs(it)}" })
 }
