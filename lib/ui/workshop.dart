@@ -66,31 +66,42 @@ class Workshop extends StatelessWidget {
         header: true,
         label: 'いろみがき',
         child: ExcludeSemantics(
-          child: _GrungeText(
-            'いろ\nみがき',
-            style: TextStyle(
-              color: chalk,
-              fontSize: 96,
-              fontWeight: FontWeight.w900,
-              height: 1.0,
-              letterSpacing: -2,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.topLeft,
+            child: _GrungeText(
+              'いろ\nみがき',
+              style: TextStyle(
+                color: chalk,
+                fontSize: 96,
+                fontWeight: FontWeight.w900,
+                height: 1.0,
+                letterSpacing: -2,
+              ),
             ),
           ),
         ),
       ),
+      fill: true,
     ),
     const Part(
       'tagline',
       '英字の添え書き',
-      Text(
-        'POLISH  OUT  YOUR  COLOR',
-        style: TextStyle(
-          color: chalk,
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 3,
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.topLeft,
+        child: Text(
+          'POLISH  OUT  YOUR  COLOR',
+          maxLines: 1,
+          style: TextStyle(
+            color: chalk,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 3,
+          ),
         ),
       ),
+      fill: true,
     ),
     const Part(
       'catch',
@@ -414,7 +425,7 @@ class _GrungeText extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Stack(
     children: [
-      Text(text, style: style),
+      Text(text, style: style, softWrap: false),
       Positioned.fill(
         child: IgnorePointer(
           child: CustomPaint(
