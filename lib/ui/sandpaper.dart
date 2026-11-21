@@ -77,25 +77,24 @@ class SandpaperFace extends StatelessWidget {
       child: ExcludeSemantics(
         child: LayoutBuilder(
           builder: (context, frame) {
-            final portrait = frame.maxHeight > frame.maxWidth;
-            final fontSize = math.min(
-              frame.maxWidth * .103,
-              frame.maxHeight * .073,
-            );
-            Widget imprint(Alignment alignment, double angle) => Align(
+            final fontSize = math
+                .min(frame.maxWidth * .056, frame.maxHeight * .12)
+                .clamp(17.0, 24.0);
+            Widget imprint(Alignment alignment) => Align(
               alignment: alignment,
               child: Transform.rotate(
-                angle: angle,
+                angle: -.13,
                 child: Text(
                   stamp,
                   maxLines: 1,
                   textScaler: TextScaler.noScaling,
                   style: TextStyle(
                     fontFamily: 'WorkshopSans',
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                     fontSize: fontSize,
-                    letterSpacing: -.4,
-                    color: const Color(0x68463931),
+                    height: 1.1,
+                    letterSpacing: -.3,
+                    color: const Color(0xb0393029),
                   ),
                 ),
               ),
@@ -103,17 +102,11 @@ class SandpaperFace extends StatelessWidget {
             return Stack(
               fit: StackFit.expand,
               children: [
-                RepaintBoundary(
-                  child: portrait
-                      ? Transform.flip(
-                          flipX: true,
-                          child: RotatedBox(quarterTurns: 3, child: sheet),
-                        )
-                      : sheet,
-                ),
-                imprint(const Alignment(-.60, -.36), -.14),
-                imprint(const Alignment(.60, .05), -.14),
-                imprint(const Alignment(-.36, .33), -.14),
+                RepaintBoundary(child: sheet),
+                // Leave the folded upper-right corner and lower controls clear.
+                imprint(const Alignment(-.69, -.70)),
+                imprint(const Alignment(.68, -.67)),
+                imprint(const Alignment(-.06, -.21)),
                 if (inContact && strokes > 0)
                   CustomPaint(painter: _EdgeDust(progress, grit)),
               ],

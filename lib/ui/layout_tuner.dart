@@ -193,6 +193,7 @@ class Part {
     this.id,
     this.label,
     this.child, {
+    this.transition,
     this.fill = false,
     this.align = Alignment.topLeft,
   });
@@ -201,6 +202,7 @@ class Part {
 
   /// null なら今は表示しない（編集中は四角だけ出る）。
   final Widget? child;
+  final Widget Function(Size canvas, Rect bounds, Widget child)? transition;
   final bool fill;
   final Alignment align;
 }
@@ -212,14 +214,12 @@ class LayoutStage extends StatelessWidget {
     required this.screen,
     required this.parts,
     this.background,
-    this.partsTransition,
   });
   final Screen screen;
   final List<Part> parts;
 
   /// 部品の後ろに画面いっぱいに敷くもの（背景画像など）。
   final Widget? background;
-  final Widget Function(Widget)? partsTransition;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -233,7 +233,6 @@ class LayoutStage extends StatelessWidget {
               screen: screen,
               parts: parts,
               background: background,
-              partsTransition: partsTransition,
             ),
           ),
         );
@@ -262,7 +261,6 @@ class LayoutStage extends StatelessWidget {
                               screen: screen,
                               parts: parts,
                               background: background,
-                              partsTransition: partsTransition,
                             ),
                           ),
                         ),
@@ -298,47 +296,36 @@ class LayoutStage extends StatelessWidget {
 }
 
 class _Canvas extends StatelessWidget {
-  const _Canvas({
-    required this.screen,
-    required this.parts,
-    this.background,
-    this.partsTransition,
-  });
+  const _Canvas({required this.screen, required this.parts, this.background});
   final Screen screen;
   final List<Part> parts;
   final Widget? background;
-  final Widget Function(Widget)? partsTransition;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, frame) {
       final size = frame.biggest;
       final editing = layoutEditorEnabled && layoutTuner.editing;
-      final content = Stack(
-        fit: StackFit.expand,
-        clipBehavior: Clip.none,
-        children: [
-          for (final part in parts)
-            if (part.child != null)
-              Positioned.fromRect(
-                rect: layoutTuner.boxOf(screen, part.id).rectIn(size),
-                child: _PartView(
-                  part: part,
-                  scale: layoutTuner.boxOf(screen, part.id).t,
-                ),
-              ),
-        ],
-      );
+      Widget position(Part part) {
+        final box = layoutTuner.boxOf(screen, part.id);
+        final bounds = box.rectIn(size);
+        final child = _PartView(part: part, scale: box.t);
+        return Positioned.fromRect(
+          rect: bounds,
+          child: editing
+              ? child
+              : part.transition?.call(size, bounds, child) ?? child,
+        );
+      }
+
       return Stack(
+        fit: StackFit.expand,
         clipBehavior: Clip.none,
         children: [
           if (background case final background?)
             Positioned.fill(child: background),
-          Positioned.fill(
-            child: editing
-                ? content
-                : partsTransition?.call(content) ?? content,
-          ),
+          for (final part in parts)
+            if (part.child != null) position(part),
           if (editing)
             Positioned.fill(
               child: _EditLayer(screen: screen, parts: parts, size: size),

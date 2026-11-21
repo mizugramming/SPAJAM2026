@@ -153,9 +153,16 @@ class _SurfacePainter extends CustomPainter {
     if (size.isEmpty) return;
     // The illustrated coin is centered inside a square with a transparent rim.
     final side = math.min(size.width, size.height);
-    final radius = hasMedalImage
-        ? side * .45
-        : math.min(size.width * .425, size.height * .419);
+    final double radius;
+    if (hasMedalImage) {
+      radius = side * .45;
+    } else if (material.glyph != null) {
+      // The bevel is inset from the drawing bounds. Match the illustrated
+      // medal's visible width while leaving room for the lower edge and shadow.
+      radius = math.min(size.width * .46, size.height * .455);
+    } else {
+      radius = math.min(size.width * .425, size.height * .419);
+    }
     final center = hasMedalImage
         ? size.center(Offset(0, -side * .016))
         : Offset(size.width * .50, size.height * .47);

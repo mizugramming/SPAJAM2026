@@ -18,13 +18,51 @@ Future<void> tapControl(WidgetTester tester, String id) async {
 
 void main() {
   final paper = find.byType(SandpaperFace);
+  final surfaceArt = find.byType(SurfaceArt);
+
+  Rect viewportOf(WidgetTester tester) =>
+      Offset.zero & (tester.view.physicalSize / tester.view.devicePixelRatio);
+
+  // Flutter's image decoder runs on the real clock, outside the test timer.
+  Future<void> decodeVisibleMedal(WidgetTester tester) async {
+    final images = find.descendant(
+      of: surfaceArt,
+      matching: find.byType(Image),
+    );
+    if (images.evaluate().isEmpty) return;
+    final image = tester.widget<Image>(images.last);
+    final context = tester.element(images.last);
+    await tester.runAsync(() => precacheImage(image.image, context));
+    await tester.pump();
+  }
+
+  Rect upperMaterial(WidgetTester tester) {
+    final material = tester.widget<SurfaceArt>(surfaceArt).material;
+    final face = find
+        .descendant(
+          of: surfaceArt,
+          matching: material.glyph == null
+              ? find.byType(Image)
+              : find.byWidgetPredicate(
+                  (w) => w is CustomPaint && w.foregroundPainter != null,
+                ),
+        )
+        .first;
+    final rect = tester.getRect(face);
+    final viewport = viewportOf(tester);
+    expect(rect.intersect(viewport), rect);
+    expect(rect.shortestSide, greaterThan(viewport.width * .60));
+    expect(rect.bottom, lessThan(viewport.height * .69));
+    return rect;
+  }
 
   Rect visiblePaper(WidgetTester tester) {
-    final viewport =
-        Offset.zero & (tester.view.physicalSize / tester.view.devicePixelRatio);
+    final viewport = viewportOf(tester);
     final rect = tester.getRect(paper).intersect(viewport);
     expect(rect.width, greaterThan(viewport.width * 0.8));
-    expect(rect.height, greaterThan(viewport.height * 0.75));
+    expect(rect.top / viewport.height, inInclusiveRange(.65, .73));
+    expect(rect.height / viewport.height, inInclusiveRange(.25, .33));
+    expect(rect.top, greaterThanOrEqualTo(upperMaterial(tester).bottom));
     return rect;
   }
 
@@ -73,16 +111,23 @@ void main() {
           expect(find.text('声を聞いています'), findsOneWidget);
           expect(paper, findsNothing);
           await tester.pump(const Duration(milliseconds: 500));
+          await decodeVisibleMedal(tester);
+          final initialMaterial = upperMaterial(tester);
           final startTop = tester.getTopLeft(paper).dy;
+          await tester.pump(const Duration(milliseconds: 100));
+          final movingTop = tester.getTopLeft(paper).dy;
+          expect(upperMaterial(tester), initialMaterial);
           await tester.pump(const Duration(milliseconds: 500));
           final readyRect = visiblePaper(tester);
-          expect(readyRect.top, lessThan(startTop));
+          expect(movingTop, lessThan(startTop));
+          expect(readyRect.top, lessThan(movingTop));
+          expect(upperMaterial(tester), initialMaterial);
           final readyPaper = tester.widget<SandpaperFace>(paper);
           expect(readyPaper.grit, Grit.values[i]);
           expect(readyPaper.sample.hz, pitch);
           expect(
             find.descendant(of: paper, matching: find.text('$pitch Hz')),
-            findsWidgets,
+            findsNWidgets(3),
           );
           expect(readyPaper.strokes, total);
           final grit = readyPaper.grit.label;
@@ -108,7 +153,9 @@ void main() {
           final surface = tester.widget<SurfaceArt>(find.byType(SurfaceArt));
           expect(surface.strokeCount, total);
           expect(surface.progress * 100, closeTo(percentages[i], 0.5));
+          await decodeVisibleMedal(tester);
           final activePaper = tester.widget<SandpaperFace>(paper);
+          visiblePaper(tester);
           expect(activePaper.sample, same(readyPaper.sample));
           expect(activePaper.grit, readyPaper.grit);
           expect(activePaper.strokes, total);
@@ -175,6 +222,7 @@ void main() {
     await tester.pumpAndSettle();
     await tapControl(tester, 'title-start');
     await tapControl(tester, 'material-medal');
+    await decodeVisibleMedal(tester);
     await tapControl(tester, 'capture');
     expect(find.textContaining('マイクを許可'), findsOneWidget);
     expect(paper, findsNothing);
@@ -192,7 +240,7 @@ void main() {
     expect(face().grit, Grit.fine);
     expect(
       find.descendant(of: paper, matching: find.text('音量 80%')),
-      findsWidgets,
+      findsNWidgets(3),
     );
     expect(find.text('1 回目 / 全3回'), findsOneWidget);
     Future<void> reportMotion(int code) async {
