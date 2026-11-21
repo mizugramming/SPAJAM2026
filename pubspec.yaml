@@ -33,7 +33,6 @@ flutter:
     - assets/fonts/OFL-YujiSyuku.txt
     - assets/fonts/daou.jpg
     - assets/fonts/gin.jpg
-    - assets/fonts/kin.jpg
     - assets/fonts/kinpika.jpg
     - assets/images/yansu_title.png
     - assets/images/workshop_room.webp
@@ -45,9 +44,25 @@ flutter:
     - assets/images/workshop_dumbbell.webp
     - assets/images/workshop_wax.webp
     - assets/images/copper_medal_spin.webp
-    - assets/images/kanji_polish_rough.webp
-    - assets/images/kanji_polish_satin.webp
-    - assets/images/kanji_polish_gloss.webp
+    - assets/images/kanji-silver.png
+    - assets/images/kanji-silver-polished-aligned.png
+    - assets/images/character-02.png
+    - assets/images/character-04.png
+    - assets/images/character-05.png
+    - assets/images/gyansu.jpg
+    - assets/images/kyushu-danji.png
+    - assets/images/kanji-rank-1.png
+    - assets/images/kanji-rank-2.png
+    - assets/images/kanji-rank-3.png
+    - assets/images/kanji-rank-4.png
+    - assets/images/kanji-rank-5.png
+    - assets/images/overpolished-01.png
+    - assets/images/overpolished-02.png
+    - assets/images/overpolished-03.png
+    - assets/images/overpolished-04.png
+    - assets/images/overpolished-05.png
+    - assets/images/medal-gold.png
+    - assets/images/medal-gold-polishing.png
     - assets/images/sandpaper_plain.webp
     - assets/images/shavings.png
     - assets/images/shards/copper-1.png

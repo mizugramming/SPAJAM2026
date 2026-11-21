@@ -10,12 +10,8 @@ import 'workshop_theme.dart' show appFont;
 
 Color _mix(Color a, Color b, double t) => Color.lerp(a, b, t)!;
 
-// The three finishes follow the kanji material's stage order in game.dart.
-const _kanjiStageImages = [
-  'assets/images/kanji_polish_rough.webp',
-  'assets/images/kanji_polish_satin.webp',
-  'assets/images/kanji_polish_gloss.webp',
-];
+const _dullKanji = 'assets/images/kanji-silver.png';
+const _polishedKanji = 'assets/images/kanji-silver-polished-aligned.png';
 
 /// A stroke briefly scatters dirt and moves the reflection over the metal.
 class SurfaceArt extends StatefulWidget {
@@ -27,6 +23,7 @@ class SurfaceArt extends StatefulWidget {
     this.inContact = false,
     this.reveal = false,
     this.medalImage,
+    this.overlay = true,
   });
 
   final WorkMaterial material;
@@ -35,8 +32,12 @@ class SurfaceArt extends StatefulWidget {
   final bool inContact;
   final bool reveal;
 
-  /// When supplied, the team's medal illustration is the metal underneath the finish.
+  /// An illustrated medal face or a character from the kanji result.
   final Widget? medalImage;
+
+  /// Whether dirt, reflections and flakes are painted over the art. An
+  /// illustration with transparent gaps (the 漢 letterform) shows its own finish.
+  final bool overlay;
 
   @override
   State<SurfaceArt> createState() => _SurfaceArtState();
@@ -44,15 +45,21 @@ class SurfaceArt extends StatefulWidget {
 
 class _SurfaceArtState extends State<SurfaceArt>
     with SingleTickerProviderStateMixin {
-  late final _flash = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 520),
-    value: 1,
-  );
+  late final AnimationController _flash;
 
   final _tarnish = _TarnishTexture();
   bool _initialReveal = false;
   double _rustRemoved = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _flash = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+      value: 1,
+    );
+  }
 
   @override
   void didChangeDependencies() {
@@ -99,16 +106,31 @@ class _SurfaceArtState extends State<SurfaceArt>
 
   Widget _kanjiImage() {
     final material = widget.material;
-    final index = material.stages.indexOf(material.stageAt(widget.progress));
     final shine = material.shineAt(widget.progress);
     return AnimatedBuilder(
       animation: _flash,
-      child: Image.asset(
-        _kanjiStageImages[index],
-        fit: BoxFit.contain,
-        cacheWidth: 720,
-        gaplessPlayback: true,
-        excludeFromSemantics: true,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                _dullKanji,
+                key: const ValueKey(_dullKanji),
+                cacheWidth: 720,
+              ),
+              Opacity(
+                opacity: widget.progress.clamp(0.0, 1.0),
+                child: Image.asset(
+                  _polishedKanji,
+                  key: const ValueKey(_polishedKanji),
+                  cacheWidth: 720,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
       builder: (context, child) {
         final reflecting = _flash.value < 1 && (!widget.reveal || shine > .02);
@@ -137,20 +159,22 @@ class _SurfaceArtState extends State<SurfaceArt>
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: CustomPaint(
-        foregroundPainter: _SurfacePainter(
-          widget.material,
-          widget.progress,
-          _flash,
-          widget.strokeCount,
-          widget.reveal,
-          _rustRemoved,
-          _tarnish,
-          widget.medalImage != null,
-        ),
+        foregroundPainter: widget.overlay
+            ? _SurfacePainter(
+                widget.material,
+                widget.progress,
+                _flash,
+                widget.strokeCount,
+                widget.reveal,
+                _rustRemoved,
+                _tarnish,
+                widget.medalImage != null,
+              )
+            : null,
         size: Size.infinite,
-        child: widget.material.id == 'kanji'
-            ? _kanjiImage()
-            : widget.medalImage,
+        child:
+            widget.medalImage ??
+            (widget.material.id == 'kanji' ? _kanjiImage() : null),
       ),
     );
   }

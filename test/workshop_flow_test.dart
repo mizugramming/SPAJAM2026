@@ -82,13 +82,19 @@ void main() {
     await tester.pump();
   }
 
-  void expectSurfaceImage(WidgetTester tester, String path) {
-    final image = tester.widget<Image>(
-      find.descendant(of: surfaceArt, matching: find.byType(Image)),
+  void expectKanjiArt(WidgetTester tester, double progress) {
+    final surface = find.byType(SurfaceArt);
+    const dull = 'assets/images/kanji-silver.png';
+    const polished = 'assets/images/kanji-silver-polished-aligned.png';
+    expect(
+      find.descendant(of: surface, matching: find.byKey(const ValueKey(dull))),
+      findsOneWidget,
     );
-    final provider = image.image;
-    final asset = provider is ResizeImage ? provider.imageProvider : provider;
-    expect((asset as AssetImage).assetName, path);
+    final shine = find.ancestor(
+      of: find.byKey(const ValueKey(polished)),
+      matching: find.byType(Opacity),
+    );
+    expect(tester.widget<Opacity>(shine).opacity, closeTo(progress, 1e-9));
   }
 
   Rect upperMaterial(WidgetTester tester) {
@@ -272,7 +278,7 @@ void main() {
       if (round < 3) await tester.pumpAndSettle();
     }
     expectOneLine('今回の仕上がり');
-    expectOneLine('サビた銅メダル');
+    expectOneLine('金ピカのメダル');
     expectOneLine('もう一度遊ぶ');
     expectOneLine('タイトルへ');
   });
@@ -420,10 +426,7 @@ void main() {
           await tester.pump(medalLandingDuration);
         }
 
-        const roughKanji = 'assets/images/kanji_polish_rough.webp';
-        const satinKanji = 'assets/images/kanji_polish_satin.webp';
-        const glossyKanji = 'assets/images/kanji_polish_gloss.webp';
-        if (material == 'kanji') expectSurfaceImage(tester, roughKanji);
+        if (material == 'kanji') expectKanjiArt(tester, 0);
         var total = 0;
         for (var i = 0; i < 3; i++) {
           await tester.pump(const Duration(milliseconds: 300));
@@ -506,10 +509,20 @@ void main() {
           expect(activePaper.strokes, total);
           expect(activePaper.progress, surface.progress);
           if (material == 'medal') {
-            final image = ['daou', 'gin', 'kin'][i];
-            expectSurfaceImage(tester, 'assets/fonts/$image.jpg');
+            final image = [
+              'assets/fonts/daou.jpg',
+              'assets/fonts/gin.jpg',
+              'assets/images/medal-gold.png',
+            ][i];
+            expect(
+              find.descendant(
+                of: find.byType(SurfaceArt),
+                matching: find.byKey(ValueKey(image)),
+              ),
+              findsOneWidget,
+            );
           } else {
-            expectSurfaceImage(tester, i == 2 ? glossyKanji : satinKanji);
+            expectKanjiArt(tester, surface.progress);
           }
           await tester.pump(const Duration(seconds: 1));
         }
@@ -518,8 +531,22 @@ void main() {
         expect(find.text('いろみがき'), findsNothing);
         expect(find.text('疑似入力'), findsOneWidget);
         expect(paper, findsNothing);
-        expect(find.text(stages.last), findsOneWidget);
-        if (material == 'kanji') expectSurfaceImage(tester, glossyKanji);
+        // The medal always ends at the polishing gold, however far it got.
+        if (material == 'medal') {
+          expect(find.text('金ピカのメダル'), findsOneWidget);
+        } else {
+          // 6 points: 3漢, shown as the rank-colored 漢 without a digit.
+          expect(find.bySemanticsLabel('3漢'), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('assets/images/kanji-rank-3.png')),
+            findsOneWidget,
+          );
+          // 粗目3 + 中目2 + 細目1 = 6 points, polished to the end: success.
+          expect(
+            find.byKey(const ValueKey('assets/images/gyansu.jpg')),
+            findsOneWidget,
+          );
+        }
         expect(find.textContaining('往復'), findsNothing);
         await tapControl(tester, 'retry');
         expect(find.text('磨く素材を選ぶ'), findsOneWidget);
@@ -528,7 +555,7 @@ void main() {
         final highPitch = female ? 300 : 150;
         expect(find.byKey(ValueKey('demo-$highPitch')), findsOneWidget);
         expect(SurfaceArtProbe.progress(tester), 0);
-        if (material == 'kanji') expectSurfaceImage(tester, roughKanji);
+        if (material == 'kanji') expectKanjiArt(tester, 0);
         expect(tester.takeException(), isNull);
       },
     );
@@ -703,6 +730,10 @@ void main() {
     expect(find.text('漢字を磨く'), findsNothing);
     await turnCarousel(tester);
     expect(find.text('漢字を磨く'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('assets/images/kanji-silver.png')),
+      findsWidgets,
+    );
     await turnCarousel(tester);
     expect(find.text('メダルを磨く'), findsOneWidget);
     await turnCarousel(tester, left: false);
@@ -863,36 +894,67 @@ void main() {
     },
   );
 
-  testWidgets('a medal polished to a shine is called 金ピカのメダル', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(393, 852);
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(const WorkshopApp(simulated: true));
-    await tester.pumpAndSettle();
-    await tapControl(tester, 'title-start');
-    await chooseMaterial(tester, 'medal');
-    for (var round = 1; round <= 3; round++) {
-      expect(find.text('仕上げは高い声で'), round == 3 ? findsOneWidget : findsNothing);
-      await tapControl(tester, round == 3 ? 'demo-150' : 'demo-100');
-      await tapControl(tester, 'capture');
-      await tester.pump(const Duration(milliseconds: 500));
-      await finishHandoff(tester);
-      final strokes = [11, 11, 20][round - 1];
-      for (var i = 0; i < strokes; i++) {
-        await tapControl(tester, 'simulate-stroke');
-      }
-      await tester.pump(const Duration(seconds: 10));
+  for (final (play, strokes) in [
+    ('without moving', [0, 0, 0]),
+    ('with a fine finish', [11, 11, 20]),
+  ]) {
+    testWidgets('three rounds $play reveal the medal inscription by touch', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(393, 852);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(const WorkshopApp(simulated: true));
       await tester.pumpAndSettle();
-    }
-    expect(find.text('今回の仕上がり'), findsOneWidget);
-    expect(SurfaceArtProbe.progress(tester), greaterThanOrEqualTo(.95));
-    expect(find.text('金ピカのメダル'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('assets/fonts/kinpika.jpg')),
-      findsOneWidget,
-    );
-    expect(find.text('金メダル'), findsNothing);
-  });
+      await tapControl(tester, 'title-start');
+      await chooseMaterial(tester, 'medal');
+      for (var round = 1; round <= 3; round++) {
+        expect(
+          find.text('仕上げは高い声で'),
+          round == 3 && strokes[0] > 0 ? findsOneWidget : findsNothing,
+        );
+        await tapControl(tester, round == 3 ? 'demo-150' : 'demo-100');
+        await tapControl(tester, 'capture');
+        await tester.pump(const Duration(milliseconds: 500));
+        await finishHandoff(tester);
+        for (var n = 0; n < strokes[round - 1]; n++) {
+          await tapControl(tester, 'simulate-stroke');
+        }
+        if (strokes[0] == 0) expect(SurfaceArtProbe.progress(tester), 0);
+        await tester.pump(const Duration(seconds: 10));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('今回の仕上がり'), findsOneWidget);
+      expect(SurfaceArtProbe.progress(tester), greaterThanOrEqualTo(.95));
+      expect(find.text('金ピカのメダル'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('assets/images/medal-gold-polishing.png')),
+        findsOneWidget,
+      );
+      expect(find.text('金メダル'), findsNothing);
+
+      // Rubbing the finished gold medal reveals the engraved title where the
+      // finger passed.
+      expect(find.textContaining('指でこすると'), findsOneWidget);
+      final revealed = find.byKey(const ValueKey('medal-revealed'));
+      expect(revealed, findsNothing);
+      await tester.drag(
+        find.byKey(const ValueKey('medal-rub')),
+        const Offset(80, 0),
+      );
+      await tester.pump();
+      expect(revealed, findsOneWidget);
+      expect(
+        find.descendant(
+          of: revealed,
+          matching: find.byKey(const ValueKey('assets/fonts/kinpika.jpg')),
+        ),
+        findsOneWidget,
+      );
+      await tapControl(tester, 'retry');
+      expect(revealed, findsNothing);
+    });
+  }
 
   testWidgets('microphone retry and volume fallback keep the chosen material', (
     tester,
