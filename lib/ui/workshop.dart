@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 
 import '../game/game.dart';
 import 'layout_tuner.dart';
+import 'medal_finish.dart';
 import 'medal_flight.dart';
+import 'medal_scratch.dart';
 import 'phrase_text.dart';
 import 'round_introduction.dart';
 import 'sandpaper.dart';
@@ -110,6 +112,19 @@ class Workshop extends StatelessWidget {
         onBack: onTitle,
         onChoose: (material) {
           unawaited(precacheImage(SandpaperFace.texture, context));
+          if (material.id == 'medal') {
+            for (final image in [
+              ..._medalStageImages.skip(3),
+              _medalRubImage,
+            ]) {
+              final provider = ResizeImage.resizeIfNeeded(
+                720,
+                null,
+                AssetImage(image),
+              );
+              unawaited(precacheImage(provider, context));
+            }
+          }
           actions.choose(material);
         },
       ),
@@ -379,13 +394,25 @@ class Workshop extends StatelessWidget {
               fill: true,
             )
           else
-            Part('title', '見出し', _Title(game.stage.name), singleLine: true),
+            Part(
+              'title',
+              '見出し',
+              _Title(game.material!.stageAt(game.surfaceProgress).name),
+              singleLine: true,
+            ),
           if (game.verdict case final verdict?)
             Part('body', '仕上がりの判定', _Body(verdict)),
           Part(
             'hint',
             'こする案内',
-            _canRub(game) ? const _Body('メダルの上部を指でこすると、文字が現れます') : null,
+            game.material!.id == 'medal'
+                ? Semantics(
+                    liveRegion: true,
+                    child: _Body(
+                      game.needsHandPolish ? 'メダルを指で磨く' : '上の箔を削って文字を出す',
+                    ),
+                  )
+                : null,
           ),
           Part(
             'action',
@@ -1146,15 +1173,6 @@ const _medalStageImages = [
 /// 仕上がり画面で指でこすると現れる、「最優秀賞」入りの金ピカの絵。
 const _medalRubImage = 'assets/fonts/kinpika.jpg';
 
-/// 仕上がり画面で指でこすれるのは、金メダル以上で終わったメダル。
-bool _canRub(GameController game) {
-  final material = game.material;
-  return game.phase == GamePhase.result &&
-      material != null &&
-      material.id == 'medal' &&
-      material.stages.indexOf(game.stage) >= 3;
-}
-
 /// 素材と研磨の割合に合う画像。画像のない素材は null（描画で表示する）。
 String? _imageFor(WorkMaterial material, double progress) {
   if (material.id != 'medal') return null;
@@ -1163,12 +1181,7 @@ String? _imageFor(WorkMaterial material, double progress) {
 
 /// 円形に切り抜いたメダル画像。画像が替わるときは重ねて切り替える。
 class _MedalImage extends StatelessWidget {
-  const _MedalImage(
-    this.image, {
-    super.key,
-    this.cacheWidth = 720,
-    this.copperTint,
-  });
+  const _MedalImage(this.image, {this.cacheWidth = 720, this.copperTint});
   final String image;
   final int cacheWidth;
   final Color? copperTint;
@@ -1185,6 +1198,8 @@ class _MedalImage extends StatelessWidget {
           key: ValueKey(image),
           child: Image.asset(
             image,
+            width: double.infinity,
+            height: double.infinity,
             fit: BoxFit.cover,
             cacheWidth: cacheWidth,
             color: copperTint,
@@ -2183,94 +2198,6 @@ class _DustSpray extends CustomPainter {
       old.progress != progress;
 }
 
-/// 指でこすった跡だけ [image] を見せる層。こすった点はメダル（置き場所の短い辺を
-/// 直径とする中央の正方形）に対する割合で持ち、表示の大きさが変わってもずれない。
-class _RubReveal extends StatefulWidget {
-  const _RubReveal({required this.image});
-  final String image;
-
-  @override
-  State<_RubReveal> createState() => _RubRevealState();
-}
-
-class _RubRevealState extends State<_RubReveal> {
-  /// 指の太さ（メダルの直径に対する割合）。
-  static const _brush = .08;
-  final _points = <Offset>{};
-  Offset? _previous;
-
-  void _rub(Offset local, double side) {
-    if (side <= 0) return;
-    final point = local / side;
-    if ((point - const Offset(.5, .5)).distance > .5 + _brush) {
-      _previous = null;
-      return;
-    }
-    final last = _previous ?? point;
-    _previous = point;
-    final steps = math.max(1, ((point - last).distance / (_brush / 2)).ceil());
-    final previousCount = _points.length;
-    for (var i = 1; i <= steps; i++) {
-      final p = Offset.lerp(last, point, i / steps)!;
-      // 同じ場所を繰り返しこすってもマスクの点を増やし続けない。
-      _points.add(Offset((p.dx * 64).round() / 64, (p.dy * 64).round() / 64));
-    }
-    if (previousCount != _points.length) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: AspectRatio(
-      aspectRatio: 1,
-      child: ClipOval(
-        child: LayoutBuilder(
-          builder: (context, box) => GestureDetector(
-            key: const ValueKey('medal-rub'),
-            behavior: HitTestBehavior.opaque,
-            dragStartBehavior: DragStartBehavior.down,
-            onPanStart: (d) {
-              _previous = null;
-              _rub(d.localPosition, box.maxWidth);
-            },
-            onPanUpdate: (d) => _rub(d.localPosition, box.maxWidth),
-            child: _points.isEmpty
-                ? const SizedBox.expand()
-                : ClipPath(
-                    clipper: _RubClipper(List.of(_points), _brush),
-                    child: _MedalImage(
-                      widget.image,
-                      key: const ValueKey('medal-revealed'),
-                    ),
-                  ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-class _RubClipper extends CustomClipper<Path> {
-  _RubClipper(this.points, this.brush);
-  final List<Offset> points;
-  final double brush;
-
-  @override
-  Path getClip(Size size) {
-    final side = math.min(size.width, size.height);
-    final origin = Offset((size.width - side) / 2, (size.height - side) / 2);
-    final path = Path();
-    for (final p in points) {
-      path.addOval(
-        Rect.fromCircle(center: origin + p * side, radius: brush * side),
-      );
-    }
-    return path;
-  }
-
-  @override
-  bool shouldReclip(_RubClipper old) => old.points.length != points.length;
-}
-
 class _RoundHeader extends StatelessWidget {
   const _RoundHeader({required this.game});
   final GameController game;
@@ -2321,28 +2248,25 @@ class _Workpiece extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final material = game.material!;
-    final image = _imageFor(material, game.progress);
+    final progress = game.surfaceProgress;
+    final image = _imageFor(material, progress);
     final kanji = material.id == 'kanji';
+    final result = game.phase == GamePhase.result;
     final art = SurfaceArt(
       material: material,
-      progress: game.progress,
+      progress: progress,
       strokeCount: game.totalStrokes,
       inContact: inContact,
-      reveal: game.phase == GamePhase.result,
-      overlay: !kanji || game.phase != GamePhase.result,
-      medalImage: kanji && game.phase == GamePhase.result
+      reveal: result && (image == null || !game.needsHandPolish),
+      overlay: !kanji || !result,
+      medalImage: kanji && result
           ? _KanjiCharacter(game: game)
           : image == null
           ? null
-          : _MedalImage(
-              image,
-              copperTint: image == _medalStageImages.first
-                  ? material
-                        .colorAt(game.progress)
-                        .withValues(
-                          alpha: .60 * (1 - material.rustAt(game.progress)),
-                        )
-                  : null,
+          : _PolishedMedalFace(
+              material: material,
+              progress: progress,
+              image: image,
             ),
     );
     return Stack(
@@ -2352,13 +2276,22 @@ class _Workpiece extends StatelessWidget {
         Semantics(
           image: true,
           excludeSemantics: true,
-          label: game.stage.name,
-          value: '研磨 ${(game.progress * 100).round()}%',
+          label: material.stageAt(progress).name,
+          value: '研磨 ${(progress * 100).round()}%',
           child: art,
         ),
-        // 金メダル以上の仕上がりは、指でこすったところから文字が浮かび上がる。
-        if (_canRub(game))
-          const Positioned.fill(child: _RubReveal(image: _medalRubImage)),
+        if (result && image != null)
+          Center(
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: game.needsHandPolish
+                  ? MedalHandPolish(
+                      shinyFace: _MedalImage(_medalStageImages.last),
+                      onTravel: game.polishResult,
+                    )
+                  : const MedalScratch(engraved: _MedalImage(_medalRubImage)),
+            ),
+          ),
         // 接触中のチリと、往復が成立したときの大きな破片を重ねる。
         Positioned.fill(
           child: IgnorePointer(
@@ -2366,12 +2299,53 @@ class _Workpiece extends StatelessWidget {
               strokes: game.totalStrokes,
               active: game.phase == GamePhase.polishing,
               inContact: inContact,
-              progress: game.progress,
+              progress: progress,
               tint: image == _medalStageImages.first ? null : game.stage.color,
               grit: game.grit,
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// The two gold illustrations share the same bounds throughout the last
+/// rounds and the finger finish. Their blend is driven solely by actual wear.
+class _PolishedMedalFace extends StatelessWidget {
+  const _PolishedMedalFace({
+    required this.material,
+    required this.progress,
+    required this.image,
+  });
+  final WorkMaterial material;
+  final double progress;
+  final String image;
+
+  @override
+  Widget build(BuildContext context) {
+    final stages = material.stages;
+    final gold = stages[stages.length - 2].threshold;
+    final shiny = stages.last.threshold;
+    final sheen = ((progress - gold) / (shiny - gold)).clamp(0.0, 1.0);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (sheen < 1)
+          _MedalImage(
+            image,
+            copperTint: image == _medalStageImages.first
+                ? material
+                      .colorAt(progress)
+                      .withValues(alpha: .60 * (1 - material.rustAt(progress)))
+                : null,
+          ),
+        if (sheen > 0)
+          Opacity(
+            key: const ValueKey('medal-gold-sheen'),
+            opacity: sheen,
+            child: _MedalImage(_medalStageImages.last),
+          ),
       ],
     );
   }

@@ -13,8 +13,8 @@
 | `assets/fonts/gin.jpg` | 銀メダルの段階 |
 | `assets/fonts/kin.jpg` | 旧・金メダルの絵（今は画面から参照していない） |
 | `assets/images/medal-gold.png` | 金メダルの段階（つや消し・文字なし）。2026-11-22にチームが用意した「金ピカ.png」を英字名に変更 |
-| `assets/images/medal-gold-polishing.png` | 金ピカの段階（上の方が曇った磨き途中）。同日に用意した「途中の金ピカ.png」を英字名に変更。メダルは最後に必ずこの段階まで届く |
-| `assets/fonts/kinpika.jpg` | 仕上がり画面で、金メダル以上のメダルを指でこすった跡に見せる「最優秀賞」入りの絵 |
+| `assets/images/medal-gold-polishing.png` | 金ピカの段階（上の方が曇った磨き途中）。同日に用意した「途中の金ピカ.png」を英字名に変更。金からは研磨量に応じてこの絵を重ねる |
+| `assets/fonts/kinpika.jpg` | 仕上げたメダル上部の箔をスクラッチした跡から見える「最優秀賞」入りの絵 |
 | `assets/images/kanji-silver.png` | 漢磨きの素材選択・採音・研磨で出す銀の立体文字「漢」（くすんだ絵、透過PNG）。2026-11-22にチームが用意した「透明背景の銀色立体漢字「漢」-1.png」を英字名に変更 |
 | `assets/images/kanji-silver-polished.png` | 同じ文字の磨き上がった絵。同日の「透明背景の銀色立体漢字 漢-2.png」を英字名に変更。元の絵（未登録）。文字の位置と大きさが `kanji-silver.png` と少しずれていたため、そろえた `kanji-silver-polished-aligned.png` を研磨の割合だけ上に重ねて、磨くほどこの絵になる |
 | `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png`、`overpolished-01〜05.png` | 漢磨きの仕上がりのキャラクター（合計点と成否の表は app_design.md）。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
