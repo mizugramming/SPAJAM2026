@@ -2,7 +2,7 @@
 
 ## SDKと依存
 
-リポジトリは `mizugramming/SPAJAM2026`。本選の統合先は `honsen`。初期基盤が未統合の間は[担当手順](handoff.md)の取得元を使う。Git・FVM・Chromeを用意する。Androidを扱うPCにはJDK 17、Android SDK Platform 36、Platform-Tools、Build-Tools 35.0.0、NDK 28.2.13676358を用意してSDKライセンスに同意する。FVMはDartがある環境なら `dart pub global activate fvm` で導入できる。実行ファイルのパスを通してからリポジトリ直下で次を実行する。
+リポジトリは `mizugramming/SPAJAM2026`。本選の統合先は `honsen`。[担当手順](handoff.md)に従い、最新の `origin/honsen` から各自の作業を始める。Git・FVM・Chromeを用意する。Androidを扱うPCにはJDK 17、Android SDK Platform 36、Platform-Tools、Build-Tools 35.0.0、NDK 28.2.13676358を用意してSDKライセンスに同意する。FVMはDartがある環境なら `dart pub global activate fvm` で導入できる。実行ファイルのパスを通してからリポジトリ直下で次を実行する。
 
 ```bash
 fvm install

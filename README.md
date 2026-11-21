@@ -22,7 +22,7 @@ fvm flutter run -d chrome
 
 ## 共同開発
 
-本選アプリの統合先・PR先は `honsen`。基盤作業ブランチは `feat/polishing-workshop` です。基盤取り込み前に作業を始める場合の取得元と担当範囲は[引き継ぎ](docs/handoff.md)を参照してください。
+本選アプリの開発は最新の `origin/honsen` から各自の作業ブランチを作って始めます。PRの宛先は `honsen` です。[ブランチの作成手順と担当範囲](docs/handoff.md)
 
 - [共同開発ルール](AGENTS.md)・[環境とCI](docs/development.md)・[登録端末](docs/development-kit/devices.md)
 - [開発キットとSkills](docs/development-kit/README.md)・[担当者の開始プロンプト](docs/ai_prompts.md)・[別PCのClaude Code](docs/development-kit/claude-code.md)・[共有ZIPの手順](docs/development-kit/share-package.md)
