@@ -1,39 +1,35 @@
-# 構成と接続
+# ゲームの状態と接続
 
-honsenブランチの実ファイルと接続を記録します。現在は開発準備の資料とSkillsのみで、アプリのソース・共有モデル・保存処理はまだありません。実装の構成と担当は初期開発で決定します。
-
-## 実際の構成
-
-現在ある主要なファイルは次のとおりです。`lib/` や `pubspec.yaml` などのアプリファイルは、基盤作成時に追加できます。
-
-| フォルダ・ファイル | 責務 | 担当部分 / 共通管理 |
+| 担当 | ファイル | 入出力と責務 |
 |---|---|---|
-| `AGENTS.md` / `CLAUDE.md` / `.github/copilot-instructions.md` | 共通ルールとAI向けの入口 | 共通管理 |
-| `.agents/` | 共有Skills、取得元の固定値、ライセンス | 共通管理 |
-| `.claude/skills/` | 共通Skillsを呼ぶClaude用の生成入口。本文は `.agents/` を参照 | 共通管理 |
-| `docs/` | 本選の仕様・環境・担当・検証と、共通キットの案内 | 各資料の担当は未決定 |
-| `tool/check_skills.py` | Skillsの検証 | 共通管理 |
-| `tool/sync_claude_skills.py` | Claude用入口の生成・同期検証とself-test | 共通管理 |
-| `.github/workflows/check.yml` | 共通Skills・Claude用入口の検証、self-test、空白チェック | 共通管理 |
-| `templates/` / `tool/check_kit.py` | 継承したキットの雛形とmain専用検証。本選のCIではキット専用検証を実行しない | 共通管理 |
-| アプリのソース・素材・テスト・SDK設定 | まだ未作成 | 初期開発で担当と配置を決定 |
+| 共通・組み込み | `lib/main.dart` | セッション、入力モード、端末ライフサイクル。WorkshopActionsを実装し、画面からの操作をゲームと端末へ接続 |
+| 共通・ルール | `lib/game/game.dart` | 素材カタログ、やすり、声の分類、研磨量、時計、振動指令、採点 |
+| UI | `lib/ui/workshop.dart`, `workshop_theme.dart`, `surface_art.dart` | 段階ごとの画面・共通部品・表面描画。Workshopはgameを読み、actionsへ操作を返す |
+| 端末 | `lib/device_main.dart`, `lib/device/workshop_device.dart`, `lib/device/diagnostics.dart` | 計測専用入口、実機／疑似入力、4条件・振動の比較 |
+| 端末 | `android/app/src/main/kotlin/jp/spajam/polish_workshop/` | MainActivityがマイク・加速度・振動を橋渡し。VoiceAnalysis、StrokeDetectorが信号を処理 |
+| 共通・検証 | `test/game_test.dart`, `test/workshop_flow_test.dart`, `test/diagnostics_test.dart`, `tool/native/SignalCheck.kt` | 状態と時間境界、入力から再挑戦までのUI、合成信号の回帰確認 |
 
-追加・改名などで構成を変える場合は実装とこの資料を揃えます。図だけで判断せず、開始時には実ファイルと照合してください。
+## ゲームが持つ値
 
-## 共通の接続口
+`GameController`（ChangeNotifier）が `phase`, `material`, `round`（1始まり）, `remainingSeconds`, `strokes`（当回）, `totalStrokes`, `value`, `progress`, `stage` を持つ。採音前の `sample` と `grit`、未採点の `verdict` はnull。3回目の期限で結果を一度確定する。ゲーム時刻は単調時計、アクティブな研磨時間は各10秒。期限後に届いた往復は無効。
 
-| 機能 | 定義・呼び出し元のファイル | 入力・出力・イベント | 維持する仕様 |
-|---|---|---|---|
-| 共有モデル・状態更新 | 未記入 | 未記入 | 未記入 |
-| 保存・復元・削除 | 未記入 | 未記入 | 未記入 |
-| 画面遷移 | 未記入 | 未記入 | 未記入 |
+素材値は残量で、初期値から1往復あたり粗目5・中目3・細目1.5を引く。初期2素材は100から0。正規化進捗は `(initialValue - value) / maxRemoval` を0〜1に制限した値。画面はこれを `stageAt / colorAt / rustAt / shineAt` に渡し、振動は同じ往復の更新後進捗を使う。停止時の自動加算はない。
 
-共通APIを使った最小の利用例：未記入。保存失敗や読み込み中の扱いも実装に合わせます。
+```dart
+final pulse = game.stroke();
+if (pulse != null && device.vibrationEnabled) await device.pulse(pulse);
+```
 
-## 部品単位の分担
+`pulseFor(grit, progress)` は粗さから基準振幅・長さを選び、進捗で両方を減らす。振幅を制御できない端末でも長さは変わる。計測画面は同じ関数に明示した前半・後半の値を入れて独立試験する。
 
-| 部品 | 編集するファイル | 引数・イベント | 親画面の編集担当 | 関連テスト |
-|---|---|---|---|---|
-| 未記入 | 未記入 | 未記入 | 未記入 | 未記入 |
+## 素材の追加と採点の交換
 
-同じ親画面やテストを複数人が同時編集する割り当てを避けます。接続の変更が必要なら、親画面を組み込む担当が利用箇所を調整します。担当者・変更範囲はREADMEの表と一致させます。
+1. `lib/game/game.dart` の `materials` に一意なidの `WorkMaterial` を加える。名前、任意の紹介文、初期値、削れる最大量、任意の目標残量 `targetValue` を設定する。メダル形は既定、刻字板は `glyph: '漢'` のように字を渡す。
+2. `stages` は0から始まる昇順の進捗境界。各 `FinishStage` に名前、色、汚れ量、光沢（各0〜1）を設定する。名前は境界に達したときに変え、色・汚れ・光沢は隣り合う境界を補間する。初期メダルの境界は0/25/55/85%、漢は0/38/80%。選択・3ラウンド・結果はカタログから共通の流れに載る。新しい形・演出はUI担当が表面描画に追加する。
+3. 目標と採点が決まったら `FinishJudge`（素材と確定残量→任意の判定文）を `GameController(judge: ...)` に渡す。呼び出し元は `lib/main.dart`。目標なしはnullを返せる。削り量や段階名の関数を変えずに採点を差し替えられる。
+
+## 端末との契約
+
+`polish/device`（MethodChannel）の `capture` は約1.2秒で `{hz: double?, level: double}` を返す。levelはPCM全体のRMSを−60〜0 dBFSから0〜1へ正規化。ゲーム側の `classify` が実機と疑似入力に共通の境界を適用する。安定したHzがない場合はnull。採音失敗・拒否は素材値を保持し再操作できる。
+
+`startMotion` から `stopMotion` の間だけ検出する。`polish/strokes`（EventChannel）の整数1が完了した往復1回。振動は `pulse(durationMs, amplitude)`、中断は `cancelCapture / stopPulse`。ゲームは権限応答・採音の非同期結果に操作番号を持たせ、終了後の古い応答を破棄する。加速度・音声の生データをFlutterへ転送・保存しない。

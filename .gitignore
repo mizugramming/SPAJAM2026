@@ -15,3 +15,11 @@ __pycache__/
 
 # Local handoff ZIPs (share separately, do not commit)
 /out/share-packages/
+
+# Flutter tool state and local builds
+.fvm/
+.dart_tool/
+.flutter-plugins-dependencies
+/build/
+/coverage/
+*.iml
