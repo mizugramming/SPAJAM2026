@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
-const bench = Color(0xFF121717);
-const metalPanel = Color(0xFF202626);
-const seam = Color(0xFF404844);
+const bench = Color(0xFF0F0C0C);
+const metalPanel = Color(0xFF1C1616);
+const seam = Color(0xFF4F2323);
 const chalk = Color(0xFFF4F1E8);
-const muted = Color(0xFFC1C8BE);
-const ember = Color(0xFFECC198);
+const muted = Color(0xFFC9BFBA);
+
+/// 炎の橙。残り時間・時間バー・矢印。
+const ember = Color(0xFFFF9A4D);
+
+/// 赤の差し色。主ボタン・ロゴのマーク。
+const crimson = Color(0xFFC8262E);
 
 final workshopTheme = ThemeData(
   useMaterial3: true,
@@ -14,10 +19,10 @@ final workshopTheme = ThemeData(
   fontFamilyFallback: const ['Noto Sans CJK JP', 'sans-serif'],
   scaffoldBackgroundColor: bench,
   colorScheme: const ColorScheme.dark(
-    primary: ember,
-    onPrimary: Color(0xFF291B10),
-    secondary: Color(0xFFA6C4B6),
-    onSecondary: Color(0xFF14251E),
+    primary: crimson,
+    onPrimary: Colors.white,
+    secondary: ember,
+    onSecondary: Color(0xFF2A1406),
     surface: metalPanel,
     onSurface: chalk,
     onSurfaceVariant: muted,
@@ -34,6 +39,25 @@ final workshopTheme = ThemeData(
         fontWeight: FontWeight.w700,
         fontSize: 16,
       ),
+    ),
+  ),
+  chipTheme: const ChipThemeData(
+    shape: RoundedRectangleBorder(
+      side: BorderSide(color: seam),
+      borderRadius: BorderRadius.all(Radius.circular(2)),
+    ),
+    backgroundColor: metalPanel,
+    selectedColor: crimson,
+    checkmarkColor: Colors.white,
+    labelStyle: TextStyle(
+      fontFamily: 'WorkshopSans',
+      fontWeight: FontWeight.w800,
+      color: chalk,
+    ),
+    secondaryLabelStyle: TextStyle(
+      fontFamily: 'WorkshopSans',
+      fontWeight: FontWeight.w800,
+      color: Colors.white,
     ),
   ),
   textButtonTheme: TextButtonThemeData(

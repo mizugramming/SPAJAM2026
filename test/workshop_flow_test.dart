@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:polish_workshop/main.dart';
+import 'package:polish_workshop/ui/surface_art.dart';
 
 Future<void> tapControl(WidgetTester tester, String id) async {
   final control = find.byKey(ValueKey(id));
@@ -34,6 +35,8 @@ void main() {
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
         await tester.pumpWidget(const WorkshopApp(simulated: true));
         await tester.pumpAndSettle();
+        expect(find.text('はじめる'), findsOneWidget);
+        await tapControl(tester, 'title-start');
         await tapControl(tester, 'material-$material');
 
         var total = 0;
@@ -58,6 +61,19 @@ void main() {
           expect(find.text('$grit   ·   ${strokes[i]} 往復'), findsOneWidget);
           expect(find.text('研磨 ${percentages[i]}%'), findsOneWidget);
           expect(find.text(stages[i]), findsOneWidget);
+          final surface = tester.widget<SurfaceArt>(find.byType(SurfaceArt));
+          expect(surface.strokeCount, total);
+          expect(surface.progress * 100, closeTo(percentages[i], 0.5));
+          if (material == 'medal') {
+            final image = ['daou', 'gin', 'kin'][i];
+            expect(
+              find.descendant(
+                of: find.byType(SurfaceArt),
+                matching: find.byKey(ValueKey('assets/fonts/$image.jpg')),
+              ),
+              findsOneWidget,
+            );
+          }
           await tester.pump(const Duration(seconds: 1));
         }
 
@@ -96,6 +112,7 @@ void main() {
 
     await tester.pumpWidget(const WorkshopApp(simulated: false));
     await tester.pumpAndSettle();
+    await tapControl(tester, 'title-start');
     await tapControl(tester, 'material-medal');
     await tapControl(tester, 'capture');
     expect(find.textContaining('マイクを許可'), findsOneWidget);

@@ -17,12 +17,16 @@ class SurfaceArt extends StatefulWidget {
     required this.progress,
     this.strokeCount = 0,
     this.reveal = false,
+    this.medalImage,
   });
 
   final WorkMaterial material;
   final double progress;
   final int strokeCount;
   final bool reveal;
+
+  /// When supplied, the team's medal illustration is the metal underneath the finish.
+  final Widget? medalImage;
 
   @override
   State<SurfaceArt> createState() => _SurfaceArtState();
@@ -80,7 +84,7 @@ class _SurfaceArtState extends State<SurfaceArt>
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: CustomPaint(
-        painter: _SurfacePainter(
+        foregroundPainter: _SurfacePainter(
           widget.material,
           widget.progress,
           _flash,
@@ -88,8 +92,10 @@ class _SurfaceArtState extends State<SurfaceArt>
           widget.reveal,
           _rustRemoved,
           _tarnish,
+          widget.medalImage != null,
         ),
         size: Size.infinite,
+        child: widget.medalImage,
       ),
     );
   }
@@ -104,6 +110,7 @@ class _SurfacePainter extends CustomPainter {
     this.reveal,
     this.rustRemoved,
     this.tarnish,
+    this.hasMedalImage,
   ) : super(repaint: flash);
 
   final WorkMaterial material;
@@ -113,6 +120,7 @@ class _SurfacePainter extends CustomPainter {
   final bool reveal;
   final double rustRemoved;
   final _TarnishTexture tarnish;
+  final bool hasMedalImage;
 
   static const _white = Color(0xFFFFF3D8);
   static const _shadow = Color(0xFF171514);
@@ -134,29 +142,91 @@ class _SurfacePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final radius = math.min(size.width * .425, size.height * .419);
-    final center = Offset(size.width * .50, size.height * .47);
+    // The illustrated coin is centered inside a square with a transparent rim.
+    final side = math.min(size.width, size.height);
+    final radius = hasMedalImage
+        ? side * .45
+        : math.min(size.width * .425, size.height * .419);
+    final center = hasMedalImage
+        ? size.center(Offset(0, -side * .016))
+        : Offset(size.width * .50, size.height * .47);
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.scale(radius);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: const Offset(.045, .91),
-        width: 1.83,
-        height: .24,
-      ),
-      Paint()
-        ..color = const Color(0xB5000000)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, .08),
-    );
+    if (!hasMedalImage) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: const Offset(.045, .91),
+          width: 1.83,
+          height: .24,
+        ),
+        Paint()
+          ..color = const Color(0xB5000000)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, .08),
+      );
+    }
     canvas.rotate(material.glyph == null ? -.12 : -.065);
-    final ink = material.colorAt(progress);
     final rust = material.rustAt(progress);
     final shine = material.shineAt(progress);
     final glyph = material.glyph;
     final face = glyph == null
         ? (Path()..addOval(const Rect.fromLTWH(-1, -1, 2, 2)))
         : _plate();
+    if (!hasMedalImage) _drawBase(canvas, face, glyph, shine);
+    canvas.save();
+    canvas.clipPath(face);
+    // A finished surface holds a sharper reflection even after movement stops.
+    if (shine > .05) {
+      const bounds = Rect.fromLTWH(-1, -1, 2, 2);
+      final highlight = LinearGradient(
+        begin: const Alignment(-.92, -.46),
+        end: const Alignment(.92, .5),
+        colors: [
+          Colors.transparent,
+          _white.withValues(alpha: shine * .31),
+          _white.withValues(alpha: shine * .05),
+          Colors.transparent,
+          _white.withValues(alpha: shine * .22),
+          Colors.transparent,
+        ],
+        stops: const [0, .24, .31, .53, .59, .69],
+      );
+      canvas.drawRect(bounds, Paint()..shader = highlight.createShader(bounds));
+    }
+    // The copper illustration already carries oxidation of its own.
+    tarnish.draw(
+      canvas,
+      hasMedalImage ? rust * .68 : rust,
+      plaque: glyph != null,
+    );
+    if (flash.value < 1 && shine > .02) {
+      // Start a stroke on the face so even a quick reversal catches the light.
+      final x = reveal ? -2.1 + flash.value * 4.2 : -.68 + flash.value * 2.1;
+      final area = Rect.fromLTWH(x - .34, -1.8, .68, 3.6);
+      canvas.save();
+      canvas.rotate(.44);
+      canvas.drawRect(
+        area,
+        Paint()
+          ..shader = LinearGradient(
+            colors: [
+              Colors.transparent,
+              _white.withValues(alpha: .12 + shine * .3),
+              Colors.transparent,
+            ],
+          ).createShader(area),
+      );
+      canvas.restore();
+    }
+    canvas.restore();
+    if (flash.value < 1 && rustRemoved > 0) {
+      _flakes(canvas);
+    }
+    canvas.restore();
+  }
+
+  void _drawBase(Canvas canvas, Path face, String? glyph, double shine) {
+    final ink = material.colorAt(progress);
     canvas.drawPath(
       face.shift(const Offset(.025, .07)),
       Paint()..color = _mix(ink, _shadow, .65),
@@ -182,48 +252,6 @@ class _SurfacePainter extends CustomPainter {
       _medal(canvas, ink, shine);
     } else {
       _inscription(canvas, ink, glyph, shine);
-    }
-    // A finished surface holds a sharper reflection even after movement stops.
-    if (shine > .05) {
-      const bounds = Rect.fromLTWH(-1, -1, 2, 2);
-      final highlight = LinearGradient(
-        begin: const Alignment(-.92, -.46),
-        end: const Alignment(.92, .5),
-        colors: [
-          Colors.transparent,
-          _white.withValues(alpha: shine * .31),
-          _white.withValues(alpha: shine * .05),
-          Colors.transparent,
-          _white.withValues(alpha: shine * .22),
-          Colors.transparent,
-        ],
-        stops: const [0, .24, .31, .53, .59, .69],
-      );
-      canvas.drawRect(bounds, Paint()..shader = highlight.createShader(bounds));
-    }
-    tarnish.draw(canvas, rust, plaque: glyph != null);
-    if (flash.value < 1 && shine > .02) {
-      // Start a stroke on the face so even a quick reversal catches the light.
-      final x = reveal ? -2.1 + flash.value * 4.2 : -.68 + flash.value * 2.1;
-      final area = Rect.fromLTWH(x - .34, -1.8, .68, 3.6);
-      canvas.save();
-      canvas.rotate(.44);
-      canvas.drawRect(
-        area,
-        Paint()
-          ..shader = LinearGradient(
-            colors: [
-              Colors.transparent,
-              _white.withValues(alpha: .12 + shine * .3),
-              Colors.transparent,
-            ],
-          ).createShader(area),
-      );
-      canvas.restore();
-    }
-    canvas.restore();
-    if (flash.value < 1 && rustRemoved > 0) {
-      _flakes(canvas);
     }
     canvas.restore();
   }
@@ -426,6 +454,7 @@ class _SurfacePainter extends CustomPainter {
       strokes != old.strokes ||
       reveal != old.reveal ||
       rustRemoved != old.rustRemoved ||
+      hasMedalImage != old.hasMedalImage ||
       flash != old.flash;
 }
 
