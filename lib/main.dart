@@ -63,7 +63,6 @@ class _SessionState extends State<_Session>
   bool _showTitle = true;
   bool _inLab = false;
   bool _confirmingExit = false;
-  VoiceMode _mode = VoiceMode.pitch;
   String? _error;
   int _operation = 0;
   @override
@@ -114,15 +113,6 @@ class _SessionState extends State<_Session>
   }
 
   @override
-  void useVoiceMode(VoiceMode mode) {
-    if (_busy) return;
-    setState(() {
-      _mode = mode;
-      _error = null;
-    });
-  }
-
-  @override
   Future<void> capture() async {
     if (_busy || _background || game.phase != GamePhase.voice) return;
     final op = ++_operation;
@@ -133,10 +123,12 @@ class _SessionState extends State<_Session>
     try {
       final sample = await device.capture(demoPitch, desk: true);
       if (!mounted || op != _operation) return;
-      if (!game.acceptVoice(sample, _mode)) {
-        _error = _mode == VoiceMode.pitch
-            ? '高さを読み取れませんでした。一定の声で試すか、音量で選んでください。'
-            : '音が小さいようです。もう一度、少し大きな声を出してください。';
+      final hz = sample.hz;
+      final mode = hz != null && hz.isFinite && hz > 0
+          ? VoiceMode.pitch
+          : VoiceMode.volume;
+      if (!game.acceptVoice(sample, mode)) {
+        _error = '音が小さいようです。もう一度、少し大きな声を出してください。';
       }
     } catch (e) {
       if (mounted && op == _operation) _error = deviceMessage(e);
@@ -354,7 +346,6 @@ class _SessionState extends State<_Session>
               simulated: device.simulated,
               busy: _busy,
               error: _error,
-              voiceMode: _mode,
             ),
     );
   }

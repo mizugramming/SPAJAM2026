@@ -70,7 +70,11 @@ private class PlanarVelocity {
     private var currentPeak = 0.0
     private var previousPeak = 0.0
     private var sawReversal = false
+    private var lastDirectionNs = -1L
+    var periodMs: Int? = null
+        private set
     private var cycleStartNs = -1L
+    private var lastCycleConfirmed = false
     private var lastSampleNs = -1L
     private var lastRawSpeed = 0.0
     private var cycleDistance = 0.0
@@ -97,10 +101,12 @@ private class PlanarVelocity {
             val cycleSeconds = (timeNs - cycleStartNs) / 1e9
             // A complete out-and-back pass has nearly zero net displacement.
             // A scoring lobe can survive a short pause. After a new touch,
-            // wait for a velocity reversal before using a cycle mean as drift.
-            if (cycleStartNs >= 0 && sawReversal && cycleSeconds in .20..1.70) {
+            // use a velocity reversal or two complete acceleration cycles to
+            // distinguish a new first push from an integration offset.
+            if (cycleStartNs >= 0 && (sawReversal || lastCycleConfirmed) && cycleSeconds in .20..1.70) {
                 driftSpeed = cycleDistance / cycleSeconds
             }
+            lastCycleConfirmed = stroke
             cycleStartNs = timeNs
             cycleDistance = 0.0
         }
@@ -110,11 +116,17 @@ private class PlanarVelocity {
         val magnitude = abs(speed)
         completedPeak = null
         // A small crossing hysteresis stops hand tremor from creating new passes near zero.
-        if (magnitude > .045 && speed * direction <= 0) {
+        if (magnitude > .032 && speed * direction <= 0) {
             if (direction != 0) {
                 if (sawReversal) completedPeak = currentPeak
                 sawReversal = true
             }
+            val halfMs = (timeNs - lastDirectionNs) / 1_000_000L
+            if (lastDirectionNs >= 0 && halfMs in 60..900) {
+                val observed = (2 * halfMs).toInt()
+                periodMs = periodMs?.let { (it + 2 * observed) / 3 } ?: observed
+            }
+            lastDirectionNs = timeNs
             previousPeak = currentPeak
             currentPeak = 0.0
             direction = if (speed > 0) 1 else -1
@@ -132,8 +144,11 @@ private class PlanarVelocity {
         currentPeak = 0.0
         previousPeak = 0.0
         sawReversal = false
+        lastDirectionNs = -1L
+        periodMs = null
         completedPeak = null
         cycleStartNs = -1L
+        lastCycleConfirmed = false
         lastSampleNs = -1L
         lastRawSpeed = 0.0
         cycleDistance = 0.0
@@ -145,6 +160,7 @@ private class PlanarVelocity {
 internal class DeskMotion(baseline: DeskBaseline? = null) {
     private val gravityMagnitude = baseline?.gravityMagnitude ?: 9.81
     private val threshold = max(1.05, (baseline?.noiseRms ?: 0.0) * 4.0)
+    private val quietPush = max(.34, (baseline?.noiseRms ?: 0.0) * 4.0)
     private val normal = DoubleArray(3)
     private val smoothed = DoubleArray(3)
     private val planar = DoubleArray(3)
@@ -198,7 +214,7 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
             for (i in 0..2) smoothed[i] = xyz[i].toDouble()
             if (!hasGravity) {
                 val length = sqrt(smoothed.sumOf { it * it })
-                if (length < 1) {
+                if (length !in 8.8..10.8) {
                     lastNs = -1
                     return DeskSample(false, ended = ended)
                 }
@@ -263,7 +279,7 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
                 return sample(velocity.along(axis, timeNs, true), began = true, stroke = true, moving = true)
             }
         }
-        val gentlePush = fromRest && horizontal >= .55 && horizontal > 2 * vertical
+        val gentlePush = fromRest && horizontal >= quietPush && horizontal > 2 * vertical
         if (opening && (motorNoise || (!gentlePush && horizontal < onsetThreshold) || horizontal < 1.1 * vertical)) {
             candidateNs = -1
             return DeskSample(false)
@@ -278,7 +294,7 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
                 candidateNs = -1
                 return DeskSample(false)
             }
-            val holdNs = if (projection >= onsetThreshold) 20_000_000L else 80_000_000L
+            val holdNs = if (projection >= onsetThreshold) 20_000_000L else 65_000_000L
             if (timeNs - candidateNs < holdNs) return DeskSample(false)
             // A pause at an endpoint ends the feel of contact, but the return
             // still belongs to the same physical out-and-back stroke.
@@ -293,19 +309,19 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
         val minimum = when {
             motorEdge -> max(1.55, threshold)
             motorNoise -> max(1.20, threshold)
-            else -> threshold * 0.58
+            else -> quietPush
         }
         val rawGravity = (0..2).sumOf { xyz[it] * normal[it] }
         val direct = (0..2).sumOf { (xyz[it] - rawGravity * normal[it]) * axis[it] }
         val aligned = abs(projection) >= horizontal * .62 && direct * projection > 0
-        val strong = aligned && abs(projection) >= minimum && abs(direct) >= threshold * .58
+        val strong = aligned && abs(projection) >= minimum && abs(direct) >= quietPush
         if (strong) lastMotionNs = timeNs
         val stroke = cycle.updatePlanar(timeNs, planar)
         val speed = velocity.along(axis, timeNs, stroke)
         // In the middle of a smooth pass acceleration crosses zero at maximum
         // speed. Brief, coherent accelerations can support that glide after a
         // strong hand impulse. They can neither open contact nor renew the limit.
-        val glide = timeNs - lastMotionNs < 780_000_000L && abs(speed) > max(.10, velocity.peak * .46)
+        val glide = timeNs - lastMotionNs < 780_000_000L && abs(speed) > max(.035, velocity.peak * .46)
         if (glide && aligned && abs(projection) >= .32 && abs(direct) >= .27) lastGlideNs = timeNs
         val moving = strong || (glide && lastGlideNs >= 0 && timeNs - lastGlideNs < 65_000_000L)
         // At the middle of a slow slide acceleration can stay quiet even at
@@ -325,7 +341,7 @@ internal class DeskMotion(baseline: DeskBaseline? = null) {
             contact = true,
             began = began,
             stroke = stroke,
-            cadenceMs = cycle.estimatedPeriodMs,
+            cadenceMs = velocity.periodMs ?: cycle.estimatedPeriodMs,
             moving = moving,
             signedSpeedMps = speed,
             passPeakMps = velocity.peak,

@@ -11,9 +11,13 @@ from tempfile import TemporaryDirectory
 parser = argparse.ArgumentParser()
 parser.add_argument("output", type=Path)
 parser.add_argument("--port", type=int, default=18773)
+parser.add_argument("--profile", choices=("slow-fast", "short-medium"), default="slow-fast")
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
-page = Path(__file__).with_name("phone.html").read_bytes()
+labels = ("short", "medium") if args.profile == "short-medium" else ("slow", "fast")
+page = Path(__file__).with_name("phone.html").read_bytes().replace(
+    b'data-profile="slow-fast"', f'data-profile="{args.profile}"'.encode()
+)
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -60,13 +64,13 @@ class Handler(BaseHTTPRequestHandler):
             with TemporaryDirectory(dir=args.output) as tmp:
                 batch = Path(tmp) / "take"
                 batch.mkdir()
-                for label, take in zip(("slow", "fast"), takes):
+                for label, take in zip(labels, takes):
                     with (batch / f"{label}.csv").open("w", newline="") as fp:
                         writer = csv.writer(fp)
                         writer.writerow(("t_s","x_m_s2","y_m_s2","z_m_s2"))
                         writer.writerows(take)
                 batch.rename(dest)
-            print(f"Saved {dest}, slow={len(takes[0])} fast={len(takes[1])}", flush=True)
+            print(f"Saved {dest}, {labels[0]}={len(takes[0])} {labels[1]}={len(takes[1])}", flush=True)
         self.send_response(204)
         self.end_headers()
 

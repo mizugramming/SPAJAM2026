@@ -20,7 +20,6 @@ abstract interface class WorkshopActions {
   void simulateStroke();
   void openDiagnostics();
   void selectDemoPitch(double hz);
-  void useVoiceMode(VoiceMode mode);
   double get demoPitch;
 }
 
@@ -33,7 +32,6 @@ class Workshop extends StatelessWidget {
     required this.simulated,
     required this.busy,
     required this.error,
-    required this.voiceMode,
     this.inContact = false,
     this.onEnter,
     this.onTitle,
@@ -44,7 +42,6 @@ class Workshop extends StatelessWidget {
   final bool simulated;
   final bool busy;
   final String? error;
-  final VoiceMode voiceMode;
   final bool inContact;
   final VoidCallback? onEnter;
 
@@ -207,7 +204,10 @@ class Workshop extends StatelessWidget {
       strokes: game.totalStrokes,
       inContact: inContact,
     ),
-    transition: arriving ? _paperEntrance : null,
+    transition: arriving
+        ? (canvas, bounds, paper) =>
+              _paperEntrance(canvas, bounds, paper, game.grit!, game.sample!)
+        : null,
     fill: true,
   );
 
@@ -235,9 +235,6 @@ class Workshop extends StatelessWidget {
       case GamePhase.select:
         return [];
       case GamePhase.voice:
-        final voiceHint = voiceMode == VoiceMode.pitch
-            ? '低い声は粗目、高い声は細目。'
-            : '小さな声は粗目、大きな声は細目。';
         return [
           // 1回目だけ素材選択へ戻れる。選んでいた素材を表示した状態で戻る。
           Part(
@@ -248,11 +245,19 @@ class Workshop extends StatelessWidget {
                 : null,
           ),
           Part(
-            'body',
-            '声の出し方',
-            _Body(simulated ? voiceHint : 'スマホを机に置いて「あー」とひと声。$voiceHint'),
+            'title',
+            '見出し',
+            Center(
+              child: _Title(
+                busy
+                    ? '声を聞いています'
+                    : game.finishingWithFine
+                    ? '仕上げは高い声で'
+                    : 'やすりを作る',
+              ),
+            ),
+            align: Alignment.center,
           ),
-          Part('title', '見出し', _Title(busy ? '声を聞いています' : 'やすりを作る')),
           Part(
             'chips',
             '疑似音声の選択',
@@ -263,17 +268,13 @@ class Workshop extends StatelessWidget {
                     runSpacing: 2,
                     children: [
                       for (final choice in [
-                        (110, '低い', '小'),
-                        (190, '中間', '中'),
-                        (300, '高い', '大'),
+                        (110, '低い'),
+                        (190, '中間'),
+                        (300, '高い'),
                       ])
                         ChoiceChip(
                           key: ValueKey('demo-${choice.$1}'),
-                          label: Text(
-                            voiceMode == VoiceMode.pitch
-                                ? choice.$2
-                                : choice.$3,
-                          ),
+                          label: Text(choice.$2),
                           selected: actions.demoPitch == choice.$1,
                           onSelected: busy
                               ? null
@@ -287,7 +288,7 @@ class Workshop extends StatelessWidget {
           errorPart,
           Part(
             'action',
-            '「声を取る」ボタン',
+            'マイクボタン',
             _InkMicButton(
               key: const ValueKey('capture'),
               label: busy
@@ -299,32 +300,15 @@ class Workshop extends StatelessWidget {
             ),
             fill: true,
           ),
-          Part(
-            'mode',
-            '音量・高さの切り替え',
-            Center(
-              child: TextButton(
-                key: const ValueKey('voice-mode'),
-                onPressed: busy
-                    ? null
-                    : () => actions.useVoiceMode(
-                        voiceMode == VoiceMode.pitch
-                            ? VoiceMode.volume
-                            : VoiceMode.pitch,
-                      ),
-                child: Text(voiceMode == VoiceMode.pitch ? '音量で選ぶ' : '声の高さで選ぶ'),
-              ),
-            ),
-            align: Alignment.topCenter,
-          ),
         ];
       case GamePhase.ready:
         return [
-          Part('title', '見出し', _Title('${game.grit!.label}のやすり')),
           Part(
-            'body',
-            '説明文',
-            _Body(simulated ? '「1往復を入力」で磨けます。' : 'スマホを持ち上げて、机と平行に構える。'),
+            'title',
+            'やすりの目',
+            Center(child: _Title('${game.grit!.label}のやすり')),
+            transition: _afterPaperLands,
+            align: Alignment.center,
           ),
           _paper(arriving: true),
           errorPart,
@@ -334,7 +318,7 @@ class Workshop extends StatelessWidget {
             _BoxButton(
               key: const ValueKey('start'),
               icon: Icons.play_arrow_rounded,
-              label: busy ? '準備中…' : '10秒間、磨き始める',
+              label: busy ? '準備中…' : '磨く！',
               onPressed: busy ? null : actions.start,
             ),
             transition: _afterPaperLands,
@@ -343,36 +327,16 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.polishing:
         return [
-          const Part('title', '見出し', _Title('前後に磨く')),
+          const Part('cue', '開始の合図', _PolishCue(), fill: true),
           Part(
             'timer',
-            '残り時間と往復数',
-            // 往復数が増えても折り返さず1行で出す。入りきらないときだけ横に縮める。
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  spacing: 16,
-                  children: [
-                    Text(
-                      '残り ${game.remainingSeconds} 秒',
-                      style: const TextStyle(
-                        fontSize: 23,
-                        fontWeight: FontWeight.w800,
-                        color: ember,
-                      ),
-                    ),
-                    Text(
-                      '${game.grit!.label}   ·   ${game.strokes} 往復',
-                      style: const TextStyle(color: muted, fontSize: 16),
-                    ),
-                  ],
-                ),
+            '残り時間',
+            Text(
+              '残り ${game.remainingSeconds} 秒',
+              style: const TextStyle(
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+                color: ember,
               ),
             ),
           ),
@@ -394,13 +358,13 @@ class Workshop extends StatelessWidget {
           errorPart,
           Part(
             'action',
-            '「1往復を入力」ボタン',
+            '疑似研磨ボタン',
             !simulated
                 ? null
                 : _BoxButton(
                     key: const ValueKey('simulate-stroke'),
                     icon: Icons.swap_vert,
-                    label: '1往復を入力',
+                    label: 'こする',
                     onPressed: actions.simulateStroke,
                   ),
             fill: true,
@@ -408,22 +372,9 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.result:
         return [
-          Part('title', '見出し', _Title(_stageName(game))),
-          Part(
-            'body',
-            '説明文',
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _Body('3回の研磨で、合計${game.totalStrokes}往復しました。'),
-                if (game.verdict != null) ...[
-                  const SizedBox(height: 8),
-                  _Body(game.verdict!),
-                ],
-              ],
-            ),
-          ),
+          Part('title', '見出し', _Title(game.stage.name)),
+          if (game.verdict case final verdict?)
+            Part('body', '仕上がりの判定', _Body(verdict)),
           Part(
             'action',
             '「もう一度遊ぶ」ボタン',
@@ -449,11 +400,12 @@ class Workshop extends StatelessWidget {
   }
 }
 
-/// The departure, flight and start button share a single clock per round.
+/// A single timeline carries the captured mic to the middle, reveals the paper,
+/// and unlocks start at its landing. The game clock begins with that button.
 class _PaperArrival extends StatelessWidget {
   const _PaperArrival({super.key, required this.child});
   final Widget child;
-  static const duration = Duration(milliseconds: 600);
+  static const duration = Duration(milliseconds: 1800);
 
   @override
   Widget build(BuildContext context) {
@@ -484,17 +436,30 @@ Widget _afterPaperLands(Size canvas, Rect bounds, Widget child) => Builder(
       _ArrivalProgress.of(context) == 1 ? child : const SizedBox.shrink(),
 );
 
-Widget _paperEntrance(Size canvas, Rect bounds, Widget child) => Builder(
+Widget _paperEntrance(
+  Size canvas,
+  Rect bounds,
+  Widget child,
+  Grit grit,
+  VoiceSample sample,
+) => Builder(
   builder: (context) {
     final t = _ArrivalProgress.of(context);
-    const exitEnd = 180 / 600;
-    const fallStart = 220 / 600;
-    final flight = const Interval(
-      fallStart,
-      1,
-      curve: Cubic(.36, .06, .25, 1),
-    ).transform(t);
-    final button = layoutTuner.boxOf(Screen.voice, 'action').rectIn(canvas);
+    const enter = Interval(0, .18, curve: Curves.easeOutCubic);
+    const reveal = Interval(.13, .23, curve: Curves.easeOut);
+    const leave = Interval(.64, .78, curve: Curves.easeInCubic);
+    const fall = Interval(.78, 1, curve: Cubic(.36, .06, .25, 1));
+    final mic = layoutTuner.boxOf(Screen.voice, 'action').rectIn(canvas);
+    final center = Offset(canvas.width / 2, canvas.height / 2);
+    final distanceOffscreen =
+        center.dy + math.max(mic.height, canvas.height * .27);
+    final movingCenter = Offset.lerp(
+      mic.center,
+      center,
+      enter.transform(t),
+    )!.translate(0, -distanceOffscreen * leave.transform(t));
+    final readoutOpacity = reveal.transform(t) * (1 - leave.transform(t));
+
     return Stack(
       fit: StackFit.expand,
       clipBehavior: Clip.none,
@@ -502,19 +467,25 @@ Widget _paperEntrance(Size canvas, Rect bounds, Widget child) => Builder(
         ExcludeSemantics(
           excluding: t < 1,
           child: Transform.translate(
-            offset: Offset(0, -(bounds.bottom + 1) * (1 - flight)),
+            offset: Offset(0, -(bounds.bottom + 1) * (1 - fall.transform(t))),
             child: child,
           ),
         ),
-        if (t < exitEnd)
+        if (t < leave.end) ...[
           Positioned.fromRect(
-            rect: button
-                .shift(-bounds.topLeft)
-                .translate(
-                  0,
-                  -(button.bottom + 1) *
-                      Curves.easeInCubic.transform(t / exitEnd),
-                ),
+            rect: (Offset.zero & canvas).shift(-bounds.topLeft),
+            child: IgnorePointer(
+              child: ColoredBox(
+                color: bench.withValues(alpha: .74 * readoutOpacity),
+              ),
+            ),
+          ),
+          Positioned.fromRect(
+            rect: Rect.fromCenter(
+              center: movingCenter - bounds.topLeft,
+              width: mic.width,
+              height: mic.height,
+            ),
             child: const ExcludeSemantics(
               child: _InkMicButton(
                 key: ValueKey('voice-departure'),
@@ -524,10 +495,120 @@ Widget _paperEntrance(Size canvas, Rect bounds, Widget child) => Builder(
               ),
             ),
           ),
+          if (readoutOpacity > 0)
+            Positioned(
+              left: .06 * canvas.width - bounds.left,
+              width: .88 * canvas.width,
+              top:
+                  movingCenter.dy +
+                  math.min(76.0, mic.height) / 2 +
+                  8 -
+                  bounds.top,
+              height: canvas.height * .145,
+              child: Opacity(
+                opacity: readoutOpacity,
+                child: Semantics(
+                  liveRegion: true,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.topCenter,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          sandpaperStampFor(sample),
+                          key: const ValueKey('voice-reading'),
+                          style: const TextStyle(
+                            fontFamily: appFont,
+                            color: chalk,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 42,
+                            height: 1.12,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${grit.label}のやすり',
+                          style: const TextStyle(
+                            color: ember,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 24,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ],
     );
   },
 );
+
+/// The banner crosses the material once. Input remains live beneath it.
+class _PolishCue extends StatelessWidget {
+  const _PolishCue();
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    return IgnorePointer(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 630),
+        builder: (context, t, banner) {
+          if (t == 1) return const SizedBox.shrink();
+          final enter = const Interval(
+            0,
+            .26,
+            curve: Curves.easeOutCubic,
+          ).transform(t);
+          final leave = const Interval(
+            .67,
+            1,
+            curve: Curves.easeInCubic,
+          ).transform(t);
+          return FractionalTranslation(
+            translation: Offset(reduced ? 0 : enter - 1 + leave, 0),
+            child: Opacity(opacity: reduced ? 1 : 1 - leave, child: banner!),
+          );
+        },
+        child: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0x00751619),
+                Color(0xF88E1D21),
+                Color(0xFA701418),
+                Color(0x00751619),
+              ],
+              stops: [0, .18, .82, 1],
+            ),
+          ),
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                '磨け',
+                style: TextStyle(
+                  color: chalk,
+                  fontFamily: appFont,
+                  fontSize: 72,
+                  height: 1.05,
+                  letterSpacing: 7,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// 全画面に敷く背景画像。画面の縦横比に合わせて切り抜く。
 class _Background extends StatelessWidget {
@@ -671,94 +752,80 @@ class _InkMicButtonState extends State<_InkMicButton> {
     final pressed = _down && enabled;
     return FittedBox(
       fit: BoxFit.scaleDown,
-      alignment: Alignment.topCenter,
+      alignment: Alignment.center,
       child: Semantics(
         button: true,
         enabled: enabled,
         label: widget.label,
         onTap: widget.onPressed,
         excludeSemantics: true,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            InkResponse(
-              customBorder: const CircleBorder(),
-              onHighlightChanged: _press,
-              onTap: widget.onPressed,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 150),
-                opacity: enabled || widget.recorded ? 1 : .6,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 100),
-                  width: 76,
-                  height: 76,
-                  transform: Matrix4.translationValues(0, pressed ? 2 : 0, 0),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _face,
-                    border: Border.all(color: _rim),
-                    boxShadow: pressed
-                        ? const [BoxShadow(color: _base, offset: Offset(0, 1))]
-                        : const [
-                            BoxShadow(color: _base, offset: Offset(0, 3)),
-                            BoxShadow(
-                              color: Color(0x57080605),
-                              offset: Offset(0, 6),
-                              blurRadius: 10,
-                            ),
-                          ],
-                  ),
-                  child: ClipOval(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // 上の照り返しと下の陰（見本の内側の影）。
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: pressed
-                                  ? const [Color(0x3368231C), Color(0x00000000)]
-                                  : const [
-                                      Color(0x57FA7559),
-                                      Color(0x00000000),
-                                      Color(0x00000000),
-                                      Color(0x8585251B),
-                                    ],
-                              stops: pressed ? null : const [0, .12, .85, 1],
-                            ),
-                          ),
-                        ),
-                        CustomPaint(
-                          painter: _GrungePainter(
-                            widget.label.hashCode ^ 0x1177,
-                            frame: false,
-                            density: 60,
-                          ),
-                        ),
-                        const Center(
-                          child: CustomPaint(
-                            size: Size(28, 34),
-                            painter: _MicPainter(color: _ivory),
-                          ),
+        child: InkResponse(
+          customBorder: const CircleBorder(),
+          onHighlightChanged: _press,
+          onTap: widget.onPressed,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 150),
+            opacity: enabled || widget.recorded ? 1 : .6,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              width: 76,
+              height: 76,
+              transform: Matrix4.translationValues(0, pressed ? 2 : 0, 0),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _face,
+                border: Border.all(color: _rim),
+                boxShadow: pressed
+                    ? const [BoxShadow(color: _base, offset: Offset(0, 1))]
+                    : const [
+                        BoxShadow(color: _base, offset: Offset(0, 3)),
+                        BoxShadow(
+                          color: Color(0x57080605),
+                          offset: Offset(0, 6),
+                          blurRadius: 10,
                         ),
                       ],
+              ),
+              child: ClipOval(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 上の照り返しと下の陰（見本の内側の影）。
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: pressed
+                              ? const [Color(0x3368231C), Color(0x00000000)]
+                              : const [
+                                  Color(0x57FA7559),
+                                  Color(0x00000000),
+                                  Color(0x00000000),
+                                  Color(0x8585251B),
+                                ],
+                          stops: pressed ? null : const [0, .12, .85, 1],
+                        ),
+                      ),
                     ),
-                  ),
+                    CustomPaint(
+                      painter: _GrungePainter(
+                        widget.label.hashCode ^ 0x1177,
+                        frame: false,
+                        density: 60,
+                      ),
+                    ),
+                    const Center(
+                      child: CustomPaint(
+                        size: Size(28, 34),
+                        painter: _MicPainter(color: _ivory),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              widget.label,
-              style: const TextStyle(
-                color: Color(0xFFFFF9EF),
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -984,38 +1051,20 @@ class _FilePainter extends CustomPainter {
   bool shouldRepaint(_FilePainter oldDelegate) => false;
 }
 
-/// メダルの段階ごとの画像。順番は game.dart の段階（サビた銅・銅・銀・金）に対応。
+/// game.dart の段階（サビた銅・銅・銀・金・金ピカ）と同じ順のメダル画像。
 /// 銅の2段階は同じ絵にゲームの研磨率に応じた地金色・サビ・光沢を重ねる。
 const _medalStageImages = [
   'assets/fonts/daou.jpg',
   'assets/fonts/daou.jpg',
   'assets/fonts/gin.jpg',
   'assets/fonts/kin.jpg',
+  'assets/fonts/kinpika.jpg',
 ];
-
-/// 金をほぼ磨き切ったときの画像と、その研磨の割合。
-const _medalShineImage = 'assets/fonts/kinpika.jpg';
-const _medalShineFrom = .95;
 
 /// 素材と研磨の割合に合う画像。画像のない素材は null（描画で表示する）。
 String? _imageFor(WorkMaterial material, double progress) {
   if (material.id != 'medal') return null;
-  if (progress >= _medalShineFrom) return _medalShineImage;
-  var index = 0;
-  for (var i = 0; i < material.stages.length; i++) {
-    if (progress >= material.stages[i].threshold) index = i;
-  }
-  return _medalStageImages[index.clamp(0, _medalStageImages.length - 1)];
-}
-
-/// 仕上がり画面に出す段階名。金ピカの画像になるほど磨いたメダルは「金ピカのメダル」と呼ぶ。
-String _stageName(GameController game) {
-  final material = game.material;
-  if (material != null &&
-      _imageFor(material, game.progress) == _medalShineImage) {
-    return '金ピカのメダル';
-  }
-  return game.stage.name;
+  return _medalStageImages[material.stages.indexOf(material.stageAt(progress))];
 }
 
 /// 円形に切り抜いたメダル画像。画像が替わるときは重ねて切り替える。
@@ -1355,20 +1404,19 @@ class _QuietButton extends StatelessWidget {
   );
 }
 
-/// メダルの削りかす。往復数が増えた瞬間に1回、メダルの縁から外へ飛ばして消す。
-/// 銅は画像の色のまま、銀・金は [tint] の色に塗り直す。
-/// 添付の粉の画像を薄い軌跡として流し、同じ画像から切り出した赤茶・青緑の破片を
-/// 数粒、角度・速さ・回転を変えて飛ばす。位置・大きさは表示中のメダル
-/// （置き場所の短い辺を直径とする中央の円）を基準にする。
 class _Shavings extends StatefulWidget {
   const _Shavings({
     required this.strokes,
     required this.active,
+    required this.inContact,
+    required this.progress,
     this.tint,
     this.grit,
   });
   final int strokes;
   final bool active;
+  final bool inContact;
+  final double progress;
 
   /// やすりの目。粗目ほど大きな破片を少なく、細目ほど細かな粒を多く飛ばす。
   final Grit? grit;
@@ -1394,6 +1442,7 @@ typedef _Burst = ({
   double angle,
   double trailScale,
   List<_Flake> flakes,
+  List<({double offset, double spread, double travel, double size})> dust,
 });
 
 /// やすりの目ごとの削りかす（破片の大きさ・粒の数・飛ぶ距離・粉の軌跡の大きさ）。
@@ -1421,14 +1470,14 @@ class _ShavingsState extends State<_Shavings> with TickerProviderStateMixin {
 
   /// 往復ごとに移る縁の位置（画面の角度。0°が右、-90°が上）。
   static const _angles = [
-    -45.0,
-    -135.0,
-    0.0,
-    180.0,
-    -70.0,
-    -110.0,
-    25.0,
-    155.0,
+    -34.0,
+    -144.0,
+    22.0,
+    -161.0,
+    -54.0,
+    -118.0,
+    38.0,
+    159.0,
   ];
 
   /// 粉の画像の中で粉が集まっている点（幅・高さに対する割合）と、破片が散る向き。
@@ -1436,46 +1485,103 @@ class _ShavingsState extends State<_Shavings> with TickerProviderStateMixin {
   static final _imageDirection = math.atan2(-341, 512);
   static const _aspect = 512 / 341;
   static const _trailTravel = 40.0;
-  static const _trailOpacity = .55;
+  static const _trailOpacity = .78;
 
   /// 全体の長さと、そのうち粉の軌跡が消えるまでの長さ。
   static const _duration = Duration(milliseconds: 420);
   static const _trailShare = 300 / 420;
 
+  // A quick hand can complete several passes during one particle's lifetime.
+  static const _maxBursts = 4;
   final _bursts = <_Burst>[];
+  Timer? _contactDust;
+  int _sequence = 0;
+  int _pass = 0;
+  bool _canAnimate = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _canAnimate =
+        !MediaQuery.disableAnimationsOf(context) &&
+        TickerMode.valuesOf(context).enabled;
+    _syncContact();
+  }
 
   @override
   void didUpdateWidget(_Shavings old) {
     super.didUpdateWidget(old);
-    if (widget.active && widget.strokes > old.strokes) _burst();
+    if (_canAnimate && widget.active) {
+      final scored = widget.strokes > old.strokes;
+      if (scored || (widget.inContact && !old.inContact)) {
+        _pass++;
+        _burst(chips: scored);
+      }
+    }
+    _syncContact();
   }
 
-  void _burst() {
-    final random = math.Random(widget.strokes);
+  void _syncContact() {
+    if (!_canAnimate || !widget.active) {
+      for (final burst in _bursts) {
+        burst.controller.dispose();
+      }
+      _bursts.clear();
+    }
+    if (_canAnimate && widget.active && widget.inContact) {
+      // Contact comes from the motion detector. The fine spray bridges the
+      // space between the push and the scored return, without advancing either.
+      _contactDust ??= Timer.periodic(const Duration(milliseconds: 180), (_) {
+        setState(() => _burst(chips: false));
+      });
+    } else {
+      _contactDust?.cancel();
+      _contactDust = null;
+    }
+  }
+
+  void _burst({required bool chips}) {
+    if (_bursts.length >= _maxBursts) {
+      _bursts.removeAt(0).controller.dispose();
+    }
+    final sequence = _sequence++;
+    final random = math.Random(sequence);
     final kind = _shavingsFor(widget.grit);
     final copperCount = (kind.count * .6).round();
     final controller = AnimationController(vsync: this, duration: _duration);
     final burst = (
       controller: controller,
-      angle: _angles[widget.strokes % _angles.length] * math.pi / 180,
+      angle:
+          (_angles[_pass % _angles.length] + random.nextDouble() * 10 - 5) *
+          math.pi /
+          180,
       trailScale: kind.trail,
+      dust: [
+        for (var i = 0; i < (chips ? 24 : 12) + kind.count; i++)
+          (
+            offset: random.nextDouble(),
+            spread: (random.nextDouble() - .5) * 1.6,
+            travel: (.07 + .24 * random.nextDouble()) * kind.reach,
+            size: (.0028 + .0035 * random.nextDouble()) * kind.size,
+          ),
+      ],
       flakes: [
-        for (var i = 0; i < kind.count; i++)
+        for (var i = 0; chips && i < kind.count; i++)
           (
             image: i < copperCount
                 ? _copper[random.nextInt(_copper.length)]
                 : _teal[random.nextInt(_teal.length)],
             spread: (random.nextDouble() - .5) * 1.4,
-            distance: (50 + random.nextDouble() * 60) * kind.reach,
+            distance: (.09 + random.nextDouble() * .17) * kind.reach,
             spin: (random.nextBool() ? 1 : -1) * (4 + random.nextDouble() * 8),
             size: (.035 + random.nextDouble() * .03) * kind.size,
-            fall: 10 + random.nextDouble() * 22,
+            fall: .04 + random.nextDouble() * .08,
           ),
       ],
     );
-    setState(() => _bursts.add(burst));
+    _bursts.add(burst);
     controller.forward().whenComplete(() {
-      if (!mounted) return;
+      if (!mounted || !_bursts.contains(burst)) return;
       setState(() => _bursts.remove(burst));
       controller.dispose();
     });
@@ -1510,6 +1616,7 @@ class _ShavingsState extends State<_Shavings> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _contactDust?.cancel();
     for (final burst in _bursts) {
       burst.controller.dispose();
     }
@@ -1519,13 +1626,12 @@ class _ShavingsState extends State<_Shavings> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     if (_bursts.isEmpty) return const SizedBox.expand();
-    final still = MediaQuery.disableAnimationsOf(context);
     return LayoutBuilder(
       builder: (context, box) {
         final diameter = math.min(box.maxWidth, box.maxHeight);
-        final center = Offset(box.maxWidth / 2, box.maxHeight / 2);
+        final center = Offset(box.maxWidth / 2, box.maxHeight * .48);
         return Stack(
-          clipBehavior: Clip.none,
+          clipBehavior: Clip.hardEdge,
           children: [
             for (final burst in _bursts)
               AnimatedBuilder(
@@ -1538,35 +1644,50 @@ class _ShavingsState extends State<_Shavings> with TickerProviderStateMixin {
                     math.cos(burst.angle),
                     math.sin(burst.angle),
                   );
-                  final origin = center + outward * (diameter / 2 * .97);
+                  // Start on the face so the first grains are visible before
+                  // they cross the rim, including on narrow phones.
+                  final origin = center + outward * (diameter * .29);
                   final trailT = Curves.easeOut.transform(
                     (v / _trailShare).clamp(0.0, 1.0),
                   );
-                  final trailAt =
-                      origin + outward * (still ? 0 : _trailTravel * trailT);
+                  final trailAt = origin + outward * (_trailTravel * trailT);
                   return Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      // 薄い粉の軌跡。粉の集まる側を縁に、散る側を外へ向ける。
-                      Positioned(
-                        left: trailAt.dx - _anchor.dx * trailWidth,
-                        top: trailAt.dy - _anchor.dy * trailHeight,
-                        width: trailWidth,
-                        height: trailHeight,
-                        child: Opacity(
-                          opacity: _trailOpacity * (1 - trailT),
-                          child: Transform.rotate(
-                            angle: burst.angle - _imageDirection,
-                            alignment: Alignment(
-                              _anchor.dx * 2 - 1,
-                              _anchor.dy * 2 - 1,
-                            ),
-                            child: _tinted(
-                              const Image(image: _trail, fit: BoxFit.fill),
-                            ),
+                      Positioned.fill(
+                        child: CustomPaint(
+                          key: const ValueKey('abrasive-dust'),
+                          painter: _DustSpray(
+                            burst,
+                            v,
+                            origin,
+                            diameter,
+                            widget.tint,
+                            widget.progress,
                           ),
                         ),
                       ),
+                      // 一往復が成立したら、細かいチリに画像の粉と破片を重ねる。
+                      if (burst.flakes.isNotEmpty)
+                        Positioned(
+                          left: trailAt.dx - _anchor.dx * trailWidth,
+                          top: trailAt.dy - _anchor.dy * trailHeight,
+                          width: trailWidth,
+                          height: trailHeight,
+                          child: Opacity(
+                            opacity: _trailOpacity * (1 - trailT),
+                            child: Transform.rotate(
+                              angle: burst.angle - _imageDirection,
+                              alignment: Alignment(
+                                _anchor.dx * 2 - 1,
+                                _anchor.dy * 2 - 1,
+                              ),
+                              child: _tinted(
+                                const Image(image: _trail, fit: BoxFit.fill),
+                              ),
+                            ),
+                          ),
+                        ),
                       // はがれて飛び散る破片。
                       for (final flake in burst.flakes)
                         Builder(
@@ -1574,12 +1695,11 @@ class _ShavingsState extends State<_Shavings> with TickerProviderStateMixin {
                             final t = Curves.easeOutCubic.transform(v);
                             final angle = burst.angle + flake.spread;
                             final size = diameter * flake.size;
-                            final at = still
-                                ? origin
-                                : origin +
-                                      Offset(math.cos(angle), math.sin(angle)) *
-                                          (flake.distance * t) +
-                                      Offset(0, flake.fall * v * v);
+                            final at =
+                                origin +
+                                Offset(math.cos(angle), math.sin(angle)) *
+                                    (diameter * flake.distance * t) +
+                                Offset(0, diameter * flake.fall * v * v);
                             return Positioned(
                               left: at.dx - size / 2,
                               top: at.dy - size / 2,
@@ -1591,7 +1711,7 @@ class _ShavingsState extends State<_Shavings> with TickerProviderStateMixin {
                                   1.0,
                                 ),
                                 child: Transform.rotate(
-                                  angle: still ? 0 : flake.spin * v,
+                                  angle: flake.spin * v,
                                   child: _tinted(
                                     Image(
                                       image: flake.image,
@@ -1612,6 +1732,90 @@ class _ShavingsState extends State<_Shavings> with TickerProviderStateMixin {
       },
     );
   }
+}
+
+/// A short sweep across the face breaks into a fan of mineral dust.
+class _DustSpray extends CustomPainter {
+  const _DustSpray(
+    this.burst,
+    this.t,
+    this.origin,
+    this.diameter,
+    this.tint,
+    this.progress,
+  );
+  final _Burst burst;
+  final double t;
+  final Offset origin;
+  final double diameter;
+  final Color? tint;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final base = tint ?? const Color(0xffbb704a);
+    final highlight = Color.lerp(
+      base,
+      const Color(0xffffefcc),
+      .56 + .27 * progress,
+    )!;
+    final dark = Color.lerp(base, const Color(0xff462919), .52)!;
+    final fade = 1 - Curves.easeIn.transform(t);
+    final advance = Curves.easeOut.transform(t);
+    final grain = Paint()..strokeCap = StrokeCap.round;
+    canvas.save();
+    canvas.translate(origin.dx, origin.dy);
+    canvas.rotate(burst.angle);
+
+    // Parallel striations are visible only while the grit is passing.
+    if (t < .54) {
+      final x = diameter * advance * .17;
+      grain.color = highlight.withValues(alpha: .68 * (1 - t / .54));
+      grain.strokeWidth = diameter * .003;
+      for (var j = 0; j < 3; j++) {
+        final y = diameter * (j - 1) * .015;
+        canvas.drawLine(
+          Offset(x - diameter * (.14 - .024 * j), y),
+          Offset(x, y),
+          grain,
+        );
+      }
+    }
+    for (var i = 0; i < burst.dust.length; i++) {
+      final dust = burst.dust[i];
+      final travel = diameter * dust.travel * advance;
+      final x =
+          (dust.offset - .5) * diameter * .12 + math.cos(dust.spread) * travel;
+      final y = math.sin(dust.spread) * (travel + diameter * .05);
+      final radius = (dust.size * diameter * (1 - .28 * progress)).clamp(
+        .7,
+        3.2,
+      );
+      final color = switch (i % 3) {
+        0 => dark,
+        1 => base,
+        _ => highlight,
+      };
+      grain.color = color.withValues(alpha: .95 * fade);
+      grain.strokeWidth = radius * 1.5;
+      canvas.drawLine(
+        Offset(x, y),
+        Offset(x + radius * 1.7, y + radius * dust.spread),
+        grain,
+      );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_DustSpray old) =>
+      old.burst != burst ||
+      old.t != t ||
+      old.origin != origin ||
+      old.diameter != diameter ||
+      old.tint != tint ||
+      old.progress != progress;
 }
 
 class _RoundHeader extends StatelessWidget {
@@ -1677,20 +1881,22 @@ class _Workpiece extends StatelessWidget {
     return Semantics(
       image: true,
       excludeSemantics: true,
-      label: _stageName(game),
+      label: game.stage.name,
       value: '研磨 ${(game.progress * 100).round()}%',
       child: Stack(
         fit: StackFit.expand,
         clipBehavior: Clip.none,
         children: [
           art,
-          // メダルを磨いている間、1往復ごとに縁から削りかすを飛ばす。銀・金は段階の色に塗る。
+          // 接触中のチリと、往復が成立したときの大きな破片を重ねる。
           Positioned.fill(
             child: IgnorePointer(
               child: _Shavings(
                 strokes: game.totalStrokes,
-                active: game.phase == GamePhase.polishing && image != null,
-                tint: image == null || image == _medalStageImages.first
+                active: game.phase == GamePhase.polishing,
+                inContact: inContact,
+                progress: game.progress,
+                tint: image == _medalStageImages.first
                     ? null
                     : game.stage.color,
                 grit: game.grit,

@@ -66,6 +66,57 @@ void main() {
     }
   });
 
+  testWidgets('medal reaches gold early and fine grit brings out its shine', (
+    tester,
+  ) async {
+    final game = GameController()..select(materials.first);
+    addTearDown(game.dispose);
+    game.acceptVoice(coarse, VoiceMode.pitch);
+    game.startPolishing();
+    for (var i = 0; i < 10; i++) {
+      game.stroke();
+      if (i == 2) expect(game.stage.name, '銅メダル');
+      if (i == 5) expect(game.stage.name, '銀メダル');
+    }
+    expect(game.stage.name, '金メダル');
+    expect(game.progress, .50);
+    expect(game.finishingWithFine, isTrue);
+    final earlyGold = materials.first.shineAt(game.progress);
+    for (var i = 0; i < 100; i++) {
+      game.stroke();
+    }
+    expect(game.progress, .70);
+    await tester.pump(const Duration(seconds: 10));
+    game.acceptVoice(medium, VoiceMode.pitch);
+    game.startPolishing();
+    for (var i = 0; i < 100; i++) {
+      game.stroke();
+    }
+    expect(game.progress, .85);
+    expect(
+      materials.first.valueAfterStroke(game.value, Grit.coarse),
+      game.value,
+    );
+    await tester.pump(const Duration(seconds: 10));
+    game.acceptVoice(fine, VoiceMode.pitch);
+    game.startPolishing();
+    game.stroke();
+    expect(game.stage.name, '金メダル');
+    game.stroke();
+    expect(game.stage.name, '金ピカのメダル');
+    expect(game.finishingWithFine, isFalse);
+    expect(
+      materials.first.valueAfterStroke(game.value, Grit.coarse),
+      game.value,
+    );
+    game.stroke();
+    expect(game.progress, 1.0);
+    expect(materials.first.shineAt(game.progress), greaterThan(earlyGold));
+    await tester.pump(const Duration(seconds: 10));
+    expect(game.phase, GamePhase.result);
+    expect(game.stage.name, '金ピカのメダル');
+  });
+
   for (final material in materials) {
     testWidgets(
       '${material.id} keeps the actual finish through three rounds and replay',
@@ -172,7 +223,7 @@ void main() {
     )..select(target);
     addTearDown(game.dispose);
     for (var round = 0; round < 3; round++) {
-      game.acceptVoice(coarse, VoiceMode.pitch);
+      game.acceptVoice(round == 2 ? fine : coarse, VoiceMode.pitch);
       game.startPolishing();
       for (var motion = 0; motion < 5; motion++) {
         game.stroke();

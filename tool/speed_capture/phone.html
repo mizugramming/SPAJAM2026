@@ -9,7 +9,7 @@ main { max-width: 28rem; margin: 10vh auto; padding: 1.2rem } h1 { font-size: 2r
 button { font: inherit; padding: .8rem 1.4rem; background: #ffd084; color: #171615; border: 0; border-radius: .6rem }
 output { display:block; font: bold 4rem monospace; min-height: 1.2em; color:#ffd084 }
 </style>
-<main>
+<main data-profile="slow-fast">
 <h1 id="cue">往復の速度を測る</h1>
 <p id="guide">スマホを机と平行に持ちます。片道は手のひら幅を目安に、ゆっくり・速いの両方を同じ距離で動かします。</p>
 <output id="seconds"></output>
@@ -19,6 +19,11 @@ output { display:block; font: bold 4rem monospace; min-height: 1.2em; color:#ffd
 const cue = document.querySelector('#cue'), guide = document.querySelector('#guide');
 const countdown = document.querySelector('#seconds'), button = document.querySelector('#start');
 let origin = null, timer, wakeLock, rows, recording, pending;
+const shortMedium = document.querySelector('main').dataset.profile === 'short-medium';
+if (shortMedium) {
+  cue.textContent = '細かい動きと中速を測る';
+  guide.textContent = '机と平行に構えます。最初は指2本幅で細かく、次は手のひら幅で中くらいの速さ。合図に合わせて動かしてください。';
+}
 function halt() {
   recording = false;
   clearInterval(timer);
@@ -52,7 +57,7 @@ async function save() {
     if (!response.ok) throw new Error();
     pending = null;
     cue.textContent = '計測が終わりました';
-    guide.textContent = 'ゆっくり・速いの2つの記録をPCに保存しました。次の組も同じ持ち方・振り幅で計測できます。';
+    guide.textContent = (shortMedium ? '細かい動き・中速' : 'ゆっくり・速い') + 'の記録をPCに保存しました。';
     button.textContent = 'もう1組計測する';
     button.hidden = false;
   } catch {
@@ -74,6 +79,10 @@ function redraw() {
   const end = t < 3 ? 3 : t < 13 ? 13 : t < 16 ? 16 : 26;
   cue.textContent = rest ? '手を止める' : t < 13 ? 'ゆっくり往復' : '速く往復';
   guide.textContent = rest ? '同じ向きで静止してください。' : t < 13 ? '片道は手のひら幅。1秒に約1往復を目安に磨いてください。' : '同じ振り幅のまま、無理のない速さで1秒に約2〜3往復を目安に磨いてください。';
+  if (shortMedium && !rest) {
+    cue.textContent = t < 13 ? '細かく往復' : '中くらいで往復';
+    guide.textContent = t < 13 ? '片道は指2本幅。いつも細かく磨くときの速さで押し引きします。' : '片道は手のひら幅。楽に続けられる中くらいの速さで押し引きします。';
+  }
   countdown.textContent = Math.ceil(end-t);
 }
 button.onclick = async () => {

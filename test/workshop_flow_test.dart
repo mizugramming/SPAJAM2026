@@ -55,7 +55,7 @@ void main() {
   final startButton = find.byKey(const ValueKey('start'));
   final startAction = find.semantics.byPredicate(
     (node) =>
-        node.label.contains('磨き始める') &&
+        node.label.contains('磨く！') &&
         node.getSemanticsData().hasAction(SemanticsAction.tap),
   );
 
@@ -129,54 +129,56 @@ void main() {
     WidgetTester tester,
     Rect captureRect,
     BoxDecoration captureFace,
+    int pitch,
+    Grit grit,
   ) async {
     final material = upperMaterial(tester);
     final viewport = viewportOf(tester);
     expect(tester.getRect(departure), rectMoreOrLessEquals(captureRect));
-    expect(
-      find.descendant(of: departure, matching: find.text('採音完了')),
-      findsOneWidget,
-    );
     expect(microphoneFace(tester, departure), captureFace);
     expectOutsideScreen(tester, paper);
     expect(startAction, findsNothing);
 
-    await tester.pump(const Duration(milliseconds: 90));
-    expect(tester.getTopLeft(departure).dy, lessThan(captureRect.top));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(
+      tester.getRect(departure).center,
+      offsetMoreOrLessEquals(viewport.center),
+    );
+    final reading = find.byKey(const ValueKey('voice-reading'));
+    expect(tester.widget<Text>(reading).data, '$pitch Hz');
+    expect(find.text('${grit.label}のやすり'), findsOneWidget);
     expectOutsideScreen(tester, paper);
     expect(upperMaterial(tester), material);
 
-    await tester.pump(const Duration(milliseconds: 110)); // 200 ms: pause.
-    expect(departure, findsNothing);
-    expectOutsideScreen(tester, paper);
-    expect(startAction, findsNothing);
-    await tester.pump(const Duration(milliseconds: 20));
-    if (paper.evaluate().isNotEmpty) {
-      expect(tester.getBottomLeft(paper).dy, lessThanOrEqualTo(viewport.top));
-    }
-
-    await tester.pump(const Duration(milliseconds: 110)); // 330 ms: falling.
-    final earlyTop = tester.getTopLeft(paper).dy;
-    expect(upperMaterial(tester), material);
-    await tester.pump(
-      const Duration(milliseconds: 170),
-    ); // 500 ms: approaching.
-    final lateTop = tester.getTopLeft(paper).dy;
-    expect(lateTop, greaterThan(earlyTop));
-    expect(startAction, findsNothing);
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(
+      tester.getRect(departure).center,
+      offsetMoreOrLessEquals(viewport.center),
+    );
+    expect(reading, findsOneWidget);
     expect(startButton, findsNothing);
-    await tester.tapAt(Offset(viewport.center.dx, viewport.height * .92));
-    await tester.pump(const Duration(milliseconds: 99)); // 599 ms.
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(tester.getRect(departure).center.dy, lessThan(viewport.center.dy));
+    expectOutsideScreen(tester, paper);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(departure, findsNothing);
+    final earlyTop = tester.getTopLeft(paper).dy;
+    await tester.pump(const Duration(milliseconds: 180));
+    expect(tester.getTopLeft(paper).dy, greaterThan(earlyTop));
+    expect(startButton, findsNothing);
+    expect(startAction, findsNothing);
+    await tester.tapAt(Offset(viewport.center.dx, viewport.height * .41));
+    await tester.pump(const Duration(milliseconds: 119));
     expect(find.text('残り 10 秒'), findsNothing);
     expect(startButton, findsNothing);
-    expect(startAction, findsNothing);
     expect(upperMaterial(tester), material);
 
-    await tester.pump(const Duration(milliseconds: 1)); // Landed at 600 ms.
+    await tester.pump(const Duration(milliseconds: 1));
     final landed = visiblePaper(tester);
     expect(earlyTop, lessThan(landed.top));
     expect(upperMaterial(tester), material);
     expect(startAction, findsOne);
+    expect(material.contains(tester.getCenter(startButton)), isTrue);
   }
 
   test('the paper tint and stamp preserve pitch within a single grit', () {
@@ -193,7 +195,7 @@ void main() {
   // Medal reaches copper -> silver -> gold. The glyph retains its first-round
   // outline through a whole round without motion, then gains a polished finish.
   for (final (material, strokes, stages, percentages) in [
-    ('medal', [5, 10, 20], ['銅メダル', '銀メダル', '金メダル'], [25, 55, 85]),
+    ('medal', [4, 8, 4], ['銅メダル', '銀メダル', '金メダル'], [20, 44, 50]),
     ('kanji', [8, 0, 27], ['輪郭の現れた漢', '輪郭の現れた漢', '光沢を帯びた漢'], [40, 40, 81]),
   ]) {
     testWidgets(
@@ -221,6 +223,8 @@ void main() {
           final pitch = [110, 190, 300][i];
           await tapControl(tester, 'demo-$pitch');
           final captureButton = find.byKey(const ValueKey('capture'));
+          expect(find.text('声を取る'), findsNothing);
+          expect(find.text('音量で選ぶ'), findsNothing);
           final captureRect = tester.getRect(captureButton);
           final captureFace = microphoneFace(tester, captureButton);
           await tapControl(tester, 'capture');
@@ -229,7 +233,13 @@ void main() {
           expect(paper, findsNothing);
           await tester.pump(const Duration(milliseconds: 500));
           await decodeVisibleMedal(tester);
-          await checkToolHandoff(tester, captureRect, captureFace);
+          await checkToolHandoff(
+            tester,
+            captureRect,
+            captureFace,
+            pitch,
+            Grit.values[i],
+          );
           final readyPaper = tester.widget<SandpaperFace>(paper);
           expect(readyPaper.grit, Grit.values[i]);
           expect(readyPaper.sample.hz, pitch);
@@ -243,6 +253,7 @@ void main() {
           await tester.pump(const Duration(seconds: 12));
           await tapControl(tester, 'start');
           expect(find.text('残り 10 秒'), findsOneWidget);
+          expect(find.text('磨け'), findsOneWidget);
           visiblePaper(tester);
 
           for (var n = 0; n < strokes[i]; n++) {
@@ -250,12 +261,10 @@ void main() {
           }
           total += strokes[i];
           await tester.pump(const Duration(seconds: 9));
-          final timer = tester.getRect(find.text('残り 1 秒'));
-          final count = tester.getRect(
-            find.text('$grit   ·   ${strokes[i]} 往復'),
-          );
-          expect(count.left, greaterThanOrEqualTo(timer.right));
-          expect(count.center.dy, inInclusiveRange(timer.top, timer.bottom));
+          expect(find.text('残り 1 秒'), findsOneWidget);
+          expect(find.text('磨け'), findsNothing);
+          expect(find.textContaining('往復'), findsNothing);
+          expect(find.text(grit), findsNothing);
           expect(
             find.semantics.byPredicate(
               (node) =>
@@ -290,7 +299,7 @@ void main() {
         expect(find.text('今回の仕上がり'), findsOneWidget);
         expect(paper, findsNothing);
         expect(find.text(stages.last), findsOneWidget);
-        expect(find.text('3回の研磨で、合計$total往復しました。'), findsOneWidget);
+        expect(find.textContaining('往復'), findsNothing);
         await tapControl(tester, 'retry');
         expect(find.text('磨く素材を選ぶ'), findsOneWidget);
         await chooseMaterial(tester, material);
@@ -310,7 +319,7 @@ void main() {
     await chooseMaterial(tester, 'kanji');
     await tapControl(tester, 'capture');
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.pump(const Duration(milliseconds: 340));
+    await tester.pump(const Duration(milliseconds: 1550));
     expect(startAction, findsNothing);
 
     await tester.binding.handlePopRoute();
@@ -374,7 +383,7 @@ void main() {
       );
       await tapControl(tester, 'capture');
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
       await tapControl(tester, 'start');
       await tapControl(tester, 'simulate-stroke');
       await tester.pump(const Duration(seconds: 10));
@@ -403,74 +412,107 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('medal strokes throw shavings that fade quickly', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(393, 852);
-    addTearDown(tester.view.reset);
-    final shavings = find.byWidgetPredicate(
-      (w) =>
-          w is Image &&
-          w.image == const AssetImage('assets/images/shavings.png'),
-    );
-    Future<void> polish(String material) async {
-      await tester.pumpWidget(const WorkshopApp(simulated: true));
-      await tester.pumpAndSettle();
-      await tapControl(tester, 'title-start');
-      await chooseMaterial(tester, material);
-      await tapControl(tester, 'capture');
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump(const Duration(milliseconds: 600));
-      await tapControl(tester, 'start');
-    }
+  testWidgets(
+    'contact raises dust and scored strokes throw chips on both materials',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(393, 852);
+      addTearDown(tester.view.reset);
+      const commands = MethodChannel('polish/device');
+      const events = MethodChannel('polish/strokes');
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(events, (_) async => null);
+      messenger.setMockMethodCallHandler(
+        commands,
+        (call) async => call.method == 'capture'
+            ? <String, num>{'hz': 190, 'level': .6}
+            : null,
+      );
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(commands, null);
+        messenger.setMockMethodCallHandler(events, null);
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue();
+      });
+      Future<void> motion(int event) async {
+        await messenger.handlePlatformMessage(
+          events.name,
+          events.codec.encodeSuccessEnvelope(event),
+          null,
+        );
+        await tester.pump();
+      }
 
-    final flakes = find.byWidgetPredicate(
-      (w) =>
-          w is Image &&
-          w.image is AssetImage &&
-          (w.image as AssetImage).assetName.startsWith('assets/images/shards/'),
-    );
-    await polish('medal');
-    expect(shavings, findsNothing);
-    await tapControl(tester, 'simulate-stroke');
-    expect(shavings, findsOneWidget);
-    expect(flakes, findsNWidgets(5));
-    expect(
-      find.byKey(const ValueKey('simulate-stroke')).hitTestable(),
-      findsOneWidget,
-    );
-    await tester.pump(const Duration(milliseconds: 450));
-    expect(shavings, findsNothing);
-    expect(flakes, findsNothing);
-    await tapControl(tester, 'simulate-stroke');
-    expect(shavings, findsOneWidget);
-    expect(
-      find.ancestor(of: shavings, matching: find.byType(ColorFiltered)),
-      findsNothing,
-    );
-    await tester.pump(const Duration(milliseconds: 450));
+      final dust = find.byKey(const ValueKey('abrasive-dust'));
+      final shavings = find.byWidgetPredicate(
+        (w) =>
+            w is Image &&
+            w.image == const AssetImage('assets/images/shavings.png'),
+      );
+      final flakes = find.byWidgetPredicate(
+        (w) =>
+            w is Image &&
+            w.image is AssetImage &&
+            (w.image as AssetImage).assetName.startsWith(
+              'assets/images/shards/',
+            ),
+      );
+      final tinted = find.ancestor(
+        of: shavings,
+        matching: find.byType(ColorFiltered),
+      );
+      for (final material in ['medal', 'kanji']) {
+        await tester.pumpWidget(const WorkshopApp(simulated: false));
+        await tester.pumpAndSettle();
+        await tapControl(tester, 'title-start');
+        await chooseMaterial(tester, material);
+        await tapControl(tester, 'capture');
+        await tester.pumpAndSettle();
+        await tapControl(tester, 'start');
+        expect(dust, findsNothing);
+        await motion(2);
+        expect(dust, findsOneWidget);
+        await tester.pump(const Duration(milliseconds: 190));
+        expect(dust, findsAtLeastNWidgets(2));
+        expect(SurfaceArtProbe.progress(tester), 0);
+        expect(flakes, findsNothing);
+        await motion(-1);
+        await tester.pump(const Duration(milliseconds: 450));
+        await tester.pump();
+        expect(dust, findsNothing);
 
-    // Once the medal turns silver, the shavings take the medal's color.
-    final tinted = find.ancestor(
-      of: shavings,
-      matching: find.byType(ColorFiltered),
-    );
-    for (var i = 0; i < 60 && tinted.evaluate().isEmpty; i++) {
-      await tester.pump(const Duration(milliseconds: 450));
-      await tapControl(tester, 'simulate-stroke');
-    }
-    expect(tinted, findsOneWidget);
-    expect(SurfaceArtProbe.progress(tester), greaterThanOrEqualTo(.55));
-    await tester.pump(const Duration(seconds: 11));
-
-    await tester.pumpWidget(const SizedBox());
-    await polish('kanji');
-    await tapControl(tester, 'simulate-stroke');
-    expect(shavings, findsNothing);
-    expect(flakes, findsNothing);
-    await tester.pump(const Duration(seconds: 11));
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump();
-  });
+        await motion(1);
+        expect(shavings, findsOneWidget);
+        expect(flakes, findsNWidgets(5));
+        expect(SurfaceArtProbe.progress(tester), greaterThan(0));
+        if (material == 'medal') {
+          expect(tinted, findsNothing);
+          for (var i = 0; i < 30 && tinted.evaluate().isEmpty; i++) {
+            await tester.pump(const Duration(milliseconds: 450));
+            await motion(1);
+          }
+        }
+        expect(tinted, findsWidgets);
+        for (var i = 0; i < 7; i++) {
+          await motion(1);
+        }
+        expect(dust.evaluate().length, inInclusiveRange(1, 4));
+        await tester.pump(const Duration(milliseconds: 450));
+        await tester.pump();
+        expect(shavings, findsNothing);
+        expect(flakes, findsNothing);
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(disableAnimations: true);
+        await tester.pump();
+        await motion(2);
+        await motion(1);
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(dust, findsNothing);
+        expect(shavings, findsNothing);
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue();
+        await tester.pumpWidget(const SizedBox());
+      }
+    },
+  );
 
   testWidgets('a medal polished to a shine is called 金ピカのメダル', (tester) async {
     tester.view.devicePixelRatio = 1;
@@ -481,12 +523,14 @@ void main() {
     await tapControl(tester, 'title-start');
     await chooseMaterial(tester, 'medal');
     for (var round = 1; round <= 3; round++) {
-      await tapControl(tester, 'demo-110');
+      if (round > 1) expect(find.text('仕上げは高い声で'), findsOneWidget);
+      await tapControl(tester, round == 3 ? 'demo-300' : 'demo-110');
       await tapControl(tester, 'capture');
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
       await tapControl(tester, 'start');
-      for (var i = 0; round == 1 && i < 20; i++) {
+      final strokes = [10, 0, 9][round - 1];
+      for (var i = 0; i < strokes; i++) {
         await tapControl(tester, 'simulate-stroke');
       }
       await tester.pump(const Duration(seconds: 10));
@@ -495,6 +539,10 @@ void main() {
     expect(find.text('今回の仕上がり'), findsOneWidget);
     expect(SurfaceArtProbe.progress(tester), greaterThanOrEqualTo(.95));
     expect(find.text('金ピカのメダル'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('assets/fonts/kinpika.jpg')),
+      findsOneWidget,
+    );
     expect(find.text('金メダル'), findsNothing);
   });
 
@@ -539,12 +587,8 @@ void main() {
     expect(departure, findsNothing);
     expect(paper, findsNothing);
     await tapControl(tester, 'capture');
-    expect(find.textContaining('高さを読み取れません'), findsOneWidget);
-    expect(departure, findsNothing);
-    expect(paper, findsNothing);
-    await tapControl(tester, 'voice-mode');
-    await tapControl(tester, 'capture');
-    expect(attempts, 3);
+    expect(attempts, 2);
+    expect(find.byKey(const ValueKey('voice-mode')), findsNothing);
     expect(find.text('細目のやすり'), findsOneWidget);
     visiblePaper(tester); //「視差効果を減らす」設定では最初のフレームで見える。
     expectOutsideScreen(tester, departure);
@@ -594,7 +638,7 @@ void main() {
     expect(pulses, isEmpty);
     await reportMotion(2);
     await reportMotion(1);
-    expect(find.text('細目   ·   1 往復'), findsOneWidget);
+    expect(find.textContaining('往復'), findsNothing);
     expect(surface().progress * 100, closeTo(2, .5));
     expect(pulses.single, containsPair('amplitude', isPositive));
     expect(pulses.single, containsPair('durationMs', isPositive));

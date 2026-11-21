@@ -67,42 +67,53 @@ internal class DeskHaptics(
 
         val speed = abs(state.signedSpeedMps)
         val direction = if (state.signedSpeedMps >= 0.0) 1 else -1
-        val reference = maxOf(state.passPeakMps, .15)
-        val slowPass = state.passPeakMps < slowPeakMps && (state.cadenceMs ?: 1200) >= 650
+        val reference = maxOf(state.passPeakMps, .065)
+        val period = state.cadenceMs ?: 1200
+        val fast = ((state.passPeakMps - slowPeakMps) / (compactAtMps - slowPeakMps)).coerceIn(0.0, 1.0)
+        val lead = (1 - fast) * ((period - 370) / 280.0).coerceIn(0.0, 1.0)
         val acceleration = direction * state.alongAccelerationMps2
         // Lead the motor command briefly on slow glides, including the brake.
         // Bound the lead relative to this pass so a turn cannot start a pulse by itself.
-        val glideSpeed = if (slowPass) {
-            speed + (acceleration * .045).coerceIn(-reference * .30, reference * .17)
-        } else speed
+        val glideSpeed = speed + lead * (acceleration * .045).coerceIn(-reference * .30, reference * .17)
         // Let a pass sound on the glide and release it as the hand approaches rest.
-        if (direction != playedDirection && speed >= maxOf(.055, reference * .16)) {
+        if (direction != playedDirection && speed >= maxOf(.028, reference * .16)) {
             // An asymmetric return may be too gentle to sound but still begins a new pass.
             playedDirection = 0
             if (cancelActive(timeNs)) return DeskFeedback.stop
         }
-        if (glideSpeed < maxOf(.045, reference * .43)) {
+        if (glideSpeed < maxOf(.024, reference * (.34 + .09 * lead))) {
             return if (cancelActive(timeNs)) DeskFeedback.stop else null
         }
-        if (timeNs < endNs && state.passPeakMps >= compactAtMps && timeNs - startedNs >= 80_000_000L) {
+        val maximumMs = 850 + fast * (80 - 850)
+        if (timeNs < endNs && timeNs - startedNs >= maximumMs * 1_000_000) {
             return if (cancelActive(timeNs)) DeskFeedback.stop else null
         }
         // A delayed sensor event can end a command, but must not start one
         // after the hand has already moved on. The next fresh event may start it.
         if (!state.moving || direction == playedDirection || evidenceNs < quietUntilNs ||
             timeNs - evidenceNs > 40_000_000L) return null
-        val minSpeed = if (slowPass) .055 else .075
-        if (speed < minSpeed || glideSpeed < reference * .65 || (slowPass && acceleration < -.25)) return null
+        val fraction = .43 + .22 * lead
+        // Reject a late trigger when braking would bring the hand to rest within motor latency.
+        if (speed < .034 || glideSpeed < reference * fraction ||
+            lead * acceleration < -.25 || speed < -acceleration * .030) return null
         playedDirection = direction
-        val fast = compactTexture(state.cadenceMs?.coerceIn(230, 1250) ?: 370)
-        val portion = ((state.passPeakMps - slowPeakMps) / (compactAtMps - slowPeakMps)).coerceIn(0.0, 1.0)
-        val fastMs = fast.sum().toInt()
-        val slowMs = (850 * (.25 + .75 * length / 65).coerceIn(.30, 1.0)).roundToInt()
-        val width = (slowMs + portion * (fastMs - slowMs)).roundToInt()
-        // Cadence only limits the command to the time available on this pass.
-        val availableMs = state.cadenceMs?.let { (it * .62 / 2).roundToInt() } ?: slowMs
-        val budget = minOf(width, maxOf(availableMs, fastMs))
-        return play(timeNs, if (budget <= fastMs) fast else texture(budget))
+        return play(timeNs, waveform(state, period, fast))
+    }
+
+    private fun waveform(state: DeskSample, period: Int, fast: Double): LongArray {
+        // Keep the 60 ms motor settling window plus most of a sensor frame before the return.
+        val availableMs = (period / 2 - 72).coerceAtLeast(24)
+        val compactMax = minOf(availableMs, 80)
+        val compactMin = minOf(50, compactMax)
+        val shortMs = compactMin + ((compactMax - compactMin) * (length / 68.0).coerceIn(0.0, 1.0)).roundToInt()
+        val longMs = (850 * (.25 + .75 * length / 65).coerceIn(.30, 1.0)).roundToInt()
+        val slowBudget = state.cadenceMs?.let { (it * .37).roundToInt() } ?: longMs
+        val longBudget = minOf(longMs, slowBudget, availableMs).coerceAtLeast(shortMs)
+        val tempo = ((1200 - period) / 830.0).coerceIn(0.0, 1.0)
+        val speedBlend = .18 * (state.passPeakMps / slowPeakMps).coerceIn(0.0, 1.0) + .82 * fast
+        val blend = 1 - (1 - speedBlend) * (1 - .32 * tempo)
+        val width = (longBudget + blend * (shortMs - longBudget)).roundToInt()
+        return texture(width, blend)
     }
 
     private companion object {
@@ -131,42 +142,32 @@ internal class DeskHaptics(
         return feedback
     }
 
-    private fun compactTexture(periodMs: Int): LongArray {
-        // Reserve motor settling time and one 60 Hz sensor frame before the next half-stroke.
-        val maxMs = (periodMs / 2 - 77).coerceIn(50, 80)
-        val widthMs = 50 + ((maxMs - 50) * (length / 68.0).coerceIn(0.0, 1.0)).roundToInt()
-        val duty = when (grit) {
-            "coarse" -> 1.0
-            "medium" -> .78
-            else -> .55
+    private fun texture(width: Int, blend: Double): LongArray {
+        val (roughOn, gap, fastDuty) = when (grit) {
+            "coarse" -> Triple(270, 16, 1.0)
+            "medium" -> Triple(78, 22, .78)
+            else -> Triple(27, 27, .55)
         }
-        val onMs = (widthMs * duty * (1 - .25 * finish)).roundToInt()
-        val gapMs = widthMs - onMs
-        if (gapMs < 8) return longArrayOf(0, widthMs.toLong())
-        val firstMs = (onMs + 1) / 2
-        return longArrayOf(0, firstMs.toLong(), gapMs.toLong(), (onMs - firstMs).toLong())
-    }
-
-    private fun texture(budgetMs: Int): LongArray {
-        // Coarse keeps a long rasp; finer grains subdivide each envelope into shorter contacts.
-        val (roughOnMs, gapMs) = when (grit) {
-            "coarse" -> 270 to 16
-            "medium" -> 78 to 22
-            else -> 27 to 27
-        }
-        val onMs = (roughOnMs * (1 - .32 * finish)).roundToInt()
-        val offMs = (gapMs * (1 + .65 * finish)).roundToInt()
-        var remaining = budgetMs
+        val slowOn = roughOn * (1 - .32 * finish)
+        val slowGap = gap * (1 + .65 * finish)
+        val duty = slowOn / (slowOn + slowGap)
+        val fastOn = fastDuty * (1 - .25 * finish)
+        val onFraction = duty + blend * (fastOn - duty)
+        val pulsePeriod = slowOn + slowGap + blend * (width - slowOn - slowGap)
+        val offMs = (pulsePeriod * (1 - onFraction)).roundToInt()
+        if (offMs < 5) return longArrayOf(0, width.toLong())
+        val onMs = (pulsePeriod * onFraction).roundToInt().coerceAtLeast(1)
+        // Split the compact packet around one gap. Longer passes carry repeating grit.
+        var nextOn = (onMs * (1 - .5 * blend)).roundToInt().coerceAtLeast(1)
+        var left = width
         val timings = mutableListOf(0L)
-        while (remaining > 0) {
-            val on = minOf(remaining, onMs)
-            timings.add(on.toLong())
-            remaining -= on
-            // No trailing rest or sub-perceptible final fragment.
-            if (remaining < offMs + 8) break
+        while (left > nextOn + offMs + 3) {
+            timings.add(nextOn.toLong())
             timings.add(offMs.toLong())
-            remaining -= offMs
+            left -= nextOn + offMs
+            nextOn = onMs
         }
+        timings.add(left.toLong())
         return timings.toLongArray()
     }
 }
