@@ -34,6 +34,8 @@ void main() {
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
         await tester.pumpWidget(const WorkshopApp(simulated: true));
         await tester.pumpAndSettle();
+        expect(find.text('はじめる'), findsOneWidget);
+        await tapControl(tester, 'title-start');
         await tapControl(tester, 'material-$material');
 
         var total = 0;
@@ -96,6 +98,7 @@ void main() {
 
     await tester.pumpWidget(const WorkshopApp(simulated: false));
     await tester.pumpAndSettle();
+    await tapControl(tester, 'title-start');
     await tapControl(tester, 'material-medal');
     await tapControl(tester, 'capture');
     expect(find.textContaining('マイクを許可'), findsOneWidget);

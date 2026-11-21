@@ -26,3 +26,8 @@ flutter:
         - asset: assets/fonts/workshop-sans.ttf
   assets:
     - assets/fonts/OFL.txt
+    - assets/fonts/daou.jpg
+    - assets/fonts/gin.jpg
+    - assets/fonts/kin.jpg
+    - assets/fonts/kinpika.jpg
+    - assets/images/background.jpg
