@@ -88,6 +88,8 @@ fun main(args: Array<String>) {
         var strokes = 0
         var lastPulseNs = -1_000_000_000L
         var playMs = 0
+        val effectivePulses = mutableListOf<Int>()
+        check(!detector.takeStrokePulse())
         for (step in -60..lastMotionSample + 60) {
             val timeNs = (step + 60) * 1_000_000_000L / 60
             val motion = if (step in 0..lastMotionSample) 12 * cos(2 * PI * step / samplesPerCycle) else 0.0
@@ -100,14 +102,22 @@ fun main(args: Array<String>) {
                 check(step <= lastMotionSample + 3) { "Extra stroke after stopping" }
                 strokes++
                 if (pulseMs > 0) {
+                    check(detector.takeStrokePulse())
+                    check(!detector.takeStrokePulse())
                     // Issue the command before the next 60 Hz sensor sample.
-                    lastPulseNs = timeNs + 16_000_000L
+                    val startNs = timeNs + 16_000_000L
+                    if (effectivePulses.isNotEmpty()) {
+                        val elapsedMs = ((startNs - lastPulseNs) / 1_000_000L).toInt()
+                        effectivePulses[effectivePulses.lastIndex] = minOf(effectivePulses.last(), elapsedMs)
+                    }
+                    lastPulseNs = startNs
                     playMs = detector.strokePulseDuration(pulseMs, lastPulseNs, adjustable)
-                    if (samplesPerCycle == 15) check(playMs < pulseMs)
+                    effectivePulses.add(playMs)
+                    val fullMs = if (adjustable) pulseMs else minOf(1000, 480 + 8 * pulseMs)
+                    if (samplesPerCycle == 15) check(playMs < fullMs)
                     // The signal starts at a peak, so its first half is partial.
-                    if (samplesPerCycle == 48 && strokes > 1) {
-                        val expected = if (adjustable) pulseMs else pulseMs + 8
-                        check(playMs == expected)
+                    if (adjustable && samplesPerCycle == 48 && strokes > 1) {
+                        check(playMs == fullMs)
                     }
                     // Game pulse requests at 10% and 90%, coarse to fine.
                     val early = listOf(65, 45, 28).map { detector.strokePulseDuration(it, lastPulseNs, adjustable) }
@@ -117,10 +127,18 @@ fun main(args: Array<String>) {
                         check(early.zipWithNext().all { (a, b) -> a > b })
                         check(late.zipWithNext().all { (a, b) -> a > b })
                     }
-                    if (!adjustable && pulseMs == 15) check(playMs >= 9)
-                    detector.maskMotor(lastPulseNs, playMs)
+                    if (!adjustable && pulseMs == 15) check(playMs >= 27)
+                    detector.maskMotor(lastPulseNs, playMs, fixedAmplitudeStroke = !adjustable)
                 }
             }
+            if (detector.takeEarlyStop(timeNs)) {
+                playMs = ((timeNs - lastPulseNs) / 1_000_000L).toInt()
+                effectivePulses[effectivePulses.lastIndex] = playMs
+            }
+        }
+        if (!adjustable && samplesPerCycle == 72 && pulseMs == 65) check(effectivePulses.contains(1000))
+        if (!adjustable && samplesPerCycle == 22 && pulseMs == 65) {
+            check(effectivePulses.sorted()[effectivePulses.size / 2] in 220..250)
         }
         println("60 Hz, period=${samplesPerCycle / 60.0}s, stroke-triggered pulse=${pulseMs}ms, measured=$strokes")
         return strokes
@@ -130,5 +148,10 @@ fun main(args: Array<String>) {
     check(fastCycles(samplesPerCycle = 48, pulseMs = 68) == 12)
     check(fastCycles(samplesPerCycle = 15, pulseMs = 68, adjustable = false) == 12)
     check(fastCycles(samplesPerCycle = 15, pulseMs = 15, adjustable = false) == 12)
+    check(fastCycles(samplesPerCycle = 22, pulseMs = 65, adjustable = false) == 12)
+    check(fastCycles(samplesPerCycle = 24, pulseMs = 65, adjustable = false) == 12)
+    check(fastCycles(samplesPerCycle = 30, pulseMs = 65, adjustable = false) == 12)
     check(fastCycles(samplesPerCycle = 48, pulseMs = 68, adjustable = false) == 12)
+    check(fastCycles(samplesPerCycle = 60, pulseMs = 65, adjustable = false) == 12)
+    check(fastCycles(samplesPerCycle = 72, pulseMs = 65, adjustable = false) == 12)
 }
