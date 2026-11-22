@@ -35,6 +35,10 @@ void main() {
         kanjiNameplate(points),
         ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][n - 1],
       );
+      expect(kanjiNameplateComment(points), isNotEmpty);
+      if (n == 1) {
+        expect(kanjiNameplateComment(points), 'ガサツなのに実は優しいオトコ♡');
+      }
     }
   });
 
@@ -183,7 +187,33 @@ void main() {
           );
           expect(
             (face.image as ResizeImage).imageProvider,
+            const AssetImage('assets/images/character-under.webp'),
+          );
+          final surface = find.byKey(const ValueKey('kanji-under-surface'));
+          expect(
+            (tester.widget<Image>(surface).image as ResizeImage).imageProvider,
             const AssetImage('assets/images/kanji-silver.png'),
+          );
+          tester.view.physicalSize = const Size(320, 568);
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(disableAnimations: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+          await tester.pumpAndSettle();
+          final character = find.byKey(const ValueKey('kanji-underpolished'));
+          expect(
+            (tester.widget<Image>(character).image as ResizeImage)
+                .imageProvider,
+            const AssetImage('assets/images/character-under-still.webp'),
+          );
+          expect(
+            tester.getCenter(character).dx,
+            greaterThan(tester.getCenter(surface).dx),
+          );
+          expect(
+            tester.getBottomLeft(character).dy,
+            lessThan(tester.getTopLeft(find.byKey(const ValueKey('retry'))).dy),
           );
         }
         for (final rank in [1, 5]) {

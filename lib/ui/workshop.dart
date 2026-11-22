@@ -135,6 +135,7 @@ class Workshop extends StatelessWidget {
       Screen.voice => RoundIntroduction(
         key: ValueKey((game.material!.id, game.round)),
         round: game.round,
+        total: game.rounds,
         arrival: game.round == 1 && !MediaQuery.disableAnimationsOf(context)
             ? materialLandingDuration
             : Duration.zero,
@@ -223,6 +224,31 @@ class Workshop extends StatelessWidget {
               child: _KanjiNameplate(points: kanjiPoints(game)),
             ),
             fill: true,
+          ),
+        if (earnedKanjiRank)
+          Part(
+            'comment',
+            '称号のひとこと',
+            _FadeInLater(
+              delay: _rankEntranceDuration + _characterFadeDuration,
+              duration: _characterFadeDuration,
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  kanjiNameplateComment(kanjiPoints(game)),
+                  key: const ValueKey('nameplate-comment'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: chalk,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1.3,
+                    shadows: [Shadow(color: bench, blurRadius: 6)],
+                  ),
+                ),
+              ),
+            ),
+            align: Alignment.topCenter,
           ),
         if (intro != null) Part('intro', '回数のカットイン', intro, fill: true),
         if (intro == null) ...[
@@ -455,6 +481,7 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.result:
         return [
+          // 目標どおりの漢は、見出しの代わりに段位・人物・称号を出す（_playStage）。
           if (kanjiFinish != TargetFinish.onTarget)
             Part(
               'title',
@@ -853,25 +880,6 @@ class _WorkshopProp extends StatelessWidget {
   );
 }
 
-/// 黒いかすれを重ねた文字。
-class _GrungeText extends StatelessWidget {
-  const _GrungeText(this.text, {required this.style});
-  final String text;
-  final TextStyle style;
-
-  @override
-  Widget build(BuildContext context) => Stack(
-    children: [
-      Text(text, style: style, softWrap: false),
-      Positioned.fill(
-        child: IgnorePointer(
-          child: CustomPaint(painter: _GrungePainter(text.hashCode)),
-        ),
-      ),
-    ],
-  );
-}
-
 class _TitleLettering extends StatelessWidget {
   const _TitleLettering();
 
@@ -889,8 +897,9 @@ class _TitleLettering extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.baseline,
     textBaseline: TextBaseline.alphabetic,
     children: [
-      _GrungeText('磨くで', style: brush.copyWith(fontSize: 82)),
-      const _GrungeText('ヤンス！', style: brush),
+      // 同じ大きさにそろえ、かすれ（靄）は重ねない。
+      const Text('磨くで', style: brush),
+      const Text('ヤンス！', style: brush),
     ],
   );
 }
@@ -1079,54 +1088,6 @@ class _MicPainter extends CustomPainter {
   bool shouldRepaint(_MicPainter old) => old.color != color;
 }
 
-/// 題字に重ねるかすれ。文字列ごとに模様を固定する。
-class _GrungePainter extends CustomPainter {
-  const _GrungePainter(this.seed);
-  final int seed;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-    final random = math.Random(seed);
-    canvas.clipRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(2)),
-    );
-    final speck = Paint()..color = bench.withValues(alpha: .55);
-    final count = (size.width * size.height / 40).clamp(20, 1600).toInt();
-    for (var i = 0; i < count; i++) {
-      final r = random.nextDouble() * 1.4 + .3;
-      canvas.drawCircle(
-        Offset(
-          random.nextDouble() * size.width,
-          random.nextDouble() * size.height,
-        ),
-        r,
-        speck,
-      );
-    }
-    final scratch = Paint()
-      ..color = bench.withValues(alpha: .45)
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 14; i++) {
-      final start = Offset(
-        random.nextDouble() * size.width,
-        random.nextDouble() * size.height,
-      );
-      final length = random.nextDouble() * size.width * .18 + 4;
-      final angle = (random.nextDouble() - .5) * .5;
-      scratch.strokeWidth = random.nextDouble() * 1.4 + .4;
-      canvas.drawLine(
-        start,
-        start + Offset(math.cos(angle), math.sin(angle)) * length,
-        scratch,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GrungePainter old) => old.seed != seed;
-}
-
 class _Title extends StatelessWidget {
   const _Title(this.text);
   final String text;
@@ -1216,7 +1177,7 @@ class _MedalImage extends StatelessWidget {
 /// 素材ごとの見出し。素材選択で画像のすぐ上に出す。
 String _pickHeading(WorkMaterial material) => switch (material.id) {
   'medal' => 'メダルを磨く',
-  'kanji' => '漢字を磨く',
+  'kanji' => '「漢」を磨く',
   _ => '${material.name}を磨く',
 };
 
@@ -1736,6 +1697,15 @@ String kanjiNameplateImage(int points) =>
 /// 称号の読み（読み上げ用）。
 String kanjiNameplate(int points) =>
     const ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][kanjiRankNumber(points) - 1];
+
+/// 称号に合わせたひとこと。
+String kanjiNameplateComment(int points) => const [
+  'ガサツなのに実は優しいオトコ♡',
+  'あなたの力強さと柔らかさにトリコだわ♡',
+  'その筋肉で私を運んでー♡',
+  'その透明感に吸い込まれちゃう♡',
+  'あなたの甘い笑顔にキュン♡',
+][kanjiRankNumber(points) - 1];
 
 /// 結果画面の称号。四角いっぱいに収める。
 class _KanjiNameplate extends StatelessWidget {
@@ -2509,7 +2479,7 @@ class _RoundHeader extends StatelessWidget {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(
-          '${game.round} 回目 / 全${GameController.roundCount}回',
+          '${game.round} 回目 / 全${game.rounds}回',
           style: TextStyle(
             color: voice ? chalk : muted,
             fontWeight: FontWeight.w600,
@@ -2546,11 +2516,38 @@ class _Workpiece extends StatelessWidget {
         final rank => _CrackingKanji(rank: rank),
       },
       TargetFinish.onTarget when result => _KanjiCharacter(game: game),
-      TargetFinish.under when result => Image.asset(
-        'assets/images/kanji-silver.png',
-        key: const ValueKey('kanji-underpolished'),
-        fit: BoxFit.contain,
-        cacheWidth: 720,
+      TargetFinish.under when result => Stack(
+        fit: StackFit.expand,
+        children: [
+          FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: .63,
+            heightFactor: .82,
+            child: Image.asset(
+              'assets/images/kanji-silver.png',
+              key: const ValueKey('kanji-under-surface'),
+              fit: BoxFit.contain,
+              cacheWidth: 720,
+            ),
+          ),
+          FractionallySizedBox(
+            alignment: Alignment.bottomRight,
+            widthFactor: .7,
+            heightFactor: .94,
+            child: _FadeInLater(
+              delay: Duration.zero,
+              duration: _characterFadeDuration,
+              child: Image.asset(
+                MediaQuery.disableAnimationsOf(context)
+                    ? 'assets/images/character-under-still.webp'
+                    : 'assets/images/character-under.webp',
+                key: const ValueKey('kanji-underpolished'),
+                fit: BoxFit.contain,
+                cacheWidth: 640,
+              ),
+            ),
+          ),
+        ],
       ),
       _ when image != null => _PolishedMedalFace(
         material: material,
@@ -2578,7 +2575,7 @@ class _Workpiece extends StatelessWidget {
           label: broken
               ? '割れた漢'
               : kanji && result && finish == TargetFinish.under
-              ? '灰色の漢'
+              ? '灰色の漢と磨き不足のキャラクター'
               : material.stageAt(progress).name,
           value: '研磨 ${(progress * 100).round()}%',
           child: art,

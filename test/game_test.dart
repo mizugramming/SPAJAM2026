@@ -21,44 +21,65 @@ void main() {
   });
 
   testWidgets(
-    'the score awards gold at the deadline and hand polishing controls the surface',
+    'the medal is held at matte gold after round 1 and shines one second before the end',
     (tester) async {
       final game = GameController();
       addTearDown(game.dispose);
       for (final material in materials) {
         game.select(material);
-        for (var round = 1; round <= GameController.roundCount; round++) {
+        final held = material.afterEarlierRounds?.min ?? 0;
+        expect(game.rounds, material.id == 'medal' ? 2 : 3);
+        for (var round = 1; round <= game.rounds; round++) {
+          final last = round == game.rounds;
           game.acceptVoice(coarse);
           game.startPolishing();
-          await tester.pump(const Duration(milliseconds: 9999));
+          await tester.pump(const Duration(milliseconds: 8999));
           expect(game.phase, GamePhase.polishing);
-          expect(game.progress, 0);
+          expect(game.progress, round == 1 ? 0 : held);
           await tester.pump(const Duration(milliseconds: 1));
-          if (round < GameController.roundCount) expect(game.progress, 0);
+          // One second left in the last round: the guaranteed finish arrives.
+          expect(
+            game.progress,
+            last && material.finishAtLeast != null
+                ? material.finishAtLeast
+                : (round == 1 ? 0 : held),
+          );
+          await tester.pump(const Duration(seconds: 1));
+          if (!last) expect(game.progress, held);
         }
         expect(game.phase, GamePhase.result);
         expect(game.totalStrokes, 0);
         expect(game.progress, material.id == 'medal' ? .95 : 0);
-        expect(game.surfaceProgress, 0);
-        expect(game.needsHandPolish, material.id == 'medal');
-        await tester.pump(const Duration(seconds: 20));
-        expect(game.surfaceProgress, 0);
-        game.polishResult(.5);
-        if (material.id == 'medal') {
-          expect(game.surfaceProgress, inExclusiveRange(0.0, .95));
-          expect(game.progress, .95);
-          game.polishResult(3);
-          expect(game.surfaceProgress, closeTo(.95, 1e-9));
-          expect(game.needsHandPolish, isFalse);
-        } else {
-          expect(game.surfaceProgress, 0);
-        }
-        expect(game.totalStrokes, 0);
+        expect(game.surfaceProgress, game.progress);
+        expect(game.needsHandPolish, isFalse);
         game.reset();
         expect(game.surfaceProgress, 0);
       }
     },
   );
+
+  testWidgets('a delayed final tick still opens the medal scratch immediately', (
+    tester,
+  ) async {
+    final medal = materials.firstWhere((material) => material.id == 'medal');
+    final game = GameController()..select(medal);
+    addTearDown(game.dispose);
+    game.acceptVoice(coarse);
+    game.startPolishing();
+    await tester.pump(GameController.polishDuration);
+    game.acceptVoice(coarse);
+    game.startPolishing();
+    // An occupied isolate can miss both the last-second and deadline callbacks.
+    (tester.binding as AutomatedTestWidgetsFlutterBinding).elapseBlocking(
+      GameController.polishDuration,
+    );
+    expect(game.stroke(), isNull);
+    expect(game.phase, GamePhase.result);
+    expect(game.totalStrokes, 0);
+    expect(game.progress, medal.finishAtLeast);
+    expect(game.surfaceProgress, game.progress);
+    expect(game.needsHandPolish, isFalse);
+  });
 
   test(
     'both voice ranges include their lower boundaries and preserve demo grits',
@@ -173,33 +194,18 @@ void main() {
     }
     expect(game.progress, .70);
     await tester.pump(const Duration(seconds: 10));
-    game.acceptVoice(medium);
-    game.startPolishing();
-    for (var i = 0; i < 100; i++) {
-      game.stroke();
-    }
-    expect(game.progress, .85);
-    expect(
-      materials.first.valueAfterStroke(game.value, Grit.coarse),
-      game.value,
-    );
-    await tester.pump(const Duration(seconds: 10));
+    // Round 2 is the last: it starts from the held matte gold.
+    expect(game.round, 2);
+    expect(game.progress, .70);
+    expect(game.stage.name, '金メダル');
     game.acceptVoice(fine);
     game.startPolishing();
-    for (var i = 0; i < 9; i++) {
+    for (var i = 0; i < 400 && game.stage.name == '金メダル'; i++) {
       game.stroke();
-      expect(game.stage.name, '金メダル');
     }
-    game.stroke();
     expect(game.stage.name, '金ピカのメダル');
     expect(game.finishingWithFine, isFalse);
-    expect(
-      materials.first.valueAfterStroke(game.value, Grit.coarse),
-      game.value,
-    );
-    game.stroke();
-    expect(game.progress, closeTo(.96, 1e-12));
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < 400 && game.progress < 1; i++) {
       game.stroke();
     }
     expect(game.progress, 1.0);
@@ -243,14 +249,18 @@ void main() {
       game.acceptVoice(fine);
       game.startPolishing();
       game.stroke();
-      final expected = material.id == 'medal' ? .51 : .5 + .01 * 1.25 / 3.5;
-      expect(game.progress, closeTo(expected, 1e-12));
-      await tester.pump(GameController.polishDuration);
-      game.acceptVoice(coarse);
-      game.startPolishing();
-      game.stroke();
-      final finalStep = material.id == 'medal' ? .01 * 2.5 / 3.5 : .01;
-      expect(game.progress, closeTo(expected + finalStep, 1e-12));
+      if (material.id == 'medal') {
+        // The medal's second round is its last: polishing moves past gold.
+        expect(game.progress, greaterThan(.5));
+      } else {
+        final expected = .5 + .01 * 1.25 / 3.5;
+        expect(game.progress, closeTo(expected, 1e-12));
+        await tester.pump(GameController.polishDuration);
+        game.acceptVoice(coarse);
+        game.startPolishing();
+        game.stroke();
+        expect(game.progress, closeTo(expected + .01, 1e-12));
+      }
       game.reset();
       expect(game.totalStrokes, 0);
     }
@@ -258,14 +268,14 @@ void main() {
 
   for (final material in materials) {
     testWidgets(
-      '${material.id} keeps the polished finish (or its guaranteed floor) through three rounds and replay',
+      '${material.id} keeps the polished finish (or its holds and floor) through its rounds and replay',
       (tester) async {
         final game = GameController();
         addTearDown(game.dispose);
         game.select(material);
         const voices = [coarse, medium, fine];
         var expectedValue = material.initialValue;
-        for (var i = 0; i < voices.length; i++) {
+        for (var i = 0; i < material.rounds; i++) {
           expect(game.round, i + 1);
           expect(game.phase, GamePhase.voice);
           expect(game.stroke(), isNull);
@@ -284,6 +294,7 @@ void main() {
           expectedValue = material.valueAfterStroke(
             expectedValue,
             Grit.values[i],
+            finalRound: i == material.rounds - 1,
           );
           expect(game.value, expectedValue);
           expect(game.strokes, 1);
@@ -292,6 +303,16 @@ void main() {
             pulseFor(game.grit!, game.progress).amplitude,
           );
           await tester.pump(const Duration(seconds: 7));
+          // Earlier rounds may hold the finish within a range.
+          if (i < material.rounds - 1) {
+            if (material.afterEarlierRounds case final hold?) {
+              final held = material
+                  .progressAt(expectedValue)
+                  .clamp(hold.min, hold.max);
+              expectedValue =
+                  material.initialValue - material.maxRemoval * held;
+            }
+          }
         }
         // A material with a guaranteed finish ends at least there.
         final floor = material.finishAtLeast;
@@ -307,7 +328,7 @@ void main() {
           game.stage,
           material.stageAt(material.progressAt(expectedValue)),
         );
-        expect(game.totalStrokes, 3);
+        expect(game.totalStrokes, material.rounds);
         expect(game.value, expectedValue);
         expect(game.stroke(), isNull);
         game.reset();

@@ -18,7 +18,7 @@ Future<void> tapControl(WidgetTester tester, String id) async {
   await tester.pump();
 }
 
-const _headings = {'medal': 'メダルを磨く', 'kanji': '漢字を磨く'};
+const _headings = {'medal': 'メダルを磨く', 'kanji': '「漢」を磨く'};
 const _order = ['medal', 'kanji'];
 const _pager = ValueKey('material-pager');
 
@@ -313,11 +313,16 @@ void main() {
     );
     expect(tester.getRect(find.text('ヤンス！')).bottom, lessThan(portrait.top));
     expect(portrait.bottom, lessThan(tester.getRect(find.text('はじめる')).top));
+    // Both title lines share one size, without the grunge haze.
+    expect(
+      tester.widget<Text>(find.text('磨くで')).style!.fontSize,
+      tester.widget<Text>(find.text('ヤンス！')).style!.fontSize,
+    );
     expect(find.textContaining('POLISH'), findsNothing);
     expect(find.textContaining('色を磨き出せ'), findsNothing);
     await tapControl(tester, 'title-start');
     expectOneLine('磨く素材を選ぶ');
-    expectOneLine('漢字を磨く');
+    expectOneLine('「漢」を磨く');
     expectOneLine('これを磨く');
     await tapControl(tester, 'diagnostics');
     await tester.pumpAndSettle();
@@ -337,8 +342,9 @@ void main() {
     await tester.tap(find.text('続ける'));
     await tester.pumpAndSettle();
 
-    for (var round = 1; round <= 3; round++) {
-      final counter = '$round 回目 / 全3回';
+    // The medal has two rounds.
+    for (var round = 1; round <= 2; round++) {
+      final counter = '$round 回目 / 全2回';
       expectOneLine(counter);
       final material = tester.getRect(find.text('メダル磨き'));
       final counterBox = tester.getRect(find.text(counter));
@@ -358,10 +364,11 @@ void main() {
       await tester.pump();
       expectOneLine('残り 10 秒');
       await tester.pump(const Duration(seconds: 10));
-      if (round < 3) await tester.pumpAndSettle();
+      if (round < 2) await tester.pumpAndSettle();
     }
     expectOneLine('今回の仕上がり');
-    expectOneLine('サビた銅メダル');
+    // One second before the end of round 2 the medal is finished.
+    expectOneLine('金ピカのメダル');
     expectOneLine('もう一度遊ぶ');
     expectOneLine('タイトルへ');
   });
@@ -433,7 +440,7 @@ void main() {
       expect(landing, findsNothing);
       expect(tester.getCenter(surfaceArt).dy, greaterThan(inFlight.dy));
       expect(SurfaceArtProbe.progress(tester), 0);
-      expect(find.text('1 回目 / 全3回'), findsOneWidget);
+      expect(find.text('1 回目 / 全2回'), findsOneWidget);
 
       // Leaving during departure must not navigate after the user goes back.
       await tapControl(tester, 'back');
@@ -478,7 +485,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(const WorkshopApp(simulated: true));
       await tapControl(tester, 'title-start');
-      expect(find.text('漢字を磨く'), findsOneWidget);
+      expect(find.text('「漢」を磨く'), findsOneWidget);
       await tapControl(tester, 'confirm-material');
       Finder opacityOf(String key) => find
           .descendant(
@@ -509,7 +516,9 @@ void main() {
   // Medal reaches copper -> silver -> gold. The glyph retains its first-round
   // outline through a whole round without motion, then gains a polished finish.
   for (final (material, strokes, stages, percentages) in [
-    ('medal', [14, 40, 34], ['銅メダル', '銀メダル', '金メダル'], [14, 40, 55]),
+    // The medal has two rounds: round 1 ends held at matte gold, and one second
+    // before the end of round 2 it is finished.
+    ('medal', [14, 40], ['銅メダル', '金ピカのメダル'], [14, 95]),
     ('kanji', [50, 0, 84], ['輪郭の現れた漢', '輪郭の現れた漢', '光沢を帯びた漢'], [50, 50, 80]),
   ]) {
     testWidgets(
@@ -543,16 +552,21 @@ void main() {
 
         if (material == 'kanji') expectKanjiArt(tester, 0);
         var total = 0;
-        for (var i = 0; i < 3; i++) {
+        final rounds = strokes.length;
+        final totalNumeral = ['一', '二', '三'][rounds - 1];
+        for (var i = 0; i < rounds; i++) {
           await tester.pump(const Duration(milliseconds: 300));
           final numeral = ['一', '二', '三'][i];
           expect(roundIntro, findsOneWidget, reason: '$material $numeral回目');
-          expect(tester.getSemantics(roundIntro).label, '$numeral回目、全三回');
+          expect(
+            tester.getSemantics(roundIntro).label,
+            '$numeral回目、全$totalNumeral回',
+          );
           expect(mic, findsNothing);
           expect(find.text('残り 10 秒'), findsNothing);
           await tester.pumpAndSettle();
           expect(roundIntro, findsNothing);
-          expect(find.text('${i + 1} 回目 / 全3回'), findsOneWidget);
+          expect(find.text('${i + 1} 回目 / 全$rounds回'), findsOneWidget);
           expect(find.text('いろみがき'), findsNothing);
           expect(find.text('疑似入力'), findsOneWidget);
           expect(paper, findsNothing);
@@ -626,8 +640,7 @@ void main() {
           if (material == 'medal') {
             final image = [
               'assets/fonts/daou.jpg',
-              'assets/fonts/gin.jpg',
-              'assets/images/medal-gold.png',
+              'assets/images/medal-gold-polishing.png',
             ][i];
             expect(
               find.descendant(
@@ -648,16 +661,16 @@ void main() {
         expect(paper, findsNothing);
         if (material == 'medal') {
           expect(find.text(stages.last), findsOneWidget);
-          expect(
-            find.byKey(const ValueKey('medal-hand-polish')),
-            findsOneWidget,
-          );
+          // Finished one second before the end: straight to the foil.
+          expect(find.byKey(const ValueKey('medal-hand-polish')), findsNothing);
+          expect(find.byKey(const ValueKey('medal-rub')), findsOneWidget);
         } else {
           // Coarse, medium and fine earn 6 points (3漢) at the success boundary.
           expect(find.bySemanticsLabel('3漢'), findsOneWidget);
           final rank = find.byKey(
             const ValueKey('assets/images/kanji-rank-3.png'),
           );
+          expect(find.text('その筋肉で私を運んでー♡'), findsOneWidget);
           final character = find.byKey(
             const ValueKey('assets/images/character-success-3.webp'),
           );
@@ -705,7 +718,7 @@ void main() {
         await tapControl(tester, 'retry');
         expect(find.text('磨く素材を選ぶ'), findsOneWidget);
         await chooseMaterial(tester, material);
-        expect(find.text('1 回目 / 全3回'), findsOneWidget);
+        expect(find.text('1 回目 / 全$rounds回'), findsOneWidget);
         final highPitch = highRange ? 300 : 150;
         expect(find.byKey(ValueKey('demo-$highPitch')), findsOneWidget);
         expect(SurfaceArtProbe.progress(tester), 0);
@@ -847,7 +860,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // The carousel loops in both directions; the heading follows the center.
-    expect(find.text('漢字を磨く'), findsOneWidget);
+    expect(find.text('「漢」を磨く'), findsOneWidget);
     expect(find.text('メダルを磨く'), findsNothing);
     await turnCarousel(tester);
     expect(find.text('メダルを磨く'), findsOneWidget);
@@ -856,12 +869,12 @@ void main() {
       findsWidgets,
     );
     await turnCarousel(tester);
-    expect(find.text('漢字を磨く'), findsOneWidget);
+    expect(find.text('「漢」を磨く'), findsOneWidget);
     await turnCarousel(tester, left: false);
     expect(find.text('メダルを磨く'), findsOneWidget);
     expect(find.text('1 回目 / 全3回'), findsNothing);
     await turnCarousel(tester, left: false);
-    expect(find.text('漢字を磨く'), findsOneWidget);
+    expect(find.text('「漢」を磨く'), findsOneWidget);
 
     // 「戻る」 on the material screen returns to the title.
     await tapControl(tester, 'back');
@@ -874,12 +887,12 @@ void main() {
     expect(find.text('漢磨き'), findsOneWidget);
     await tapControl(tester, 'back');
     expect(find.text('磨く素材を選ぶ'), findsOneWidget);
-    expect(find.text('漢字を磨く'), findsOneWidget);
+    expect(find.text('「漢」を磨く'), findsOneWidget);
 
-    // Play the medal through three rounds to the result.
+    // Play the medal through its two rounds to the result.
     await chooseMaterial(tester, 'medal');
-    for (var round = 1; round <= 3; round++) {
-      expect(find.text('$round 回目 / 全3回'), findsOneWidget);
+    for (var round = 1; round <= 2; round++) {
+      expect(find.text('$round 回目 / 全2回'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('back')),
         round == 1 ? findsOneWidget : findsNothing,
@@ -909,7 +922,7 @@ void main() {
     expect(find.text('はじめる'), findsOneWidget);
     await tapControl(tester, 'title-start');
     await chooseMaterial(tester, 'medal');
-    expect(find.text('1 回目 / 全3回'), findsOneWidget);
+    expect(find.text('1 回目 / 全2回'), findsOneWidget);
     expect(tester.widget<SurfaceArt>(find.byType(SurfaceArt)).progress, 0);
     expect(tester.takeException(), isNull);
   });
@@ -1038,11 +1051,11 @@ void main() {
   }
 
   for (final (play, strokes) in [
-    ('without moving', [0, 0, 0]),
-    ('with partly polished gold', [25, 25, 9]),
-    ('with a fine finish', [25, 25, 45]),
+    ('without moving', [0, 0]),
+    ('with partly polished gold', [25, 9]),
+    ('with a fine finish', [25, 45]),
   ]) {
-    testWidgets('three rounds $play carry the finish into the scratch medal', (
+    testWidgets('two rounds $play carry the finish into the scratch medal', (
       tester,
     ) async {
       tester.view.devicePixelRatio = 1;
@@ -1055,19 +1068,20 @@ void main() {
       double? lastSurface;
       final sheen = find.byKey(const ValueKey('medal-gold-sheen'));
       double? lastSheen;
-      for (var round = 1; round <= 3; round++) {
+      for (var round = 1; round <= 2; round++) {
+        // Round 1 always ends at matte gold, so round 2 suggests the fine grit.
         expect(
           find.text('仕上げは高い声で'),
-          round == 3 && strokes[0] > 0 ? findsOneWidget : findsNothing,
+          round == 2 ? findsOneWidget : findsNothing,
         );
-        await tapControl(tester, round == 3 ? 'demo-150' : 'demo-100');
+        await tapControl(tester, round == 2 ? 'demo-150' : 'demo-100');
         await tapControl(tester, 'capture');
         await tester.pump(const Duration(milliseconds: 500));
         await finishHandoff(tester);
         for (var n = 0; n < strokes[round - 1]; n++) {
           await tapControl(tester, 'simulate-stroke');
           final progress = SurfaceArtProbe.progress(tester);
-          if (round == 3 && progress > .50 && progress < .95) {
+          if (round == 2 && progress > .50 && progress < .95) {
             final opacity = tester.widget<Opacity>(sheen).opacity;
             expect(opacity, greaterThan(lastSheen ?? 0));
             expect(opacity, lessThan(1));
@@ -1080,38 +1094,13 @@ void main() {
       }
 
       expect(find.text('今回の仕上がり'), findsOneWidget);
-      expect(SurfaceArtProbe.progress(tester), closeTo(lastSurface!, 1e-9));
+      // One second before the end of round 2 the medal is already finished,
+      // so the result goes straight to the foil.
+      expect(lastSurface, isNotNull);
+      expect(SurfaceArtProbe.progress(tester), greaterThanOrEqualTo(.95));
       final handPolish = find.byKey(const ValueKey('medal-hand-polish'));
       final scratch = find.byKey(const ValueKey('medal-rub'));
       final revealed = find.byKey(const ValueKey('medal-revealed'));
-      if (lastSurface < .95) {
-        expect(
-          find.text(lastSurface == 0 ? 'サビた銅メダル' : '金メダル'),
-          findsOneWidget,
-        );
-        expect(handPolish, findsOneWidget);
-        expect(scratch, findsNothing);
-        if (lastSheen != null) {
-          expect(
-            tester.widget<Opacity>(sheen).opacity,
-            closeTo(lastSheen, 1e-9),
-          );
-        }
-        final finger = await tester.startGesture(tester.getCenter(handPolish));
-        await tester.pump(const Duration(seconds: 2));
-        await finger.up();
-        await tester.pump();
-        expect(SurfaceArtProbe.progress(tester), closeTo(lastSurface, 1e-9));
-
-        await slideAcross(tester, handPolish, y: .5, fromX: .40, toX: .60);
-        final afterSwipe = SurfaceArtProbe.progress(tester);
-        expect(afterSwipe, greaterThan(lastSurface));
-        await tester.pump(const Duration(seconds: 2));
-        expect(SurfaceArtProbe.progress(tester), afterSwipe);
-        for (var i = 0; i < 8 && handPolish.evaluate().isNotEmpty; i++) {
-          await slideAcross(tester, handPolish, y: .34 + (i % 4) * .1);
-        }
-      }
       expect(handPolish, findsNothing);
       expect(find.text('金ピカのメダル'), findsOneWidget);
       expect(scratch, findsOneWidget);
@@ -1165,6 +1154,46 @@ void main() {
       expect(SurfaceArtProbe.progress(tester), 0);
     });
   }
+
+  testWidgets(
+    'an under-polished kanji shows its character and an intact rank',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(393, 852);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(const WorkshopApp(simulated: true));
+      await tester.pumpAndSettle();
+      await tapControl(tester, 'title-start');
+      await chooseMaterial(tester, 'kanji');
+      for (var round = 1; round <= 3; round++) {
+        await tapControl(tester, 'demo-150');
+        await tapControl(tester, 'capture');
+        await tester.pump(const Duration(milliseconds: 500));
+        await finishHandoff(tester);
+        await tester.pump(const Duration(seconds: 10));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('今回の仕上がり'), findsOneWidget);
+      final under = find.byKey(const ValueKey('kanji-underpolished'));
+      expect(under, findsOneWidget);
+      expect(
+        (tester.widget<Image>(under).image as ResizeImage).imageProvider,
+        const AssetImage('assets/images/character-under.webp'),
+      );
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Image &&
+              w.key is ValueKey<String> &&
+              (w.key! as ValueKey<String>).value.startsWith(
+                'assets/images/kanji-crack-',
+              ),
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'unclear pitch retries on the same material until a stable pitch is captured',
@@ -1229,7 +1258,7 @@ void main() {
         find.descendant(of: paper, matching: find.text('150 Hz')),
         findsNWidgets(3),
       );
-      expect(find.text('1 回目 / 全3回'), findsOneWidget);
+      expect(find.text('1 回目 / 全2回'), findsOneWidget);
       Future<void> reportMotion(int code) async {
         await messenger.handlePlatformMessage(
           events.name,
@@ -1304,7 +1333,7 @@ void main() {
       expect(surface().inContact, isFalse);
       expect(pulses, hasLength(1));
       await tester.pumpAndSettle();
-      expect(find.text('2 回目 / 全3回'), findsOneWidget);
+      expect(find.text('2 回目 / 全2回'), findsOneWidget);
       expect(paper, findsNothing);
       await tester.pumpWidget(const SizedBox());
       await tester.pump();

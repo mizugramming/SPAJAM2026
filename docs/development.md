@@ -35,7 +35,7 @@ fvm flutter run -d <端末ID> -t lib/device_main.dart
 fvm flutter run -d <端末ID>
 ```
 
-オフラインのプレイ確認にはAPKをインストールして起動し、通信を切った状態で両素材を3回磨く。APKの場所は `build/app/outputs/flutter-apk/app-debug.apk`。debugビルドは開発用。
+オフラインのプレイ確認にはAPKをインストールして起動し、通信を切った状態でメダルを2回、漢を3回磨いて結果を確認する。APKの場所は `build/app/outputs/flutter-apk/app-debug.apk`。debugビルドは開発用。
 
 ## 再現コマンド
 
