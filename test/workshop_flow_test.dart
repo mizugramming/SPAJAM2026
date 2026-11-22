@@ -670,7 +670,7 @@ void main() {
           final rank = find.byKey(
             const ValueKey('assets/images/kanji-rank-3.png'),
           );
-          expect(find.text('その筋肉で私を運んでー♡'), findsOneWidget);
+          expect(find.text('その筋肉で\n私を運んでー♡'), findsOneWidget);
           final character = find.byKey(
             const ValueKey('assets/images/character-success-3.webp'),
           );
@@ -702,6 +702,7 @@ void main() {
           expect(fadeOf(character), 1);
           expect(fadeOf(nameplate), 1);
           expect(find.bySemanticsLabel('ムキムキ'), findsOneWidget);
+          expect(find.bySemanticsLabel('その筋肉で私を運んでー♡'), findsOneWidget);
           tester.platformDispatcher.accessibilityFeaturesTestValue =
               const FakeAccessibilityFeatures(disableAnimations: true);
           addTearDown(

@@ -234,23 +234,9 @@ class Workshop extends StatelessWidget {
             _FadeInLater(
               delay: _rankEntranceDuration + _characterFadeDuration,
               duration: _characterFadeDuration,
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  kanjiNameplateComment(kanjiPoints(game)),
-                  key: const ValueKey('nameplate-comment'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: chalk,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    height: 1.3,
-                    shadows: [Shadow(color: bench, blurRadius: 6)],
-                  ),
-                ),
-              ),
+              child: _KanjiComment(points: kanjiPoints(game)),
             ),
-            align: Alignment.topCenter,
+            fill: true,
           ),
         if (intro != null) Part('intro', '回数のカットイン', intro, fill: true),
         if (intro == null) ...[
@@ -1474,7 +1460,7 @@ class _VoiceProfilePicker extends StatelessWidget {
     spacing: 8,
     children: [
       const Expanded(
-        flex: 2,
+        flex: 1,
         child: FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
@@ -1489,9 +1475,10 @@ class _VoiceProfilePicker extends StatelessWidget {
         ),
       ),
       Expanded(
-        flex: 5,
+        flex: 4,
         child: SegmentedButton<VoiceProfile>(
           expandedInsets: EdgeInsets.zero,
+          selectedIcon: const Icon(Icons.check, size: 16),
           style: SegmentedButton.styleFrom(
             foregroundColor: shopInk,
             backgroundColor: shopPaper,
@@ -1499,11 +1486,11 @@ class _VoiceProfilePicker extends StatelessWidget {
             selectedBackgroundColor: shopIndigo,
             side: const BorderSide(color: shopInk, width: 1.5),
             shape: ChipTheme.of(context).shape,
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             minimumSize: const Size(0, 48),
             textStyle: const TextStyle(
               fontFamily: appFont,
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1717,14 +1704,45 @@ String kanjiNameplateImage(int points) =>
 String kanjiNameplate(int points) =>
     const ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][kanjiRankNumber(points) - 1];
 
-/// 称号に合わせたひとこと。
-String kanjiNameplateComment(int points) => const [
-  'ガサツなのに実は優しいオトコ♡',
-  'あなたの力強さと柔らかさにトリコだわ♡',
-  'その筋肉で私を運んでー♡',
-  'その透明感に吸い込まれちゃう♡',
-  'あなたの甘い笑顔にキュン♡',
-][kanjiRankNumber(points) - 1];
+/// 称号と人物の間に置く二行の台詞。改行は文節の境目で指定する。
+const _kanjiCommentLines = [
+  'ガサツなのに\n実は優しいオトコ♡',
+  'あなたの力強さと\n柔らかさにトリコだわ♡',
+  'その筋肉で\n私を運んでー♡',
+  'その透明感に\n吸い込まれちゃう♡',
+  'あなたの甘い笑顔に\nキュン♡',
+];
+
+String kanjiNameplateComment(int points) =>
+    _kanjiCommentLines[kanjiRankNumber(points) - 1].replaceAll('\n', '');
+
+class _KanjiComment extends StatelessWidget {
+  const _KanjiComment({required this.points});
+
+  final int points;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        _kanjiCommentLines[kanjiRankNumber(points) - 1],
+        key: const ValueKey('nameplate-comment'),
+        semanticsLabel: kanjiNameplateComment(points),
+        textAlign: TextAlign.center,
+        softWrap: false,
+        style: const TextStyle(
+          color: chalk,
+          fontSize: 32,
+          fontWeight: FontWeight.w800,
+          height: 1.14,
+          shadows: [Shadow(color: bench, blurRadius: 6)],
+        ),
+      ),
+    ),
+  );
+}
 
 /// 結果画面の称号。四角いっぱいに収める。
 class _KanjiNameplate extends StatelessWidget {

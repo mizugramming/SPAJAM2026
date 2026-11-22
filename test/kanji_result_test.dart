@@ -42,6 +42,71 @@ void main() {
     }
   });
 
+  testWidgets('longest success comment fits between the title and character', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      const WorkshopApp(simulated: true, initialStrokesToGold: 5),
+    );
+    await tapControl(tester, 'title-start');
+    await chooseMaterial(tester, 'kanji');
+    for (final (round, hz) in [100, 100, 120].indexed) {
+      await tapControl(tester, 'demo-$hz');
+      await tapControl(tester, 'capture');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 1801));
+      await tester.pump(const Duration(milliseconds: 650));
+      await tester.pump();
+      if (round == 0) {
+        for (var n = 0; n < 8; n++) {
+          await tapControl(tester, 'simulate-stroke');
+        }
+      }
+      await tester.pump(GameController.polishDuration);
+      await tester.pumpAndSettle();
+    }
+    // Include the final fade on the animated result, then test reduced motion.
+    await tester.pump(const Duration(seconds: 3));
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    for (final compact in [false, true]) {
+      tester.view.physicalSize = compact
+          ? const Size(320, 568)
+          : const Size(384, 815);
+      tester.platformDispatcher.textScaleFactorTestValue = compact ? 2 : 1;
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          FakeAccessibilityFeatures(disableAnimations: compact);
+      await tester.pump();
+      final copy = find.text('あなたの力強さと\n柔らかさにトリコだわ♡');
+      final text = tester.widget<Text>(copy);
+      expect(text.softWrap, false);
+      expect(find.bySemanticsLabel('あなたの力強さと柔らかさにトリコだわ♡'), findsOneWidget);
+      final rendered = tester.getRect(copy);
+      final title = find.byKey(
+        const ValueKey('assets/images/workshop-title-02.png'),
+      );
+      final character = find.byKey(
+        ValueKey(kanjiResultImage(8, animated: !compact)),
+      );
+      expect(
+        rendered.top,
+        greaterThanOrEqualTo(tester.getBottomLeft(title).dy - .01),
+      );
+      expect(rendered.bottom, lessThan(tester.getTopLeft(character).dy));
+      expect(rendered.left, greaterThanOrEqualTo(0));
+      expect(rendered.right, lessThanOrEqualTo(tester.view.physicalSize.width));
+      // Two actual lines at a readable size, even in the compact frame.
+      expect(
+        rendered.height / (2 * text.style!.height!),
+        greaterThanOrEqualTo(compact ? 23 : 30),
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   test('kanji success includes both ends and breaks past the target', () {
     final material = materials.singleWhere((m) => m.id == 'kanji');
     expect(material.finishAt(material.initialValue), TargetFinish.under);
