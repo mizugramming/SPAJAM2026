@@ -204,6 +204,70 @@ void main() {
     expect(find.text('残り 10 秒'), findsNothing);
   }
 
+  testWidgets('the shop counter covers Yansu at the waist', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const portrait = AssetImage('assets/images/yansu_title.png');
+    const counter = AssetImage('assets/images/workshop_counter.webp');
+    for (final size in [
+      const Size(320, 568),
+      const Size(320, 800),
+      const Size(393, 852),
+    ]) {
+      tester.view.physicalSize = size;
+      await tester.pumpWidget(const WorkshopApp(simulated: true));
+      final images = tester
+          .widgetList<Image>(find.byType(Image))
+          .map((i) => i.image);
+      expect(
+        images,
+        containsAllInOrder([
+          const AssetImage('assets/images/workshop_books.webp'),
+          portrait,
+          counter,
+          const AssetImage('assets/images/workshop_wax.webp'),
+        ]),
+      );
+      final frame = tester.getRect(find.image(portrait));
+      final painted = applyBoxFit(
+        BoxFit.contain,
+        const Size(576, 888),
+        frame.size,
+      );
+      final figure = Alignment.center.inscribe(painted.destination, frame);
+      final desk = tester.getRect(find.image(counter));
+      expect(figure.height, greaterThan(size.height * .59));
+      // The waistband in the transparent source art is about 76% from its top.
+      expect(
+        (desk.top - figure.top) / figure.height,
+        inInclusiveRange(.75, .83),
+      );
+      expect(desk.width, closeTo(size.width, .01));
+      expect(desk.bottom, greaterThanOrEqualTo(figure.bottom));
+
+      Rect countertopProp(String name, Size source) {
+        final prop = find.image(
+          AssetImage('assets/images/workshop_$name.webp'),
+        );
+        final box = tester.getRect(prop);
+        final fitted = applyBoxFit(BoxFit.contain, source, box.size);
+        return Alignment.bottomCenter.inscribe(fitted.destination, box);
+      }
+
+      final wax = countertopProp('wax', const Size(512, 307));
+      final brush = countertopProp('brush', const Size(512, 187));
+      // The jar occupies about two thirds of its image; the open lid sits beside it.
+      expect(wax.width / figure.width, inInclusiveRange(.21, .33));
+      expect(brush.width / figure.width, inInclusiveRange(.225, .35));
+      for (final prop in [wax, brush]) {
+        expect(
+          prop.bottom,
+          inInclusiveRange(desk.top, desk.top + desk.height * .456),
+        );
+      }
+    }
+  });
+
   testWidgets('game labels fit a narrow screen with large text', (
     tester,
   ) async {
@@ -243,6 +307,10 @@ void main() {
     );
     expect(mascot, findsOneWidget);
     final portrait = tester.getRect(mascot);
+    expect(
+      tester.getRect(find.text('磨くで')).right,
+      lessThanOrEqualTo(tester.getRect(find.text('ヤンス！')).left + .01),
+    );
     expect(tester.getRect(find.text('ヤンス！')).bottom, lessThan(portrait.top));
     expect(portrait.bottom, lessThan(tester.getRect(find.text('はじめる')).top));
     expect(find.textContaining('POLISH'), findsNothing);
@@ -251,8 +319,23 @@ void main() {
     expectOneLine('磨く素材を選ぶ');
     expectOneLine('漢字を磨く');
     expectOneLine('これを磨く');
+    await tapControl(tester, 'diagnostics');
+    await tester.pumpAndSettle();
+    expectOneLine('端末の計測');
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
     await chooseMaterial(tester, 'medal');
     expectOneLine('やすりを作る');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expectOneLine('続ける');
+    expectOneLine('素材選びに戻る');
+    expect(
+      tester.getRect(find.text('続ける')).bottom,
+      lessThan(tester.getRect(find.text('素材選びに戻る')).top),
+    );
+    await tester.tap(find.text('続ける'));
+    await tester.pumpAndSettle();
 
     for (var round = 1; round <= 3; round++) {
       final counter = '$round 回目 / 全3回';

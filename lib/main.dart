@@ -11,6 +11,7 @@ import 'game/game.dart';
 import 'ui/game_settings.dart';
 import 'ui/phrase_text.dart';
 import 'ui/workshop.dart';
+import 'ui/workshop_theme.dart' show shopInk, shopPaper, shopPlaqueStyle;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -323,21 +324,42 @@ class _SessionState extends State<_Session>
     final exit = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: shopPaper,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(6)),
+          side: BorderSide(color: shopInk, width: 2),
+        ),
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         scrollable: true,
+        titleTextStyle: Theme.of(context).textTheme.headlineSmall?.copyWith(
+          color: shopInk,
+          fontWeight: FontWeight.w700,
+        ),
+        contentTextStyle: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: shopInk),
         title: const PhraseText('素材選びに\n戻りますか？'),
         content: const PhraseText('磨いた分は\nリセットされます。'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('続ける'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text('素材選びに戻る', softWrap: false),
-            ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 8,
+            children: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('続ける'),
+              ),
+              OutlinedButton(
+                style: shopPlaqueStyle(secondary: true),
+                onPressed: () => Navigator.pop(context, true),
+                child: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('素材選びに戻る', softWrap: false),
+                ),
+              ),
+            ],
           ),
         ],
       ),

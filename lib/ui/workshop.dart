@@ -719,25 +719,26 @@ LayoutStage _workshopStage({
   parts: parts,
   background: const Image(
     image: AssetImage('assets/images/workshop_room.webp'),
-    // 下地の天板と柱を、小物の配置表と同じ画面比率の位置に保つ。
+    // 奥の棚板と柱を、道具の配置表と同じ画面比率の位置に保つ。
     fit: BoxFit.fill,
     excludeFromSemantics: true,
   ),
   backgroundParts: [
     const Part(
       'curtain',
-      '背景・のれん',
-      _WorkshopProp('curtain', alignment: Alignment.topCenter),
+      '背景・磨かれ屋ののれん',
+      Image(
+        image: AssetImage('assets/images/workshop_curtain.webp'),
+        fit: BoxFit.contain,
+        alignment: Alignment.topCenter,
+        semanticLabel: '磨かれ屋ののれん',
+      ),
       fill: true,
     ),
-    const Part(
-      'jacket',
-      '背景・ジャケット',
-      _HangingProp('jacket', alignment: Alignment.topCenter),
-      fill: true,
-    ),
-    const Part('brush', '背景・磨き刷毛', _HangingProp('brush'), fill: true),
-    // 台の上の小物をヤンスの手前に重ねる。
+    const Part('jacket', '背景・ジャケット', _HangingJacket(), fill: true),
+    const Part('books', '背景・本', _WorkshopProp('books'), fill: true),
+    const Part('dumbbell', '背景・ダンベル', _WorkshopProp('dumbbell'), fill: true),
+    // ヤンスは奥の棚と手前のカウンターの間に立つ。
     if (screen == Screen.title)
       const Part(
         'mascot',
@@ -750,29 +751,18 @@ LayoutStage _workshopStage({
         fill: true,
       ),
     const Part(
-      'cloth',
-      '背景・敷き布',
-      _WorkshopProp('cloth', alignment: Alignment.bottomCenter),
+      'counter',
+      '背景・カウンター',
+      Image(
+        image: AssetImage('assets/images/workshop_counter.webp'),
+        fit: BoxFit.fill,
+        excludeFromSemantics: true,
+      ),
       fill: true,
     ),
-    const Part(
-      'books',
-      '背景・本',
-      _WorkshopProp('books', alignment: Alignment.bottomCenter),
-      fill: true,
-    ),
-    const Part(
-      'dumbbell',
-      '背景・ダンベル',
-      _WorkshopProp('dumbbell', alignment: Alignment.bottomCenter),
-      fill: true,
-    ),
-    const Part(
-      'wax',
-      '背景・ヘアワックス',
-      _WorkshopProp('wax', alignment: Alignment.bottomCenter),
-      fill: true,
-    ),
+    const Part('cloth', '背景・敷き布', _WorkshopProp('cloth'), fill: true),
+    const Part('wax', '背景・ヘアワックス', _WorkshopProp('wax'), fill: true),
+    const Part('brush', '背景・磨き刷毛', _WorkshopProp('brush'), fill: true),
   ],
   // 道具を動かしても陰影は画面に固定し、上に重なる文字と素材を読みやすくする。
   backgroundShade: screen == Screen.ready || screen == Screen.polishing
@@ -781,37 +771,40 @@ LayoutStage _workshopStage({
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0x9918100E), Color(0x9918100E), Colors.transparent],
-            stops: [0, .19, .4],
+            colors: [
+              Color(0x3318100E),
+              Color(0x3318100E),
+              Color(0x7718100E),
+              Colors.transparent,
+            ],
+            stops: [0, .11, .2, .4],
           ),
         ),
 );
 
-class _HangingProp extends StatelessWidget {
-  const _HangingProp(this.name, {this.alignment = Alignment.center});
-  final String name;
-  final Alignment alignment;
+class _HangingJacket extends StatelessWidget {
+  const _HangingJacket();
 
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
     child: FittedBox(
       fit: BoxFit.contain,
-      alignment: alignment,
+      alignment: Alignment.topCenter,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // 柱に触れる鋲を支点に、手前に出る裾や毛先の影を右に落とす。
+          // 柱に触れる鋲を支点に、手前に出る袖の影を右に落とす。
           Positioned.fill(
             child: Transform.rotate(
-              alignment: const Alignment(.08, -.87),
+              alignment: const Alignment(.5, -.934),
               angle: -.055,
               child: Image.asset(
-                'assets/images/workshop_$name.webp',
+                'assets/images/workshop_jacket.webp',
                 color: const Color(0x77281A10),
               ),
             ),
           ),
-          Image.asset('assets/images/workshop_$name.webp'),
+          Image.asset('assets/images/workshop_jacket.webp'),
         ],
       ),
     ),
@@ -819,15 +812,14 @@ class _HangingProp extends StatelessWidget {
 }
 
 class _WorkshopProp extends StatelessWidget {
-  const _WorkshopProp(this.name, {this.alignment = Alignment.center});
+  const _WorkshopProp(this.name);
   final String name;
-  final Alignment alignment;
 
   @override
   Widget build(BuildContext context) => Image.asset(
     'assets/images/workshop_$name.webp',
     fit: BoxFit.contain,
-    alignment: alignment,
+    alignment: Alignment.bottomCenter,
     excludeFromSemantics: true,
   );
 }
@@ -844,9 +836,7 @@ class _GrungeText extends StatelessWidget {
       Text(text, style: style, softWrap: false),
       Positioned.fill(
         child: IgnorePointer(
-          child: CustomPaint(
-            painter: _GrungePainter(text.hashCode, frame: false, density: 40),
-          ),
+          child: CustomPaint(painter: _GrungePainter(text.hashCode)),
         ),
       ),
     ],
@@ -865,15 +855,13 @@ class _TitleLettering extends StatelessWidget {
   );
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.baseline,
+    textBaseline: TextBaseline.alphabetic,
     children: [
       _GrungeText('磨くで', style: brush.copyWith(fontSize: 82)),
-      const Padding(
-        padding: EdgeInsets.only(left: 24),
-        child: _GrungeText('ヤンス！', style: brush),
-      ),
+      const _GrungeText('ヤンス！', style: brush),
     ],
   );
 }
@@ -893,23 +881,20 @@ class _BoxButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox.expand(
     child: FilledButton(
-      style: FilledButton.styleFrom(
-        minimumSize: Size.zero,
+      style: shopPlaqueStyle().copyWith(
+        minimumSize: const WidgetStatePropertyAll(Size.zero),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(2)),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 12),
         ),
-        textStyle: const TextStyle(
-          fontFamily: appFont,
-          fontSize: 34,
-          fontWeight: FontWeight.w900,
-          height: 1.12,
-          letterSpacing: 1.4,
-        ),
-        backgroundBuilder: (context, states, child) => CustomPaint(
-          painter: _GrungePainter(label.hashCode, frame: false),
-          child: child,
+        textStyle: const WidgetStatePropertyAll(
+          TextStyle(
+            fontFamily: appFont,
+            fontSize: 34,
+            fontWeight: FontWeight.w900,
+            height: 1.12,
+            letterSpacing: 1.4,
+          ),
         ),
       ),
       onPressed: onPressed,
@@ -930,9 +915,7 @@ class _BoxButton extends StatelessWidget {
   );
 }
 
-/// 朱色の丸いマイクボタン。SPAJAM UI Arsenal の「いろみがきの音声ボタン」
-/// （2026-11-22確認）の形・色・影・押し込みを描き直したもの。にじみ画像は使わず、
-/// かすれの質感で代える。採音は途中で止められないため、採音中は薄くして押せなくする。
+/// 朱肉の丸印。採音中は薄くなり、紙へ移るときは元の印を保つ。
 class _InkMicButton extends StatefulWidget {
   const _InkMicButton({
     super.key,
@@ -949,11 +932,8 @@ class _InkMicButton extends StatefulWidget {
 }
 
 class _InkMicButtonState extends State<_InkMicButton> {
-  static const _face = Color(0xFFCB392C);
-  static const _rim = Color(0xFF82271E);
-  static const _base = Color(0xFF591F18);
-  static const _ivory = Color(0xFFFFF8EC);
   bool _down = false;
+  bool _focused = false;
 
   void _press(bool down) {
     if (widget.onPressed == null || _down == down) return;
@@ -976,6 +956,7 @@ class _InkMicButtonState extends State<_InkMicButton> {
         child: InkResponse(
           customBorder: const CircleBorder(),
           onHighlightChanged: _press,
+          onFocusChange: (focused) => setState(() => _focused = focused),
           onTap: widget.onPressed,
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 150),
@@ -987,55 +968,26 @@ class _InkMicButtonState extends State<_InkMicButton> {
               transform: Matrix4.translationValues(0, pressed ? 2 : 0, 0),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _face,
-                border: Border.all(color: _rim),
-                boxShadow: pressed
-                    ? const [BoxShadow(color: _base, offset: Offset(0, 1))]
-                    : const [
-                        BoxShadow(color: _base, offset: Offset(0, 3)),
-                        BoxShadow(
-                          color: Color(0x57080605),
-                          offset: Offset(0, 6),
-                          blurRadius: 10,
-                        ),
-                      ],
+                color: shopVermilion,
+                border: Border.all(color: shopInk, width: 2.5),
+                boxShadow: [
+                  BoxShadow(color: shopInk, offset: Offset(0, pressed ? 1 : 3)),
+                ],
               ),
-              child: ClipOval(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // 上の照り返しと下の陰（見本の内側の影）。
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: pressed
-                              ? const [Color(0x3368231C), Color(0x00000000)]
-                              : const [
-                                  Color(0x57FA7559),
-                                  Color(0x00000000),
-                                  Color(0x00000000),
-                                  Color(0x8585251B),
-                                ],
-                          stops: pressed ? null : const [0, .12, .85, 1],
-                        ),
-                      ),
-                    ),
-                    CustomPaint(
-                      painter: _GrungePainter(
-                        widget.label.hashCode ^ 0x1177,
-                        frame: false,
-                        density: 60,
-                      ),
-                    ),
-                    const Center(
-                      child: CustomPaint(
-                        size: Size(28, 34),
-                        painter: _MicPainter(color: _ivory),
-                      ),
-                    ),
-                  ],
+              padding: const EdgeInsets.all(4),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: shopPaper,
+                    width: _focused && enabled ? 3 : 1.2,
+                  ),
+                ),
+                child: const Center(
+                  child: CustomPaint(
+                    size: Size(28, 34),
+                    painter: _MicPainter(color: shopPaper),
+                  ),
                 ),
               ),
             ),
@@ -1066,7 +1018,7 @@ class _MicPainter extends CustomPainter {
       fill,
     );
     // カプセル右側の切れ込み。
-    final slit = Paint()..color = const Color(0xFFA93227);
+    final slit = Paint()..color = shopVermilion;
     for (final top in [6.0, 10.0]) {
       canvas.drawRRect(
         RRect.fromRectAndCorners(
@@ -1098,16 +1050,10 @@ class _MicPainter extends CustomPainter {
   bool shouldRepaint(_MicPainter old) => old.color != color;
 }
 
-/// かすれ・ひっかき傷の質感。模様はボタンごとに固定。
+/// 題字に重ねるかすれ。文字列ごとに模様を固定する。
 class _GrungePainter extends CustomPainter {
-  _GrungePainter(this.seed, {this.frame = true, this.density = 90});
+  const _GrungePainter(this.seed);
   final int seed;
-
-  /// 縁を暗くするか（ボタン用）。
-  final bool frame;
-
-  /// 小さいほど点が多い（1点あたりの面積）。
-  final double density;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1117,7 +1063,7 @@ class _GrungePainter extends CustomPainter {
       RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(2)),
     );
     final speck = Paint()..color = bench.withValues(alpha: .55);
-    final count = (size.width * size.height / density).clamp(20, 1600).toInt();
+    final count = (size.width * size.height / 40).clamp(20, 1600).toInt();
     for (var i = 0; i < count; i++) {
       final r = random.nextDouble() * 1.4 + .3;
       canvas.drawCircle(
@@ -1146,20 +1092,10 @@ class _GrungePainter extends CustomPainter {
         scratch,
       );
     }
-    // 縁を少し暗くして、刷ったような端にする。
-    if (!frame) return;
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = bench.withValues(alpha: .35),
-    );
   }
 
   @override
-  bool shouldRepaint(_GrungePainter old) =>
-      old.seed != seed || old.frame != frame || old.density != density;
+  bool shouldRepaint(_GrungePainter old) => old.seed != seed;
 }
 
 class _Title extends StatelessWidget {
@@ -1409,8 +1345,11 @@ class _SelectStageState extends State<_SelectStage>
             child: IconButton(
               key: const ValueKey('diagnostics'),
               tooltip: '設定',
+              style: shopPlaqueStyle(secondary: true).copyWith(
+                padding: const WidgetStatePropertyAll(EdgeInsets.all(6)),
+              ),
               onPressed: widget.onSettings,
-              icon: const Icon(Icons.tune_rounded, size: 23, color: muted),
+              icon: const Icon(Icons.tune_rounded, size: 23),
             ),
           ),
           fill: true,
@@ -1545,14 +1484,12 @@ class _VoiceProfilePicker extends StatelessWidget {
         child: SegmentedButton<VoiceProfile>(
           expandedInsets: EdgeInsets.zero,
           style: SegmentedButton.styleFrom(
-            foregroundColor: chalk,
-            backgroundColor: metalPanel,
-            selectedForegroundColor: bench,
-            selectedBackgroundColor: ember,
-            side: const BorderSide(color: muted),
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(4)),
-            ),
+            foregroundColor: shopInk,
+            backgroundColor: shopPaper,
+            selectedForegroundColor: shopPaper,
+            selectedBackgroundColor: shopIndigo,
+            side: const BorderSide(color: shopInk, width: 1.5),
+            shape: ChipTheme.of(context).shape,
             padding: const EdgeInsets.symmetric(horizontal: 6),
             minimumSize: const Size(0, 48),
             textStyle: const TextStyle(
@@ -1749,13 +1686,17 @@ class _BackButton extends StatelessWidget {
     alignment: Alignment.centerLeft,
     child: TextButton.icon(
       key: const ValueKey('back'),
-      style: TextButton.styleFrom(
-        foregroundColor: chalk,
-        padding: const EdgeInsets.only(left: 4, right: 12),
-        textStyle: const TextStyle(
-          fontFamily: appFont,
-          fontSize: 16,
-          fontWeight: FontWeight.w800,
+      style: shopPlaqueStyle(secondary: true).copyWith(
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.only(left: 4, right: 12),
+        ),
+        minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+        textStyle: const WidgetStatePropertyAll(
+          TextStyle(
+            fontFamily: appFont,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
       onPressed: onPressed,
@@ -1765,7 +1706,7 @@ class _BackButton extends StatelessWidget {
   );
 }
 
-/// 主ボタンより控えめな、枠線だけのボタン。
+/// 結果からタイトルへ戻る補助操作の札。
 class _QuietButton extends StatelessWidget {
   const _QuietButton({
     super.key,
@@ -1780,21 +1721,19 @@ class _QuietButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox.expand(
     child: OutlinedButton(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: chalk,
-        backgroundColor: bench.withValues(alpha: .55),
-        side: BorderSide.none,
-        minimumSize: Size.zero,
+      style: shopPlaqueStyle(secondary: true).copyWith(
+        minimumSize: const WidgetStatePropertyAll(Size.zero),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(2)),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 16),
         ),
-        textStyle: const TextStyle(
-          fontFamily: appFont,
-          fontSize: 16,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 2,
+        textStyle: const WidgetStatePropertyAll(
+          TextStyle(
+            fontFamily: appFont,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 2,
+          ),
         ),
       ),
       onPressed: onPressed,

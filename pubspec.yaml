@@ -36,6 +36,7 @@ flutter:
     - assets/fonts/kinpika.jpg
     - assets/images/yansu_title.png
     - assets/images/workshop_room.webp
+    - assets/images/workshop_counter.webp
     - assets/images/workshop_curtain.webp
     - assets/images/workshop_jacket.webp
     - assets/images/workshop_brush.webp
