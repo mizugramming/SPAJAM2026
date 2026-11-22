@@ -20,28 +20,16 @@ class WorkshopDevice {
     (event) => event == strokeCompleted,
   );
 
-  Future<VoiceSample> capture(
-    double demoPitch, {
-    bool desk = false,
-    VoiceProfile profile = VoiceProfile.male,
-  }) async {
+  Future<VoiceSample> capture(double demoPitch, {bool desk = false}) async {
     if (simulated) {
       await Future<void>.delayed(const Duration(milliseconds: 450));
-      final level = switch (profile.gritAt(demoPitch)) {
-        Grit.coarse => 0.30,
-        Grit.medium => 0.55,
-        Grit.fine => 0.80,
-      };
-      return VoiceSample(demoPitch, level);
+      return VoiceSample(demoPitch);
     }
     final data = await _commands.invokeMapMethod<String, num?>(
       'capture',
       desk ? {'desk': true} : null,
     );
-    return VoiceSample(
-      data?['hz']?.toDouble(),
-      data?['level']?.toDouble() ?? 0,
-    );
+    return VoiceSample(data?['hz']?.toDouble());
   }
 
   Future<void> _command(String name, [Object? args]) async {

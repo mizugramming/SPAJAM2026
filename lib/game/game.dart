@@ -7,9 +7,9 @@ import 'package:flutter/gestures.dart' show GestureBinding;
 enum GamePhase { select, voice, ready, polishing, result }
 
 enum Grit {
-  coarse('粗目', 3.5, 68, 245),
-  medium('中目', 2.25, 47, 183),
-  fine('細目', 1.25, 29, 124);
+  coarse('粗目', 3.5, 78, 255),
+  medium('中目', 2.25, 59, 231),
+  fine('細目', 1.25, 46, 205);
 
   const Grit(
     this.label,
@@ -24,12 +24,10 @@ enum Grit {
   final int roughAmplitude;
 }
 
-enum VoiceMode { pitch, volume }
-
 /// Game thresholds around the typical speaking pitch of each selectable range.
 enum VoiceProfile {
-  male('男性用', 110, 135, [100, 120, 150]),
-  female('女性用', 220, 270, [200, 240, 300]);
+  low('声が低い人', 110, 135, [100, 120, 150]),
+  high('声が高い人', 220, 270, [200, 240, 300]);
 
   const VoiceProfile(
     this.label,
@@ -53,30 +51,17 @@ enum VoiceProfile {
 }
 
 class VoiceSample {
-  const VoiceSample(this.hz, this.level);
+  const VoiceSample(this.hz);
 
   /// Null when the recording did not yield a stable fundamental frequency.
   final double? hz;
-
-  /// Measured sound level, normalized from -60..0 dBFS to 0..1.
-  final double level;
 }
 
-Grit? classify(
-  VoiceSample sample,
-  VoiceMode mode, {
-  VoiceProfile profile = VoiceProfile.male,
-}) {
-  if (!sample.level.isFinite || sample.level < 0.15 || sample.level > 1) {
-    return null;
-  }
-  if (mode == VoiceMode.volume) {
-    if (sample.level < 0.45) return Grit.coarse;
-    if (sample.level < 0.70) return Grit.medium;
-    return Grit.fine;
-  }
+const pitchRetryMessage = '声の高さを判定できませんでした。\n同じ高さでもう一度、\n声を出してください。';
+
+Grit? classify(VoiceSample sample, {VoiceProfile profile = VoiceProfile.low}) {
   final hz = sample.hz;
-  if (hz == null || !hz.isFinite || hz <= 0) return null;
+  if (hz == null || !hz.isFinite || hz < 65 || hz > 600) return null;
   return profile.gritAt(hz);
 }
 
@@ -101,6 +86,8 @@ class FinishStage {
   final Map<Grit, ({double amount, double limit})> polishing;
 }
 
+enum TargetFinish { under, onTarget, over }
+
 class WorkMaterial {
   const WorkMaterial({
     required this.id,
@@ -111,16 +98,33 @@ class WorkMaterial {
     this.description,
     this.glyph,
     this.targetValue,
+    this.targetTolerance = 0,
     this.finishAtLeast,
     this.rounds = GameController.roundCount,
     this.afterEarlierRounds,
-  }) : assert(maxRemoval > 0);
+  }) : assert(maxRemoval > 0),
+       assert(targetTolerance >= 0);
 
   final String id;
   final String name;
   final double initialValue;
   final double maxRemoval;
+
+  /// Remaining material at the deepest successful finish. The tolerance is on
+  /// the shallower side so polishing away more than the target always breaks it.
   final double? targetValue;
+  final double targetTolerance;
+
+  TargetFinish? finishAt(double value) {
+    final target = targetValue;
+    if (target == null) return null;
+    // Fractional stroke counts can put an exact boundary a few ULPs away.
+    final epsilon = maxRemoval * 1e-12;
+    if (value < target - epsilon) return TargetFinish.over;
+    if (value > target + targetTolerance + epsilon) return TargetFinish.under;
+    return TargetFinish.onTarget;
+  }
+
   final String? description;
 
   /// A stamped medallion by default, or a metal glyph such as 漢.
@@ -153,13 +157,7 @@ class WorkMaterial {
   /// This minimum amount uses the same stroke-count scale as the grit rates.
   static const _finalRoundAmount = 2.5;
 
-  double valueAfterStroke(
-    double value,
-    Grit grit, {
-    int strokesToGold = GameController.defaultStrokesToGold,
-    bool finalRound = false,
-  }) {
-    assert(strokesToGold > 0);
+  double valueAfterStroke(double value, Grit grit, {bool finalRound = false}) {
     final progress = progressAt(value);
     final polish = stageAt(progress).polishing[grit];
     var share = polish?.limit ?? 1.0;
@@ -173,7 +171,7 @@ class WorkMaterial {
     final limit = initialValue - maxRemoval * share;
     if (value <= limit) return value;
     // Preserve the relative removal of each grit and each polishing stage.
-    final coarseStep = _medalMaxRemoval * _goldThreshold / strokesToGold;
+    const coarseStep = _medalMaxRemoval * _goldThreshold / _strokesToGold;
     final step = coarseStep * amount / Grit.coarse.removal;
     final next = (value - step).clamp(limit, value);
     // Repeated fractional strokes can land a few ULPs short of a boundary.
@@ -223,6 +221,7 @@ const _goldPolishing = {
   Grit.fine: (amount: 3.5, limit: 1.0),
 };
 
+const _strokesToGold = 50;
 const _medalMaxRemoval = 100.0;
 const _goldThreshold = .50;
 const _shinyGoldThreshold = .95;
@@ -266,6 +265,8 @@ const materials = [
     description: '汚れに隠れた一字',
     glyph: '漢',
     initialValue: 100,
+    targetValue: 10,
+    targetTolerance: 10,
     maxRemoval: 100,
     stages: [
       FinishStage(0, '汚れに覆われた漢', Color(0xFF726454), 1, 0.02),
@@ -287,8 +288,8 @@ class HapticPulse {
 HapticPulse pulseFor(Grit grit, double progress) {
   final t = progress.clamp(0.0, 1.0);
   return HapticPulse(
-    (grit.roughDurationMs * (1.0 - 0.50 * t)).round(),
-    (grit.roughAmplitude * (1.0 - 0.60 * t)).round(),
+    (grit.roughDurationMs * (1.0 - 0.35 * t)).round(),
+    (grit.roughAmplitude * (1.0 - 0.25 * t)).round(),
   );
 }
 
@@ -303,29 +304,13 @@ class GameController extends ChangeNotifier {
   /// Rounds for the selected material.
   int get rounds => _material?.rounds ?? roundCount;
   static const polishDuration = Duration(seconds: 10);
-  static const minStrokesToGold = 5;
-  static const maxStrokesToGold = 60;
-  static const defaultStrokesToGold = 22;
 
   final FinishJudge? judge;
 
   GamePhase _phase = GamePhase.select;
   GamePhase get phase => _phase;
-  int _strokesToGold = defaultStrokesToGold;
-  int get strokesToGold => _strokesToGold;
 
-  void setStrokesToGold(int count) {
-    if (_phase != GamePhase.select ||
-        count == _strokesToGold ||
-        count < minStrokesToGold ||
-        count > maxStrokesToGold) {
-      return;
-    }
-    _strokesToGold = count;
-    notifyListeners();
-  }
-
-  VoiceProfile _voiceProfile = VoiceProfile.male;
+  VoiceProfile _voiceProfile = VoiceProfile.low;
   VoiceProfile get voiceProfile => _voiceProfile;
 
   void setVoiceProfile(VoiceProfile profile) {
@@ -353,10 +338,12 @@ class GameController extends ChangeNotifier {
   double _value = 0;
   double get value => _value;
   double get progress => _material?.progressAt(_value) ?? 0;
+  TargetFinish? get targetFinish => _material?.finishAt(_value);
 
   // The awarded result and the unfinished surface can differ. Keep the last
   // sensor-driven appearance until the player buffs the remaining metal.
   double? _handFinishProgress;
+
   double get surfaceProgress => _handFinishProgress ?? progress;
   bool get needsHandPolish => _handFinishProgress != null;
 
@@ -406,9 +393,9 @@ class GameController extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool acceptVoice(VoiceSample sample, VoiceMode mode) {
+  bool acceptVoice(VoiceSample sample) {
     if (_phase != GamePhase.voice || _paused) return false;
-    final selected = classify(sample, mode, profile: _voiceProfile);
+    final selected = classify(sample, profile: _voiceProfile);
     if (selected == null) return false;
     _sample = sample;
     _grit = selected;
@@ -441,9 +428,12 @@ class GameController extends ChangeNotifier {
     _value = material.valueAfterStroke(
       _value,
       grit,
-      strokesToGold: strokesToGold,
       finalRound: _round == rounds,
     );
+    if (material.id == 'kanji' && targetFinish == TargetFinish.over) {
+      _finishGame();
+      return null;
+    }
     final pulse = pulseFor(grit, progress);
     notifyListeners();
     return pulse;
@@ -493,30 +483,37 @@ class GameController extends ChangeNotifier {
   }
 
   void _endRound() {
-    _stopClock();
     if (_round == rounds) {
-      _remainingSeconds = 0;
       final material = _material!;
       final floor = material.finishAtLeast;
       if (floor != null && progress < floor) {
         if (material.id == 'medal') _handFinishProgress = progress;
         _value = material.initialValue - material.maxRemoval * floor;
       }
-      _phase = GamePhase.result;
-      _verdict = judge?.call(_material!, _value);
-    } else {
-      final material = _material!;
-      if (material.afterEarlierRounds case final hold?) {
-        final held = progress.clamp(hold.min, hold.max);
-        _value = material.initialValue - material.maxRemoval * held;
-      }
-      _round++;
-      _remainingSeconds = polishDuration.inSeconds;
-      _strokes = 0;
-      _sample = null;
-      _grit = null;
-      _phase = GamePhase.voice;
+      _finishGame();
+      return;
     }
+    // Earlier rounds may hold the finish within a range (the medal's matte gold).
+    final material = _material!;
+    if (material.afterEarlierRounds case final hold?) {
+      final held = progress.clamp(hold.min, hold.max);
+      _value = material.initialValue - material.maxRemoval * held;
+    }
+    _stopClock();
+    _round++;
+    _remainingSeconds = polishDuration.inSeconds;
+    _strokes = 0;
+    _sample = null;
+    _grit = null;
+    _phase = GamePhase.voice;
+    notifyListeners();
+  }
+
+  void _finishGame() {
+    _stopClock();
+    _remainingSeconds = 0;
+    _phase = GamePhase.result;
+    _verdict = judge?.call(_material!, _value);
     notifyListeners();
   }
 

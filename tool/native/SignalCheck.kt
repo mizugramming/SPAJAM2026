@@ -26,7 +26,7 @@ fun main(args: Array<String>) {
         return
     }
     val random = Random(77)
-    fun analyse(signal: (Double) -> Double): VoiceMeasurement {
+    fun analyse(signal: (Double) -> Double): Double? {
         val pcm = ShortArray(VoiceAnalysis.sampleCount) { i ->
             signal(i / VoiceAnalysis.sampleRate.toDouble()).toInt().coerceIn(-32768, 32767).toShort()
         }
@@ -34,25 +34,25 @@ fun main(args: Array<String>) {
     }
     for (hz in listOf(85, 130, 190, 240, 350, 510)) {
         val voice = analyse { t -> 3500 * sin(2 * PI * hz * t) + 6800 * sin(4 * PI * hz * t) + random.nextInt(-240, 240) }
-        check(voice.hz != null && abs(voice.hz - hz) < 2.0)
-        println("input=$hz, result=${voice.hz}, level=${voice.level}")
+        check(voice != null && abs(voice - hz) < 2.0)
+        println("input=$hz, result=$voice")
     }
     fun tone(hz: Int) = analyse { t -> 8000 * sin(2 * PI * hz * t) }
     for (hz in listOf(65, 120, 190, 270, 600)) {
-        val measured = tone(hz).hz
+        val measured = tone(hz)
         check(measured != null && abs(measured - hz) < 0.1) { "input=$hz, result=$measured" }
     }
     // Reject the first period outside the monitor range, even when double it is inside.
     for (hz in listOf(50, 64, 601, 800, 1000)) {
         val measured = tone(hz)
-        check(measured.hz == null && measured.level > 0.15) { "input=$hz, result=$measured" }
+        check(measured == null) { "input=$hz, result=$measured" }
     }
-    check(analyse { 0.0 } == VoiceMeasurement(null, 0.0))
-    check(analyse { random.nextDouble(-7000.0, 7000.0) }.hz == null)
-    check(analyse { t -> 3800 * sin(2 * PI * (120 * t + 120 * t * t)) }.hz == null)
+    check(analyse { 0.0 } == null)
+    check(analyse { random.nextDouble(-7000.0, 7000.0) } == null)
+    check(analyse { t -> 3800 * sin(2 * PI * (120 * t + 120 * t * t)) } == null)
     val low = analyse { t -> 1200 * sin(2 * PI * 180 * t) }
     val loud = analyse { t -> 14000 * sin(2 * PI * 180 * t) }
-    check(low.level < loud.level && loud.level < 1.0)
+    check(low != null && loud != null && abs(low - 180) < 0.1 && abs(loud - 180) < 0.1)
 
     // 100 Hz accelerometer with gravity + 8 complete 3D reciprocations + short motor bursts.
     fun cycles(hand: Boolean, motor: Boolean): Int {

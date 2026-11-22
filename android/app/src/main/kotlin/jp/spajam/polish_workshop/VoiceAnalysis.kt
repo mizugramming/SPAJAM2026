@@ -1,13 +1,7 @@
 package jp.spajam.polish_workshop
 
 import kotlin.math.abs
-import kotlin.math.ln
-import kotlin.math.max
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
-
-/** A short-lived summary of mono PCM, analysed locally in 64 ms frames. */
-internal data class VoiceMeasurement(val hz: Double?, val level: Double)
 
 internal object VoiceAnalysis {
     const val sampleRate = 16_000
@@ -18,22 +12,18 @@ internal object VoiceAnalysis {
     private const val maxHz = 600
     private const val lastLag = (sampleRate + minHz - 1) / minHz + 3
 
-    fun measure(pcm: ShortArray): VoiceMeasurement {
-        var energy = 0.0
-        for (sample in pcm) energy += sample.toDouble() * sample
-        val rms = sqrt(energy / pcm.size.coerceAtLeast(1)) / 32768.0
-        val level = ((20 * ln(max(rms, 0.000001)) / ln(10.0) + 60) / 60).coerceIn(0.0, 1.0)
+    /** Stable fundamental frequency of mono PCM, analysed locally in 64 ms frames. */
+    fun measure(pcm: ShortArray): Double? {
         val pitches = mutableListOf<Double>()
         for (offset in 0..(pcm.size - frame) step window) {
             framePitch(pcm, offset)?.let { pitches.add(it) }
         }
         // Require sustained voicing and agreement, so silence or a pitch sweep can be retried.
-        if (pitches.size < 7) return VoiceMeasurement(null, level)
+        if (pitches.size < 7) return null
         pitches.sort()
         val median = pitches[pitches.size / 2]
         val stable = pitches.filter { abs(it - median) <= median * 0.09 }
-        val pitch = if (stable.size * 3 >= pitches.size * 2) stable.average() else null
-        return VoiceMeasurement(pitch, level)
+        return if (stable.size * 3 >= pitches.size * 2) stable.average() else null
     }
 
     private fun framePitch(pcm: ShortArray, offset: Int): Double? {

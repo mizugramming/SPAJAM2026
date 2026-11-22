@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'device/diagnostics.dart';
 import 'device/workshop_device.dart';
@@ -12,8 +11,9 @@ import 'game/game.dart';
 import 'ui/game_settings.dart';
 import 'ui/phrase_text.dart';
 import 'ui/workshop.dart';
+import 'ui/workshop_theme.dart' show shopInk, shopPaper, shopPlaqueStyle;
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
@@ -23,32 +23,15 @@ Future<void> main() async {
       'YujiSyuku',
     ], await rootBundle.loadString('assets/fonts/OFL-YujiSyuku.txt'));
   });
-  const key = 'strokesToGold';
-  final preferences = SharedPreferencesAsync();
-  int? savedCount;
-  try {
-    savedCount = await preferences.getInt(key);
-  } catch (error) {
-    debugPrint('研磨回数の設定を読み込めませんでした: $error');
-  }
-  runApp(
-    WorkshopApp(
-      initialStrokesToGold: savedCount ?? GameController.defaultStrokesToGold,
-      persistStrokesToGold: (value) => preferences.setInt(key, value),
-    ),
-  );
+  runApp(const WorkshopApp());
 }
 
 class WorkshopApp extends StatelessWidget {
   const WorkshopApp({
     super.key,
     this.simulated = kIsWeb || const bool.fromEnvironment('SIMULATE_INPUT'),
-    this.initialStrokesToGold = GameController.defaultStrokesToGold,
-    this.persistStrokesToGold,
   });
   final bool simulated;
-  final int initialStrokesToGold;
-  final Future<void> Function(int)? persistStrokesToGold;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -58,23 +41,13 @@ class WorkshopApp extends StatelessWidget {
     locale: const Locale('ja'),
     supportedLocales: const [Locale('ja')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    home: _Session(
-      simulated: simulated,
-      initialStrokesToGold: initialStrokesToGold,
-      persistStrokesToGold: persistStrokesToGold,
-    ),
+    home: _Session(simulated: simulated),
   );
 }
 
 class _Session extends StatefulWidget {
-  const _Session({
-    required this.simulated,
-    required this.initialStrokesToGold,
-    this.persistStrokesToGold,
-  });
+  const _Session({required this.simulated});
   final bool simulated;
-  final int initialStrokesToGold;
-  final Future<void> Function(int)? persistStrokesToGold;
 
   @override
   State<_Session> createState() => _SessionState();
@@ -103,7 +76,6 @@ class _SessionState extends State<_Session>
   @override
   void initState() {
     super.initState();
-    game.setStrokesToGold(widget.initialStrokesToGold);
     WidgetsBinding.instance.addObserver(this);
     game.addListener(_changed);
     _events = device.motionEvents.listen(
@@ -165,15 +137,10 @@ class _SessionState extends State<_Session>
       final sample = await device.capture(
         profile.demoHz(demoVoice),
         desk: true,
-        profile: profile,
       );
       if (!mounted || op != _operation) return;
-      final hz = sample.hz;
-      final mode = hz != null && hz.isFinite && hz > 0
-          ? VoiceMode.pitch
-          : VoiceMode.volume;
-      if (!game.acceptVoice(sample, mode)) {
-        _error = '音が小さいようです。\nもう一度、\n少し大きな声を\n出してください。';
+      if (!game.acceptVoice(sample)) {
+        _error = pitchRetryMessage;
       }
     } catch (e) {
       if (mounted && op == _operation) _error = deviceMessage(e);
@@ -282,8 +249,6 @@ class _SessionState extends State<_Session>
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (settingsContext) => GameSettingsPage(
-          strokesToGold: game.strokesToGold,
-          onSave: _saveStrokesToGold,
           onOpenDiagnostics: () => Navigator.of(settingsContext).push<void>(
             MaterialPageRoute(
               builder: (_) => DiagnosticsPage(
@@ -297,11 +262,6 @@ class _SessionState extends State<_Session>
       ),
     );
     _inLab = false;
-  }
-
-  Future<void> _saveStrokesToGold(int value) async {
-    await widget.persistStrokesToGold?.call(value);
-    if (mounted) game.setStrokesToGold(value);
   }
 
   @override
@@ -364,21 +324,42 @@ class _SessionState extends State<_Session>
     final exit = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: shopPaper,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(6)),
+          side: BorderSide(color: shopInk, width: 2),
+        ),
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         scrollable: true,
+        titleTextStyle: Theme.of(context).textTheme.headlineSmall?.copyWith(
+          color: shopInk,
+          fontWeight: FontWeight.w700,
+        ),
+        contentTextStyle: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: shopInk),
         title: const PhraseText('素材選びに\n戻りますか？'),
         content: const PhraseText('磨いた分は\nリセットされます。'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('続ける'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text('素材選びに戻る', softWrap: false),
-            ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 8,
+            children: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('続ける'),
+              ),
+              OutlinedButton(
+                style: shopPlaqueStyle(secondary: true),
+                onPressed: () => Navigator.pop(context, true),
+                child: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('素材選びに戻る', softWrap: false),
+                ),
+              ),
+            ],
           ),
         ],
       ),

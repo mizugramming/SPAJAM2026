@@ -2,32 +2,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:polish_workshop/game/game.dart';
 
 void main() {
-  const coarse = VoiceSample(100, .6);
-  const medium = VoiceSample(120, .6);
-  const fine = VoiceSample(150, .6);
+  const coarse = VoiceSample(100);
+  const medium = VoiceSample(120);
+  const fine = VoiceSample(150);
 
-  test('last-round gold polishing follows the selected stroke count', () {
+  test('all grits can finish gold during the last round at the fixed pace', () {
     final medal = materials.first;
     final floor = medal.finishAtLeast!;
-    for (final (target, coarseOrMedium, fine) in [
-      (5, 5, 4),
-      (22, 22, 16),
-      (60, 59, 42),
-    ]) {
-      for (final grit in Grit.values) {
-        var value = medal.initialValue - medal.maxRemoval * .60;
-        final strokes = grit == Grit.fine ? fine : coarseOrMedium;
-        for (var i = 0; i < strokes; i++) {
-          expect(medal.progressAt(value), lessThan(floor));
-          value = medal.valueAfterStroke(
-            value,
-            grit,
-            strokesToGold: target,
-            finalRound: true,
-          );
-        }
-        expect(medal.stageAt(medal.progressAt(value)).name, '金ピカのメダル');
+    for (final grit in Grit.values) {
+      var value = medal.initialValue - medal.maxRemoval * .60;
+      final strokes = grit == Grit.fine ? 35 : 49;
+      for (var i = 0; i < strokes; i++) {
+        expect(medal.progressAt(value), lessThan(floor));
+        value = medal.valueAfterStroke(value, grit, finalRound: true);
       }
+      expect(medal.stageAt(medal.progressAt(value)).name, '金ピカのメダル');
     }
   });
 
@@ -42,7 +31,7 @@ void main() {
         expect(game.rounds, material.id == 'medal' ? 2 : 3);
         for (var round = 1; round <= game.rounds; round++) {
           final last = round == game.rounds;
-          game.acceptVoice(coarse, VoiceMode.pitch);
+          game.acceptVoice(coarse);
           game.startPolishing();
           await tester.pump(const Duration(milliseconds: 8999));
           expect(game.phase, GamePhase.polishing);
@@ -73,8 +62,8 @@ void main() {
     'both voice ranges include their lower boundaries and preserve demo grits',
     () {
       for (final (profile, mediumFrom, fineFrom) in [
-        (VoiceProfile.male, 110.0, 135.0),
-        (VoiceProfile.female, 220.0, 270.0),
+        (VoiceProfile.low, 110.0, 135.0),
+        (VoiceProfile.high, 220.0, 270.0),
       ]) {
         for (final (hz, expected) in [
           (mediumFrom - .1, Grit.coarse),
@@ -82,73 +71,46 @@ void main() {
           (fineFrom - .1, Grit.medium),
           (fineFrom, Grit.fine),
         ]) {
-          expect(
-            classify(VoiceSample(hz, .6), VoiceMode.pitch, profile: profile),
-            expected,
-          );
+          expect(classify(VoiceSample(hz), profile: profile), expected);
         }
         for (final grit in Grit.values) {
           final hz = profile.demoHz(grit);
-          expect(
-            classify(VoiceSample(hz, .6), VoiceMode.pitch, profile: profile),
-            grit,
-          );
-        }
-        for (final (level, expected) in [
-          (.14, null),
-          (.15, Grit.coarse),
-          (.45, Grit.medium),
-          (.70, Grit.fine),
-        ]) {
-          expect(
-            classify(
-              VoiceSample(null, level),
-              VoiceMode.volume,
-              profile: profile,
-            ),
-            expected,
-          );
+          expect(classify(VoiceSample(hz), profile: profile), grit);
         }
         for (final invalid in [
-          const VoiceSample(null, .6),
-          const VoiceSample(double.nan, .6),
-          const VoiceSample(200, 0),
+          const VoiceSample(null),
+          const VoiceSample(double.nan),
+          const VoiceSample(64.9),
+          const VoiceSample(600.1),
         ]) {
-          expect(classify(invalid, VoiceMode.pitch, profile: profile), isNull);
+          expect(classify(invalid, profile: profile), isNull);
         }
       }
-      expect(classify(medium, VoiceMode.pitch), Grit.medium);
+      expect(classify(medium), Grit.medium);
       expect(
-        classify(
-          const VoiceSample(240, .6),
-          VoiceMode.pitch,
-          profile: VoiceProfile.female,
-        ),
+        classify(const VoiceSample(240), profile: VoiceProfile.high),
         Grit.medium,
       );
-      expect(classify(fine, VoiceMode.pitch), Grit.fine);
-      expect(
-        classify(fine, VoiceMode.pitch, profile: VoiceProfile.female),
-        Grit.coarse,
-      );
+      expect(classify(fine), Grit.fine);
+      expect(classify(fine, profile: VoiceProfile.high), Grit.coarse);
     },
   );
 
   test('a play keeps its selected voice profile and shows the original Hz', () {
     final game = GameController();
     addTearDown(game.dispose);
-    expect(game.voiceProfile, VoiceProfile.male);
-    game.setVoiceProfile(VoiceProfile.female);
+    expect(game.voiceProfile, VoiceProfile.low);
+    game.setVoiceProfile(VoiceProfile.high);
     game.select(materials.first);
-    game.setVoiceProfile(VoiceProfile.male);
-    expect(game.acceptVoice(medium, VoiceMode.pitch), isTrue);
+    game.setVoiceProfile(VoiceProfile.low);
+    expect(game.acceptVoice(medium), isTrue);
     expect(game.grit, Grit.coarse);
     expect(game.sample, same(medium));
     game.reset();
-    expect(game.voiceProfile, VoiceProfile.female);
-    game.setVoiceProfile(VoiceProfile.male);
+    expect(game.voiceProfile, VoiceProfile.high);
+    game.setVoiceProfile(VoiceProfile.low);
     game.select(materials.last);
-    game.acceptVoice(medium, VoiceMode.pitch);
+    game.acceptVoice(medium);
     expect(game.grit, Grit.medium);
   });
 
@@ -192,19 +154,19 @@ void main() {
   ) async {
     final game = GameController()..select(materials.first);
     addTearDown(game.dispose);
-    game.acceptVoice(coarse, VoiceMode.pitch);
+    game.acceptVoice(coarse);
     game.startPolishing();
-    for (var i = 1; i <= 22; i++) {
+    for (var i = 1; i <= 50; i++) {
       game.stroke();
-      if (i < 6) expect(game.stage.name, 'サビた銅メダル');
-      if (i >= 6 && i < 14) expect(game.stage.name, '銅メダル');
-      if (i >= 14 && i < 22) expect(game.stage.name, '銀メダル');
+      if (i < 12) expect(game.stage.name, 'サビた銅メダル');
+      if (i >= 12 && i < 30) expect(game.stage.name, '銅メダル');
+      if (i >= 30 && i < 50) expect(game.stage.name, '銀メダル');
     }
     expect(game.stage.name, '金メダル');
     expect(game.progress, .50);
     expect(game.finishingWithFine, isTrue);
     final earlyGold = materials.first.shineAt(game.progress);
-    for (var i = 0; i < 124; i++) {
+    for (var i = 0; i < 281; i++) {
       game.stroke();
     }
     expect(game.progress, .70);
@@ -213,14 +175,14 @@ void main() {
     expect(game.round, 2);
     expect(game.progress, .70);
     expect(game.stage.name, '金メダル');
-    game.acceptVoice(fine, VoiceMode.pitch);
+    game.acceptVoice(fine);
     game.startPolishing();
-    for (var i = 0; i < 20 && game.stage.name == '金メダル'; i++) {
+    for (var i = 0; i < 400 && game.stage.name == '金メダル'; i++) {
       game.stroke();
     }
     expect(game.stage.name, '金ピカのメダル');
     expect(game.finishingWithFine, isFalse);
-    for (var i = 0; i < 20 && game.progress < 1; i++) {
+    for (var i = 0; i < 400 && game.progress < 1; i++) {
       game.stroke();
     }
     expect(game.progress, 1.0);
@@ -230,93 +192,56 @@ void main() {
     expect(game.stage.name, '金ピカのメダル');
   });
 
-  test('steady polishing reveals gold and fine grit can finish it', () {
+  test('fine grit can finish gold after medium polishing', () {
     final medal = materials.first;
-    for (final (strokes, name, progress) in [
-      (16, '金メダル', .93181818),
-      (17, '金ピカのメダル', .97727273),
+    var value = medal.initialValue;
+    for (final (grit, count) in [
+      (Grit.coarse, 50),
+      (Grit.medium, 5),
+      (Grit.fine, 42),
     ]) {
-      var value = medal.initialValue;
-      for (final grit in Grit.values) {
-        for (var i = 0; i < strokes; i++) {
-          value = medal.valueAfterStroke(value, grit);
-        }
+      for (var i = 0; i < count; i++) {
+        value = medal.valueAfterStroke(value, grit);
       }
-      final actual = medal.progressAt(value);
-      expect(actual, closeTo(progress, 1e-7));
-      expect(medal.stageAt(actual).name, name);
     }
+    expect(medal.stageAt(medal.progressAt(value)).name, '金メダル');
+    value = medal.valueAfterStroke(value, Grit.fine);
+    expect(medal.stageAt(medal.progressAt(value)).name, '金ピカのメダル');
   });
 
-  test(
-    'every selectable target reaches gold on exactly the requested stroke',
-    () {
-      final medal = materials.first;
-      for (
-        var n = GameController.minStrokesToGold;
-        n <= GameController.maxStrokesToGold;
-        n++
-      ) {
-        var value = medal.initialValue;
-        for (var i = 0; i < n; i++) {
-          expect(
-            medal.progressAt(value),
-            lessThan(.5),
-            reason: 'target $n, stroke $i',
-          );
-          value = medal.valueAfterStroke(value, Grit.coarse, strokesToGold: n);
-        }
-        expect(
-          medal.stageAt(medal.progressAt(value)).name,
-          '金メダル',
-          reason: 'target $n',
-        );
-        expect(medal.progressAt(value), .5);
+  testWidgets('both materials use the fixed 50-stroke gold calibration', (
+    tester,
+  ) async {
+    final game = GameController();
+    addTearDown(game.dispose);
+    for (final material in materials) {
+      game.select(material);
+      game.acceptVoice(coarse);
+      game.startPolishing();
+      for (var i = 1; i <= 50; i++) {
+        game.stroke();
+        expect(game.progress, closeTo(i / 100, 1e-12));
       }
-    },
-  );
-
-  testWidgets(
-    'stroke setting scales both surfaces and stays fixed through a play',
-    (tester) async {
-      final game = GameController();
-      addTearDown(game.dispose);
-      expect(game.strokesToGold, 22);
-      game.setStrokesToGold(4);
-      game.setStrokesToGold(61);
-      expect(game.strokesToGold, 22);
-      game.setStrokesToGold(10);
-      for (final material in materials) {
-        game.select(material);
-        game.setStrokesToGold(60);
-        game.acceptVoice(coarse, VoiceMode.pitch);
-        game.startPolishing();
-        for (var i = 0; i < 10; i++) {
-          game.stroke();
-        }
-        expect(game.progress, .5);
+      await tester.pump(GameController.polishDuration);
+      game.acceptVoice(fine);
+      game.startPolishing();
+      game.stroke();
+      if (material.id == 'medal') {
+        // The medal's second round is its last: polishing moves past gold.
+        expect(game.progress, greaterThan(.5));
+      } else {
+        final expected = .5 + .01 * 1.25 / 3.5;
+        expect(game.progress, closeTo(expected, 1e-12));
         await tester.pump(GameController.polishDuration);
-        game.acceptVoice(fine, VoiceMode.pitch);
+        game.acceptVoice(coarse);
         game.startPolishing();
         game.stroke();
-        if (material.id == 'medal') {
-          // The medal's second round is its last: polishing moves past gold.
-          expect(game.progress, greaterThan(.5));
-        } else {
-          final expected = .5 + .05 * 1.25 / 3.5;
-          expect(game.progress, closeTo(expected, 1e-12));
-          await tester.pump(GameController.polishDuration);
-          game.acceptVoice(coarse, VoiceMode.pitch);
-          game.startPolishing();
-          game.stroke();
-          expect(game.progress, closeTo(expected + .05, 1e-12));
-        }
-        game.reset();
-        expect(game.strokesToGold, 10);
-        expect(game.totalStrokes, 0);
+        expect(game.progress, closeTo(expected + .01, 1e-12));
       }
-    },
-  );
+      game.reset();
+      expect(game.totalStrokes, 0);
+    }
+  });
 
   for (final material in materials) {
     testWidgets(
@@ -332,12 +257,9 @@ void main() {
           expect(game.phase, GamePhase.voice);
           expect(game.stroke(), isNull);
           await tester.pump(const Duration(seconds: 12));
-          expect(
-            game.acceptVoice(const VoiceSample(null, 0.5), VoiceMode.pitch),
-            isFalse,
-          );
-          expect(game.acceptVoice(voices[i], VoiceMode.pitch), isTrue);
-          expect(game.acceptVoice(coarse, VoiceMode.pitch), isFalse);
+          expect(game.acceptVoice(const VoiceSample(null)), isFalse);
+          expect(game.acceptVoice(voices[i]), isTrue);
+          expect(game.acceptVoice(coarse), isFalse);
           expect(game.phase, GamePhase.ready);
           await tester.pump(const Duration(seconds: 12));
           game.startPolishing();
@@ -403,7 +325,7 @@ void main() {
     (tester) async {
       final game = GameController()..select(materials.first);
       addTearDown(game.dispose);
-      game.acceptVoice(coarse, VoiceMode.pitch);
+      game.acceptVoice(coarse);
       game.startPolishing();
       await tester.pump(const Duration(milliseconds: 2500));
       game.setPaused(true);
@@ -446,9 +368,9 @@ void main() {
     )..select(target);
     addTearDown(game.dispose);
     for (var round = 0; round < 3; round++) {
-      game.acceptVoice(round == 2 ? fine : coarse, VoiceMode.pitch);
+      game.acceptVoice(round == 2 ? fine : coarse);
       game.startPolishing();
-      for (var motion = 0; motion < 5; motion++) {
+      for (var motion = 0; motion < 6; motion++) {
         game.stroke();
       }
       await tester.pump(const Duration(seconds: 10));
@@ -457,7 +379,7 @@ void main() {
     expect(game.progress, 1.0);
     expect(game.stage, target.stages.last);
     expect(game.verdict, '目標に到達');
-    expect(game.totalStrokes, 15);
+    expect(game.totalStrokes, 18);
     await tester.pump(const Duration(seconds: 10));
     expect(calls, 1);
   });
