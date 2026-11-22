@@ -22,7 +22,7 @@ class DiagnosticsPage extends StatefulWidget {
   const DiagnosticsPage({
     super.key,
     required this.device,
-    this.profile = VoiceProfile.male,
+    this.profile = VoiceProfile.low,
     this.onProfileChanged,
   });
   final WorkshopDevice device;
@@ -34,7 +34,6 @@ class DiagnosticsPage extends StatefulWidget {
 
 class _DiagnosticsPageState extends State<DiagnosticsPage>
     with WidgetsBindingObserver {
-  VoiceMode _mode = VoiceMode.pitch;
   late VoiceProfile _profile = widget.profile;
   VoiceSample? _sample;
   Grit _grit = Grit.medium;
@@ -59,16 +58,15 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
 
   Grit? get _measuredGrit {
     final sample = _sample;
-    return sample == null ? null : classify(sample, _mode, profile: _profile);
+    return sample == null ? null : classify(sample, profile: _profile);
   }
 
-  void _selectVoice({VoiceMode? mode, VoiceProfile? profile}) {
+  void _selectVoice(VoiceProfile profile) {
     setState(() {
-      _mode = mode ?? _mode;
-      _profile = profile ?? _profile;
+      _profile = profile;
       _grit = _measuredGrit ?? _grit;
     });
-    if (profile != null) widget.onProfileChanged?.call(profile);
+    widget.onProfileChanged?.call(profile);
   }
 
   @override
@@ -105,10 +103,7 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
       _sample = null;
     });
     try {
-      final sample = await device.capture(
-        _profile.demoHz(Grit.medium),
-        profile: _profile,
-      );
+      final sample = await device.capture(_profile.demoHz(Grit.medium));
       if (!mounted || id != _trialId) return;
       _sample = sample;
       _grit = _measuredGrit ?? _grit;
@@ -238,44 +233,25 @@ class _DiagnosticsPageState extends State<DiagnosticsPage>
             Wrap(
               spacing: 6,
               children: [
-                for (final mode in VoiceMode.values)
+                for (final profile in VoiceProfile.values)
                   ChoiceChip(
-                    label: Text(mode == VoiceMode.pitch ? '声の高さで判定' : '音量で判定'),
-                    selected: _mode == mode,
-                    onSelected: _locked
-                        ? null
-                        : (_) => _selectVoice(mode: mode),
+                    label: Text(profile.label),
+                    selected: _profile == profile,
+                    onSelected: _locked ? null : (_) => _selectVoice(profile),
                   ),
               ],
             ),
-            if (_mode == VoiceMode.pitch)
-              Wrap(
-                spacing: 6,
-                children: [
-                  for (final profile in VoiceProfile.values)
-                    ChoiceChip(
-                      label: Text(profile.label),
-                      selected: _profile == profile,
-                      onSelected: _locked
-                          ? null
-                          : (_) => _selectVoice(profile: profile),
-                    ),
-                ],
-              ),
             OutlinedButton(
               onPressed: _locked ? null : _capture,
               child: Text(_busy ? '計測中…' : '声を取る'),
             ),
             _Readings([
               '高さ ${sample?.hz == null ? '未判定' : '${sample!.hz!.toStringAsFixed(1)} Hz'}',
-              '音量 ${sample == null ? '—' : '${(sample.level * 100).round()}%'}',
               'やすり ${measured?.label ?? '—'}',
             ]),
             if (sample != null && measured == null)
               PhraseText(
-                classify(sample, VoiceMode.volume) != null
-                    ? '声の高さを判定できませんでした。\n音量で判定するか、\n声を取り直してください。'
-                    : '声を判定できませんでした。\nもう一度、声を出してください。',
+                pitchRetryMessage,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             const Divider(height: 32),

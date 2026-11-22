@@ -36,6 +36,7 @@ flutter:
     - assets/fonts/kinpika.jpg
     - assets/images/yansu_title.png
     - assets/images/workshop_room.webp
+    - assets/images/workshop_counter.webp
     - assets/images/workshop_curtain.webp
     - assets/images/workshop_jacket.webp
     - assets/images/workshop_brush.webp
@@ -46,6 +47,7 @@ flutter:
     - assets/images/copper_medal_spin.webp
     - assets/images/kanji-silver.png
     - assets/images/kanji-silver-polished-aligned.png
+    - assets/images/kanji-break.webp
     - assets/images/character-02.png
     - assets/images/character-04.png
     - assets/images/character-05.png
@@ -56,6 +58,32 @@ flutter:
     - assets/images/kanji-rank-3.png
     - assets/images/kanji-rank-4.png
     - assets/images/kanji-rank-5.png
+    - assets/images/kanji-crack-2-before.webp
+    - assets/images/kanji-crack-3-before.webp
+    - assets/images/kanji-crack-4-before.webp
+    - assets/images/kanji-crack-5-before.webp
+    - assets/images/kanji-crack-2-left.webp
+    - assets/images/kanji-crack-2-right.webp
+    - assets/images/kanji-crack-2-after.webp
+    - assets/images/kanji-crack-3-left.webp
+    - assets/images/kanji-crack-3-right.webp
+    - assets/images/kanji-crack-3-after.webp
+    - assets/images/kanji-crack-4-left.webp
+    - assets/images/kanji-crack-4-right.webp
+    - assets/images/kanji-crack-4-after.webp
+    - assets/images/kanji-crack-5-left.webp
+    - assets/images/kanji-crack-5-right.webp
+    - assets/images/kanji-crack-5-after.webp
+    - assets/images/character-success-1.webp
+    - assets/images/character-success-2.webp
+    - assets/images/character-success-3.webp
+    - assets/images/character-success-4.webp
+    - assets/images/character-success-5.webp
+    - assets/images/workshop-title-01.png
+    - assets/images/workshop-title-02.png
+    - assets/images/workshop-title-03.png
+    - assets/images/workshop-title-04.png
+    - assets/images/workshop-title-05.png
     - assets/images/overpolished-01.png
     - assets/images/overpolished-02.png
     - assets/images/overpolished-03.png

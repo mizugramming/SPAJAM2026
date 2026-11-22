@@ -17,13 +17,18 @@
 | `assets/fonts/kinpika.jpg` | 仕上げたメダル上部の箔をスクラッチした跡から見える「最優秀賞」入りの絵 |
 | `assets/images/kanji-silver.png` | 漢磨きの素材選択・採音・研磨で出す銀の立体文字「漢」（くすんだ絵、透過PNG）。2026-11-22にチームが用意した「透明背景の銀色立体漢字「漢」-1.png」を英字名に変更 |
 | `assets/images/kanji-silver-polished.png` | 同じ文字の磨き上がった絵。同日の「透明背景の銀色立体漢字 漢-2.png」を英字名に変更。元の絵（未登録）。文字の位置と大きさが `kanji-silver.png` と少しずれていたため、そろえた `kanji-silver-polished-aligned.png` を研磨の割合だけ上に重ねて、磨くほどこの絵になる |
-| `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png`、`overpolished-01〜05.png` | 漢磨きの仕上がりのキャラクター（合計点と成否の表は app_design.md）。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
+| `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png`、`overpolished-01〜05.png` | 動きを減らす設定で成功時に使う静止キャラクター（合計点と対応は app_design.md）。overpolished系は以前の失敗用素材。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
 | `assets/images/kanji-rank-1〜5.png` | 漢磨きの結果画面の段位の「漢」（1漢は赤、2漢は金など段位ごとの色）。2026-11-22にチームから受け取った「１漢.jpg」〜「５漢.jpg」の白背景を透明にしたもの |
+| `assets/images/kanji-break.webp` | 削りすぎた時点のやすりの合計が9点なら、この5コマで割れる。チーム提供の「漢-黄色-割れ.png」の赤い破片と既存の1漢を使った透過5コマ（1コマ384×384）。上限を超えるとひびが伸び、破片が離れて止まる。[同じ5コマの動画](media/kanji-break.mp4) |
+| `assets/images/kanji-crack-2〜5-before.webp`、`kanji-crack-2〜5-after.webp`、`kanji-crack-2〜5-left/right.webp` | 削りすぎ（失敗）のときに段位の「漢」が割れるコマ送り。2026-11-22にチームから受け取った「N漢割れ前.jpg」「N漢割.jpg」の白背景を透明にし、割れる前の絵をひびの左右に切り分けた。配信用の4コマは透過と原寸を保った可逆WebP。1漢は上記の5コマを使用 |
+| `assets/images/character-success-1〜5.webp` | 漢磨きの成功時のキャラクター（動くWebP、12コマ/秒のループ）。2026-11-22にチームから受け取った「１.mp4」〜「５.mp4」から、枠につながる明るい背景を透明にして変換。動画再生のパッケージは追加していない |
+| `assets/images/workshop-title-01〜05.png` | 漢磨きの結果画面の称号（01 九州男児、02 醤油顔、03 ムキムキ、04 塩顔、05 韓国系、透過PNG）。2026-11-22にチームから受け取った |
 | `assets/images/kanji-rock.png` | 灰色の岩（透過PNG）。素材選択の漢の絵に一時使ったが、今は未使用・未登録 |
 | `assets/images/copper_medal_spin.webp` | 素材選択から採音画面へ移る緑青付き銅メダル。2026-11-22に提供された「緑青の銅メダル_立体回転_高精細_透過.mov」の正面から1回転（1.75秒）を24コマに抜き出した。各コマ320 px四方、6列×4行の透過WebP（1920×1280 px、約529 KiB）。 |
-| `assets/images/workshop_room.webp` | 磨き屋の下地（852 × 1846）。奥に暗い壁、手前に奥行きのある木の天板を描いた。 |
-| `assets/images/workshop_curtain.webp` | 朱と藍の波柄のれん。吊り輪の周囲と裾の隙間を透過。 |
-| `assets/images/workshop_brush.webp` | 右柱の鋲から革ひもで吊るした磨き刷毛（249 × 512、透過）。鋲を支点に、毛先の影を画面描画で右へ落とす。 |
+| `assets/images/workshop_room.webp` | 「磨かれ屋」の奥の店内（852 × 1846）。灰褐色の漆喰壁、左の二段棚、右の木柱、足元の床を描いた。本とダンベルは別素材で棚板に載せる。 |
+| `assets/images/workshop_counter.webp` | ヤンスの手前に重ねる接客カウンター（852 × 542）。天板の奥縁を画面いっぱいに通し、短パンの上端だけを見せる。上端だけを透過し、前板を画面下まで描いた。 |
+| `assets/images/workshop_curtain.webp` | 「磨かれ屋」と染め抜いた柿朱・藍の波柄のれん（1080 × 322）。吊り輪の周囲と裾の隙間を透過。 |
+| `assets/images/workshop_brush.webp` | 天板に横たえた磨き刷毛（512 × 187、透過）。毛先を手前に向け、革ひもが天板の上でたるむ。 |
 | `assets/images/workshop_jacket.webp` | 参考画の右端の人物と同じ、袖を折った藍色のデニムジャケット。ハンガーのフックを右柱に掛ける。 |
 | `assets/images/workshop_cloth.webp` | ワックスの下に敷く藍布。折り返しと生成りの縫い目がある。 |
 | `assets/images/workshop_books.webp` | 赤茶と苔色の布張りの本を2冊重ね、朱のしおりを挟んだ。 |
@@ -34,7 +39,7 @@
 
 2026-11-22にチームから受け取った未使用の画像も同じ場所に置いている（出典の詳細は未記録）。`assets/fonts/kagami.jpg`（磨きすぎ用）、`assets/images/yansu.jpg` と `assets/images/shards/yansu.jpg` は未使用。アプリには使用中の画像だけを個別に登録する。
 
-工房の8枚は2026-11-22にユーザー提供のキャラクター画を参照して、本アプリ用に内蔵ImageGenで制作した。小物はそれぞれ背景を透過し、ヤンスの墨の輪郭、紙の粒、つやを抑えた色面に合わせた。位置と表示寸法は `lib/ui/workshop_layout.dart` に画面ごとに保存する。[最初の背景案](images/workshop-concept.webp)
+店と小物の9枚は2026-11-22にユーザー提供のキャラクター画を参照して、本アプリ用に内蔵ImageGenで制作した。今回の生成指定は「中央が空いた昭和の商店、左の小さな二段棚」「画面の端まで続く木の接客台」「二枚目の朱の布に『磨かれ屋』」「天板に毛先を手前にして寝かせた刷毛」。各素材はヤンスの墨の輪郭、紙の粒、つやを抑えた色面に合わせた。位置と表示寸法は `lib/ui/workshop_layout.dart` に画面ごとに保存する。[最初の背景案](images/workshop-concept.webp)
 
 `assets/images/kanji_bronze.png` は「漢磨き」用の画像案（透過PNG、1254 × 1254）。2026-11-22にユーザーが提供した岩肌の「漢」をもとに、同梱のYuji Syukuの字形と銅メダルの質感を参照し、ImageGenで古銅色の地金と磨かれた稜線を表現した。ゲーム画面への組み込みは未実施。
 

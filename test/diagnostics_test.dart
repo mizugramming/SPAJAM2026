@@ -27,30 +27,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 450));
     expect(find.text('高さ 120.0 Hz'), findsOneWidget);
     expect(find.text('やすり 中目'), findsOneWidget);
-    await press('女性用');
-    expect(changed, [VoiceProfile.female]);
+    await press('声が高い人');
+    expect(changed, [VoiceProfile.high]);
     expect(find.text('高さ 120.0 Hz'), findsOneWidget);
     expect(find.text('やすり 粗目'), findsOneWidget);
     await press('声を取る');
     await tester.pump(const Duration(milliseconds: 450));
     expect(find.text('高さ 240.0 Hz'), findsOneWidget);
     expect(find.text('やすり 中目'), findsOneWidget);
-    await press('男性用');
+    await press('声が低い人');
     expect(find.text('やすり 細目'), findsOneWidget);
-    await press('音量で判定');
-    expect(find.text('音量 55%'), findsOneWidget);
-    expect(find.text('やすり 中目'), findsOneWidget);
+    expect(find.textContaining('音量'), findsNothing);
   });
 
   testWidgets(
-    'volume clears the pitch warning while keeping a motion sensor error',
+    'an unstable pitch can be retried and never selects a grit by loudness',
     (tester) async {
       const commands = MethodChannel('polish/device');
       const events = MethodChannel('polish/strokes');
       final messenger = tester.binding.defaultBinaryMessenger;
       messenger.setMockMethodCallHandler(events, (_) async => null);
+      var captures = 0;
       messenger.setMockMethodCallHandler(commands, (call) async {
-        if (call.method == 'capture') return {'hz': null, 'level': .55};
+        if (call.method == 'capture') {
+          return ++captures == 1 ? {'hz': null, 'level': .99} : {'hz': 120};
+        }
         if (call.method == 'startMotion') {
           throw PlatformException(code: 'sensor');
         }
@@ -80,12 +81,10 @@ void main() {
       expect(find.text('やすり —'), findsOneWidget);
       await press('計測を開始');
       expect(motionError, findsOneWidget);
-      await press('音量で判定');
+      expect(find.textContaining('音量'), findsNothing);
+      await press('声を取る');
       expect(find.text('やすり 中目'), findsOneWidget);
       expect(pitchWarning, findsNothing);
-      expect(motionError, findsOneWidget);
-      await press('声の高さで判定');
-      expect(pitchWarning, findsOneWidget);
     },
   );
 

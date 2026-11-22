@@ -22,7 +22,7 @@ Color sandpaperColorFor(double? hz) {
 
 String sandpaperStampFor(VoiceSample sample) {
   if (_hasPitch(sample.hz)) return '${sample.hz!.round()} Hz';
-  return '音量 ${(sample.level * 100).round()}%';
+  return '未判定';
 }
 
 class SandpaperFace extends StatelessWidget {
