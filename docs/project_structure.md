@@ -4,7 +4,7 @@
 |---|---|---|
 | 共通・組み込み | `lib/main.dart` | セッション、入力モード、端末ライフサイクル。WorkshopActionsを実装し、画面からの操作をゲームと端末へ接続 |
 | 共通・ルール | `lib/game/game.dart` | 素材カタログ、やすり、声の分類、研磨量、時計、振動指令、採点 |
-| UI | `lib/ui/workshop.dart`, `workshop_theme.dart`, `surface_art.dart`, `medal_flight.dart`, `sandpaper.dart` | 段階ごとの画面・共通部品・素材の表面・銅メダルの回転遷移・声で決まる紙やすり。Workshopはgameを読み、actionsへ操作を返す |
+| UI | `lib/ui/workshop.dart`, `workshop_theme.dart`, `surface_art.dart`, `material_flight.dart`, `sandpaper.dart` | 段階ごとの画面・共通部品・素材の表面・漢・銅メダルの選択時の遷移・声で決まる紙やすり。Workshopはgameを読み、actionsへ操作を返す |
 | 端末 | `lib/device_main.dart`, `lib/device/workshop_device.dart`, `lib/device/diagnostics.dart` | 計測専用入口、実機／疑似入力、4条件・振動の比較 |
 | 端末 | `android/app/src/main/kotlin/jp/spajam/polish_workshop/` | MainActivityがマイク・加速度・振動を橋渡し。VoiceAnalysisは音高、DeskMotionは作業面に沿う手の動き、DeskHapticsは質感の時間パターンを担当 |
 | 共通・検証 | `test/`, `tool/native/` | 状態と時間境界、入力から再挑戦までのUI、声・接触・往復・振動パターンの回帰確認 |
@@ -13,7 +13,7 @@
 
 `GameController`（ChangeNotifier）が `phase`, `material`, `round`（1始まり）, `remainingSeconds`, `strokes`（当回）, `totalStrokes`, `value`, `progress`, `stage` を持つ。採音前の `sample` と `grit`、未採点の `verdict` はnull。3回目の期限で結果を一度確定する。ゲーム時刻は単調時計、アクティブな研磨時間は各10秒。期限後に届いた往復は無効。
 
-`VoiceProfile` は声域ごとの音高境界と疑似入力のHzを持つ。素材選択で変更でき、`GameController.voiceProfile` を本編と計測画面で共有する。同じ起動中は再挑戦にも引き継ぐ。音量の境界は両モード共通で、紙の印字と色には実測のHzを使う。[判定値・根拠・実機での確認方法](device_trials.md#声を測る)
+`VoiceProfile` は声域ごとの音高境界と疑似入力のHzを持つ。素材選択で変更でき、`GameController.voiceProfile` を本編と計測画面で共有する。同じ起動中は再挑戦にも引き継ぐ。紙の印字と色には実測のHzを使う。高さを特定できなかった採音ではやすりを生成しない。[判定値・根拠・実機での確認方法](device_trials.md#声を測る)
 
 素材値は残量で、初期2素材は100から0。設定 `strokesToGold` は粗目でメダルが金になるまでの往復数（5〜60、標準22）。選択した回数でメダルの金の境界（50%）にちょうど届くよう、全素材・全やすりの1往復分の削り量に同じ倍率を掛ける。やすり同士の比率は通常が粗3.5：中2.25：細1.25、金以降は粗0.25：中1.5：細3.5。金以降の通常の上限は粗70%・中85%・細100%。段階・色・汚れ・ツヤ・振動には同じ正規化進捗を使う。最終ラウンドではメダルの金以降をどのやすりでも95%まで磨ける。3回目の期限にメダルの結果値を最低95%で確定する。表示用の `surfaceProgress` は終了直前の実研磨率を引き継ぎ、95%に足りない部分を指で磨いてから上部の箔を削る。全員がスクラッチまで進める。漢は3回のやすりの履歴と実際の仕上がりで段位とキャラクターを選ぶ。
 
@@ -31,11 +31,11 @@
 
 1. `lib/game/game.dart` の `materials` に一意なidの `WorkMaterial` を加える。名前、任意の紹介文、初期値、削れる最大量、任意の目標残量 `targetValue` を設定する。メダル形は既定、刻字板は `glyph: '漢'` のように字を渡す。
 2. `stages` は0から始まる昇順の進捗境界。各 `FinishStage` に名前、色、汚れ量、光沢（各0〜1）を設定する。名前は境界に達したときに変え、色・汚れ・光沢は隣り合う境界を補間する。メダルの境界は0/12/30/50/95%、漢は0/38/80%。段階ごとに `polishing` を指定すると、その段階での目ごとの削り量と到達できる進捗を変更できる。選択・3ラウンド・結果はカタログから共通の流れに載る。新しい形・演出はUI担当が表面描画に追加する。
-3. 目標と採点が決まったら `FinishJudge`（素材と確定残量→任意の判定文）を `GameController(judge: ...)` に渡す。呼び出し元は `lib/main.dart`。目標なしはnullを返せる。削り量や段階名の関数を変えずに採点を差し替えられる。
+3. 目標と採点が決まったら `FinishJudge`（素材と確定残量→任意の判定文）を `GameController(judge: ...)` に渡す。呼び出し元は `lib/main.dart`。目標なしはnullを返せる。漢は `WorkMaterial.finishAt(value)` の3区分を研磨中と結果で共有する。`initialValue: 100`、`targetValue: 10`、`targetTolerance: 10` で残量10〜20が成功。残量20超は磨き不足、10未満ではひびが入り、最終コマを保持する。削り量や段階名の関数を変えずに採点を差し替えられる。
 
 ## 端末との契約
 
-`polish/device`（MethodChannel）の `capture` は約1.2秒で `{hz: double?, level: double}` を返す。levelはPCM全体のRMSを−60〜0 dBFSから0〜1へ正規化。ゲーム側の `classify` が実機と疑似入力に共通の境界を適用する。安定したHzがない場合はnull。採音失敗・拒否は素材値を保持し再操作できる。
+`polish/device`（MethodChannel）の `capture` は約1.2秒で `{hz: double?}` を返す。ゲーム側の `classify` が実機と疑似入力に共通の境界を適用する。安定したHzがない場合はnull。採音失敗・拒否は素材値を保持し再操作できる。
 
 本編の `capture(desk: true)` は採音中だけ机に置いた端末の静止時のデータを集める。安定した区間が得られなくても採音は有効で、研磨開始時の姿勢から判定できる。
 

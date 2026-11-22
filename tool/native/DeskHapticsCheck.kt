@@ -121,7 +121,7 @@ fun main(args: Array<String>) {
         return wave
     }
     fun onMs(wave: DeskFeedback) = wave.timings.filterIndexed { i, _ -> i % 2 == 1 }.sum()
-    val profiles = listOf("coarse" to 65, "medium" to 45, "fine" to 28)
+    val profiles = listOf("coarse" to 78, "medium" to 59, "fine" to 46)
     val slow = profiles.map { (grit, length) -> packet(grit, .1, length, 1200, .6) }
     val fast = profiles.map { (grit, length) -> packet(grit, .1, length, 370, 1.9) }
     for (wave in fast) check(wave.durationMs in 50..80)
@@ -134,7 +134,7 @@ fun main(args: Array<String>) {
         "Abrupt waveform duration as speed increases at constant cadence: $midSpeeds"
     }
     for ((index, profile) in profiles.withIndex()) {
-        val polished = packet(profile.first, .9, (profile.second * .58).toInt(), 370, 1.9)
+        val polished = packet(profile.first, .9, (profile.second * (1 - .35 * .9)).roundToInt(), 370, 1.9)
         check(onMs(polished) < onMs(fast[index]))
     }
 
@@ -149,12 +149,16 @@ fun main(args: Array<String>) {
     check(returnWave.timings[1] >= 180 && returnWave.durationMs >= 300)
     check(asymmetric.sample(ns(300), returning(.38, -.05)) == null)
     check(asymmetric.sample(ns(420), returning(.10, -.8)) === DeskFeedback.stop)
-    val fineReturn = packet("fine", .9, 14, 1400, .48)
+    // The registered REDMI ignores amplitude. Even late fine-grit glides need
+    // appreciable motor-on time inside a compact packet, including a real gap.
+    val fineFastFinish = packet("fine", 1.0, 30, 370, 1.9)
+    check(onMs(fineFastFinish) >= 32 && fineFastFinish.timings.size >= 4)
+    val fineReturn = packet("fine", .9, 32, 1400, .48)
     check(fineReturn.timings[1] >= 45 && fineReturn.timings.size >= 4)
 
     val longSlides = profiles.map { (grit, ms) -> packet(grit, .1, ms, 3200, .18, steadyPlane = true) }
     for ((i, profile) in profiles.withIndex()) {
-        val polished = packet(profile.first, .9, (profile.second * .58).toInt(), 3200, .18, steadyPlane = true)
+        val polished = packet(profile.first, .9, (profile.second * (1 - .35 * .9)).roundToInt(), 3200, .18, steadyPlane = true)
         check(onMs(polished) < onMs(longSlides[i]))
         check(longSlides[i].durationMs > packet(profile.first, .1, profile.second, 1600, .18, true).durationMs)
     }

@@ -5,9 +5,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../game/game.dart';
+import 'kanji_break.dart';
 import 'layout_tuner.dart';
 import 'medal_finish.dart';
-import 'medal_flight.dart';
+import 'material_flight.dart';
 import 'medal_scratch.dart';
 import 'phrase_text.dart';
 import 'round_introduction.dart';
@@ -125,17 +126,17 @@ class Workshop extends StatelessWidget {
               unawaited(precacheImage(provider, context));
             }
           }
+          if (material.id == 'kanji') {
+            unawaited(precacheImage(KanjiBreak.atlas, context));
+          }
           actions.choose(material);
         },
       ),
       Screen.voice => RoundIntroduction(
         key: ValueKey((game.material!.id, game.round)),
         round: game.round,
-        arrival:
-            game.round == 1 &&
-                game.material!.id == 'medal' &&
-                !MediaQuery.disableAnimationsOf(context)
-            ? medalLandingDuration
+        arrival: game.round == 1 && !MediaQuery.disableAnimationsOf(context)
+            ? materialLandingDuration
             : Duration.zero,
         builder: (arrival, intro) =>
             _playStage(context, screen, arrival: arrival, intro: intro),
@@ -177,7 +178,8 @@ class Workshop extends StatelessWidget {
                   child: face,
                   builder: (context, child) => arrival.value == 1
                       ? child!
-                      : MedalFlight(
+                      : MaterialFlight(
+                          materialId: game.material!.id,
                           progress: arrival.value,
                           entering: true,
                           distanceToTop: bounds.bottom,
@@ -220,6 +222,7 @@ class Workshop extends StatelessWidget {
   );
 
   List<Part> _controls(BuildContext context) {
+    final kanjiFinish = game.material?.id == 'kanji' ? game.targetFinish : null;
     final errorText = error;
     final errorPart = Part(
       'error',
@@ -344,13 +347,36 @@ class Workshop extends StatelessWidget {
           Part(
             'timer',
             '残り時間',
-            Text(
-              '残り ${game.remainingSeconds} 秒',
-              style: const TextStyle(
-                fontSize: 23,
-                fontWeight: FontWeight.w800,
-                color: ember,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (kanjiFinish case final finish?) ...[
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      switch (finish) {
+                        TargetFinish.under => '光ったら止めよう',
+                        TargetFinish.onTarget => '今、手を止めて！',
+                        TargetFinish.over => '削りすぎ！',
+                      },
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: chalk,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                ],
+                Text(
+                  '残り ${game.remainingSeconds} 秒',
+                  style: const TextStyle(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                    color: ember,
+                  ),
+                ),
+              ],
             ),
             singleLine: true,
           ),
@@ -386,7 +412,7 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.result:
         return [
-          if (game.material!.id == 'kanji')
+          if (kanjiFinish == TargetFinish.onTarget)
             Part(
               'rank',
               '段位（何漢）',
@@ -397,7 +423,11 @@ class Workshop extends StatelessWidget {
             Part(
               'title',
               '見出し',
-              _Title(game.material!.stageAt(game.surfaceProgress).name),
+              _Title(switch (kanjiFinish) {
+                TargetFinish.under => '磨き不足',
+                TargetFinish.over => '削りすぎ',
+                _ => game.material!.stageAt(game.surfaceProgress).name,
+              }),
               singleLine: true,
             ),
           if (game.verdict case final verdict?)
@@ -1256,12 +1286,14 @@ class _SelectStageState extends State<_SelectStage>
     super.initState();
     _departure = AnimationController(
       vsync: this,
-      duration: medalDepartureDuration,
+      duration: materialDepartureDuration,
     );
     final saved = PageStorage.maybeOf(
       context,
     )?.readState(context, identifier: _pageId);
-    _index = saved is int ? saved % materials.length : 0;
+    _index = saved is int
+        ? saved % materials.length
+        : materials.indexWhere((m) => m.id == 'kanji');
     _pages = PageController(
       initialPage: _loopBase + _index,
       viewportFraction: .76,
@@ -1305,7 +1337,7 @@ class _SelectStageState extends State<_SelectStage>
 
   Future<void> _choose(WorkMaterial material) async {
     if (_departing) return;
-    if (material.id == 'medal' && !MediaQuery.disableAnimationsOf(context)) {
+    if (!MediaQuery.disableAnimationsOf(context)) {
       // Only the centered page departs, even when confirmation interrupts a swipe.
       _pages.jumpToPage(_page);
       setState(() => _departing = true);
@@ -1339,7 +1371,8 @@ class _SelectStageState extends State<_SelectStage>
                 child: AnimatedBuilder(
                   animation: _departure,
                   child: _MaterialArt(material: materials[_index]),
-                  builder: (context, face) => MedalFlight(
+                  builder: (context, face) => MaterialFlight(
+                    materialId: materials[_index].id,
                     progress: _departure.value,
                     entering: false,
                     distanceToTop: top + bounds.height / 2 + diameter / 2,
@@ -1601,11 +1634,6 @@ int gritPoints(Grit grit) => switch (grit) {
   Grit.fine => 1,
 };
 
-/// 漢磨きの成否。成功の範囲はもう一人の担当が決める。決まるまでの仮の決まりとして、
-/// 最後の段階（光沢を帯びた漢）まで磨けたら成功にしている。範囲が決まったらここだけ書き換える。
-bool kanjiSucceeded(GameController game) =>
-    game.stage == game.material!.stages.last;
-
 /// 3回のやすりの合計点。
 int kanjiPoints(GameController game) =>
     game.grits.fold(0, (sum, grit) => sum + gritPoints(grit));
@@ -1651,17 +1679,14 @@ class _KanjiRank extends StatelessWidget {
   }
 }
 
-/// 漢磨きの仕上がりに出すキャラクター。3回のやすりの合計点と成否で決まる。
-String kanjiResultImage(int points, {required bool success}) {
-  final (ok, ng) = switch (points) {
-    <= 3 => ('character-05.png', 'overpolished-05.png'),
-    <= 5 => ('character-04.png', 'overpolished-04.png'),
-    6 => ('gyansu.jpg', 'overpolished-03.png'),
-    <= 8 => ('character-02.png', 'overpolished-02.png'),
-    _ => ('kyushu-danji.png', 'overpolished-01.png'),
-  };
-  return 'assets/images/${success ? ok : ng}';
-}
+/// 成功した漢のキャラクターは、3回のやすりの合計点で決まる。
+String kanjiResultImage(int points) => switch (points) {
+  <= 3 => 'assets/images/character-05.png',
+  <= 5 => 'assets/images/character-04.png',
+  6 => 'assets/images/gyansu.jpg',
+  <= 8 => 'assets/images/character-02.png',
+  _ => 'assets/images/kyushu-danji.png',
+};
 
 /// 仕上がり画面の漢磨きのキャラクター。
 class _KanjiCharacter extends StatelessWidget {
@@ -1670,10 +1695,7 @@ class _KanjiCharacter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = kanjiResultImage(
-      kanjiPoints(game),
-      success: kanjiSucceeded(game),
-    );
+    final image = kanjiResultImage(kanjiPoints(game));
     return Center(
       child: Image.asset(
         image,
@@ -2252,22 +2274,32 @@ class _Workpiece extends StatelessWidget {
     final image = _imageFor(material, progress);
     final kanji = material.id == 'kanji';
     final result = game.phase == GamePhase.result;
+    final finish = kanji ? game.targetFinish : null;
+    final broken = finish == TargetFinish.over;
+    final face = switch (finish) {
+      TargetFinish.over => KanjiBreak(game: game),
+      TargetFinish.onTarget when result => _KanjiCharacter(game: game),
+      TargetFinish.under when result => Image.asset(
+        'assets/images/kanji-silver.png',
+        key: const ValueKey('kanji-underpolished'),
+        fit: BoxFit.contain,
+        cacheWidth: 720,
+      ),
+      _ when image != null => _PolishedMedalFace(
+        material: material,
+        progress: progress,
+        image: image,
+      ),
+      _ => null,
+    };
     final art = SurfaceArt(
       material: material,
       progress: progress,
       strokeCount: game.totalStrokes,
       inContact: inContact,
       reveal: result && (image == null || !game.needsHandPolish),
-      overlay: !kanji || !result,
-      medalImage: kanji && result
-          ? _KanjiCharacter(game: game)
-          : image == null
-          ? null
-          : _PolishedMedalFace(
-              material: material,
-              progress: progress,
-              image: image,
-            ),
+      overlay: !kanji || (!result && !broken),
+      medalImage: face,
     );
     return Stack(
       fit: StackFit.expand,
@@ -2276,7 +2308,11 @@ class _Workpiece extends StatelessWidget {
         Semantics(
           image: true,
           excludeSemantics: true,
-          label: material.stageAt(progress).name,
+          label: broken
+              ? '割れた漢'
+              : kanji && result && finish == TargetFinish.under
+              ? '灰色の漢'
+              : material.stageAt(progress).name,
           value: '研磨 ${(progress * 100).round()}%',
           child: art,
         ),
@@ -2297,7 +2333,7 @@ class _Workpiece extends StatelessWidget {
           child: IgnorePointer(
             child: _Shavings(
               strokes: game.totalStrokes,
-              active: game.phase == GamePhase.polishing,
+              active: game.phase == GamePhase.polishing && !broken,
               inContact: inContact,
               progress: progress,
               tint: image == _medalStageImages.first ? null : game.stage.color,

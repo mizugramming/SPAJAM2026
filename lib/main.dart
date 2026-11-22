@@ -165,15 +165,10 @@ class _SessionState extends State<_Session>
       final sample = await device.capture(
         profile.demoHz(demoVoice),
         desk: true,
-        profile: profile,
       );
       if (!mounted || op != _operation) return;
-      final hz = sample.hz;
-      final mode = hz != null && hz.isFinite && hz > 0
-          ? VoiceMode.pitch
-          : VoiceMode.volume;
-      if (!game.acceptVoice(sample, mode)) {
-        _error = '音が小さいようです。\nもう一度、\n少し大きな声を\n出してください。';
+      if (!game.acceptVoice(sample)) {
+        _error = pitchRetryMessage;
       }
     } catch (e) {
       if (mounted && op == _operation) _error = deviceMessage(e);

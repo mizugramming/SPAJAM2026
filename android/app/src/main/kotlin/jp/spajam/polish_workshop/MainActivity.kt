@@ -203,12 +203,12 @@ class MainActivity : FlutterActivity(), SensorEventListener {
             try {
                 readPcm(request, pcm)
                 if (!request.cancelled) {
-                    val summary = VoiceAnalysis.measure(pcm)
+                    val pitch = VoiceAnalysis.measure(pcm)
                     runOnUiThread {
                         if (capturing === request) {
                             finishCalibration(request, true)
                             capturing = null
-                            request.reply.success(mapOf("hz" to summary.hz, "level" to summary.level))
+                            request.reply.success(mapOf("hz" to pitch))
                         }
                     }
                 }

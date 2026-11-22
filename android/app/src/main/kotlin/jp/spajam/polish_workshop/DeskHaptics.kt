@@ -170,14 +170,14 @@ internal class DeskHaptics(
 
     private fun texture(width: Int, blend: Double, slow: Double): LongArray {
         val (roughOn, gap, fastDuty) = when (grit) {
-            "coarse" -> Triple(270, 16, 1.0)
-            "medium" -> Triple(78, 22, .78)
-            else -> Triple(27, 27, .55)
+            "coarse" -> Triple(285, 12, 1.0)
+            "medium" -> Triple(95, 17, .87)
+            else -> Triple(44, 21, .74)
         }
-        val slowOn = roughOn * (1 - .32 * finish)
-        val slowGap = gap * (1 + .65 * finish)
+        val slowOn = roughOn * (1 - .24 * finish)
+        val slowGap = gap * (1 + .50 * finish)
         val duty = slowOn / (slowOn + slowGap)
-        val fastOn = fastDuty * (1 - .25 * finish)
+        val fastOn = fastDuty * (1 - .20 * finish)
         val onFraction = duty + blend * (fastOn - duty)
         val pulsePeriod = slowOn + slowGap + blend * (width - slowOn - slowGap)
         val offMs = (pulsePeriod * (1 - onFraction)).roundToInt()
