@@ -6,19 +6,22 @@ void main() {
   const medium = VoiceSample(120);
   const fine = VoiceSample(150);
 
-  test('all grits can finish gold during the last round at the fixed pace', () {
-    final medal = materials.first;
-    final floor = medal.finishAtLeast!;
-    for (final grit in Grit.values) {
-      var value = medal.initialValue - medal.maxRemoval * .60;
-      final strokes = grit == Grit.fine ? 35 : 49;
-      for (var i = 0; i < strokes; i++) {
-        expect(medal.progressAt(value), lessThan(floor));
-        value = medal.valueAfterStroke(value, grit, finalRound: true);
+  test(
+    'all grits can finish gold during the last round at the default pace',
+    () {
+      final medal = materials.first;
+      final floor = medal.finishAtLeast!;
+      for (final grit in Grit.values) {
+        var value = medal.initialValue - medal.maxRemoval * .60;
+        final strokes = grit == Grit.fine ? 35 : 49;
+        for (var i = 0; i < strokes; i++) {
+          expect(medal.progressAt(value), lessThan(floor));
+          value = medal.valueAfterStroke(value, grit, finalRound: true);
+        }
+        expect(medal.stageAt(medal.progressAt(value)).name, '金ピカのメダル');
       }
-      expect(medal.stageAt(medal.progressAt(value)).name, '金ピカのメダル');
-    }
-  });
+    },
+  );
 
   testWidgets(
     'the medal is held at matte gold after round 1 and shines one second before the end',
@@ -232,37 +235,43 @@ void main() {
     expect(medal.stageAt(medal.progressAt(value)).name, '金ピカのメダル');
   });
 
-  testWidgets('both materials use the fixed 50-stroke gold calibration', (
+  testWidgets('both materials scale strokes across rounds and retries', (
     tester,
   ) async {
     final game = GameController();
     addTearDown(game.dispose);
-    for (final material in materials) {
-      game.select(material);
-      game.acceptVoice(coarse);
-      game.startPolishing();
-      for (var i = 1; i <= 50; i++) {
-        game.stroke();
-        expect(game.progress, closeTo(i / 100, 1e-12));
-      }
-      await tester.pump(GameController.polishDuration);
-      game.acceptVoice(fine);
-      game.startPolishing();
-      game.stroke();
-      if (material.id == 'medal') {
-        // The medal's second round is its last: polishing moves past gold.
-        expect(game.progress, greaterThan(.5));
-      } else {
-        final expected = .5 + .01 * 1.25 / 3.5;
-        expect(game.progress, closeTo(expected, 1e-12));
-        await tester.pump(GameController.polishDuration);
+    expect(game.strokesToGold, 50);
+    for (final target in [5, 50, 73, 200]) {
+      game.setStrokesToGold(target);
+      for (final material in materials) {
+        game.select(material);
         game.acceptVoice(coarse);
         game.startPolishing();
+        game.setStrokesToGold(20); // In-game settings are fixed for the play.
+        expect(game.strokesToGold, target);
+        for (var i = 1; i <= target; i++) {
+          game.stroke();
+          expect(game.progress, closeTo(.5 * i / target, 1e-12));
+        }
+        await tester.pump(GameController.polishDuration);
+        game.acceptVoice(fine);
+        game.startPolishing();
         game.stroke();
-        expect(game.progress, closeTo(expected + .01, 1e-12));
+        if (material.id == 'medal') {
+          // The medal's second round is its last: polishing moves past gold.
+          expect(game.progress, greaterThan(.5));
+        } else {
+          final expected = .5 + (.5 / target) * 1.25 / 3.5;
+          expect(game.progress, closeTo(expected, 1e-12));
+          await tester.pump(GameController.polishDuration);
+          game.acceptVoice(coarse);
+          game.startPolishing();
+          game.stroke();
+          expect(game.progress, closeTo(expected + .5 / target, 1e-12));
+        }
+        game.reset();
+        expect(game.totalStrokes, 0);
       }
-      game.reset();
-      expect(game.totalStrokes, 0);
     }
   });
 

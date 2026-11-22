@@ -813,18 +813,51 @@ void main() {
     },
   );
 
-  testWidgets('settings leaves the fixed pace in effect', (tester) async {
+  testWidgets('the saved stroke count applies to the next game', (
+    tester,
+  ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(320, 640);
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.view.reset);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    await tester.pumpWidget(const WorkshopApp(simulated: true));
+    final writes = <int>[];
+    await tester.pumpWidget(
+      WorkshopApp(
+        simulated: true,
+        initialStrokesToGold: 31,
+        persistStrokesToGold: (value) async {
+          writes.add(value);
+          if (writes.length == 1) throw StateError('write failed');
+        },
+      ),
+    );
     await tapControl(tester, 'title-start');
     await tapControl(tester, 'diagnostics');
     await tester.pumpAndSettle();
-    expect(find.byType(TextField), findsNothing);
-    expect(find.byKey(const ValueKey('open-device-lab')), findsOneWidget);
+    final count = find.byKey(const ValueKey('strokes-to-gold'));
+    String currentText() => tester.widget<TextField>(count).controller!.text;
+    expect(currentText(), '31');
+    for (final invalid in ['4', '201', '2.5', '']) {
+      await tester.enterText(count, invalid);
+      await tapControl(tester, 'save-settings');
+      expect(find.textContaining('整数を入力'), findsOneWidget);
+    }
+    expect(writes, isEmpty);
+    await tester.enterText(count, '７３');
+    await tapControl(tester, 'save-settings');
+    expect(writes, [73]);
+    expect(currentText(), '７３');
+    expect(find.textContaining('保存できませんでした'), findsOneWidget);
+    await tapControl(tester, 'save-settings');
+    await tester.pumpAndSettle();
+    expect(writes, [73, 73]);
+    expect(find.text('磨く素材を選ぶ'), findsOneWidget);
+
+    await tapControl(tester, 'diagnostics');
+    await tester.pumpAndSettle();
+    expect(currentText(), '73');
+    await tester.enterText(count, '18');
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     await chooseMaterial(tester, 'medal');
@@ -833,7 +866,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await finishHandoff(tester);
     await tapControl(tester, 'simulate-stroke');
-    expect(SurfaceArtProbe.progress(tester), closeTo(.01, .000001));
+    expect(SurfaceArtProbe.progress(tester), closeTo(.5 / 73, .000001));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

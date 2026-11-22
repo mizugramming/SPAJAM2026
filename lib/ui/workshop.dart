@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -128,6 +129,7 @@ class Workshop extends StatelessWidget {
           }
           if (material.id == 'kanji') {
             unawaited(precacheImage(KanjiBreak.atlas, context));
+            unawaited(precacheImage(_kanjiResultWood, context));
           }
           actions.choose(material);
         },
@@ -172,11 +174,11 @@ class Workshop extends StatelessWidget {
     Widget? intro,
   }) {
     final hasPaper = screen == Screen.ready || screen == Screen.polishing;
+    final kanjiResult = screen == Screen.result && game.material!.id == 'kanji';
     final earnedKanjiRank =
-        screen == Screen.result &&
-        game.material!.id == 'kanji' &&
-        game.targetFinish == TargetFinish.onTarget;
-    return _workshopStage(
+        kanjiResult && game.targetFinish == TargetFinish.onTarget;
+    final stage = kanjiResult ? _kanjiResultStage : _workshopStage;
+    return stage(
       key: ValueKey((game.phase, game.round)),
       screen: screen,
       parts: [
@@ -764,6 +766,23 @@ class _PolishCueState extends State<_PolishCue>
     );
   }
 }
+
+const _kanjiResultWood = AssetImage('assets/images/kanji-result-wood.webp');
+
+LayoutStage _kanjiResultStage({
+  Key? key,
+  required Screen screen,
+  required List<Part> parts,
+}) => LayoutStage(
+  key: key,
+  screen: screen,
+  parts: parts,
+  background: const Image(
+    image: _kanjiResultWood,
+    fit: BoxFit.cover,
+    excludeFromSemantics: true,
+  ),
+);
 
 LayoutStage _workshopStage({
   Key? key,
@@ -1928,15 +1947,48 @@ class _KanjiCharacter extends StatelessWidget {
       delay: _rankEntranceDuration,
       duration: _characterFadeDuration,
       child: Center(
-        child: Image.asset(
-          image,
-          key: ValueKey(image),
-          fit: BoxFit.contain,
-          cacheWidth: 720,
+        child: _CharacterMist(
+          character: Image.asset(
+            image,
+            key: ValueKey(image),
+            fit: BoxFit.contain,
+            cacheWidth: 720,
+          ),
         ),
       ),
     );
   }
+}
+
+/// 人物画像のアルファを薄くぼかし、顔や段位の手前に白がかからないようにする。
+class _CharacterMist extends StatelessWidget {
+  const _CharacterMist({required this.character});
+
+  final Image character;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    alignment: Alignment.center,
+    clipBehavior: Clip.none,
+    children: [
+      Positioned.fill(
+        child: ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+          child: Transform.scale(
+            scale: 1.04,
+            child: Image(
+              image: character.image,
+              fit: character.fit,
+              color: const Color(0x99FFFAEF),
+              colorBlendMode: BlendMode.srcIn,
+              excludeFromSemantics: true,
+            ),
+          ),
+        ),
+      ),
+      character,
+    ],
+  );
 }
 
 /// 素材選択ではメダルと漢を研磨前の状態で見せる。
@@ -2537,13 +2589,15 @@ class _Workpiece extends StatelessWidget {
             child: _FadeInLater(
               delay: Duration.zero,
               duration: _characterFadeDuration,
-              child: Image.asset(
-                MediaQuery.disableAnimationsOf(context)
-                    ? 'assets/images/character-under-still.webp'
-                    : 'assets/images/character-under.webp',
-                key: const ValueKey('kanji-underpolished'),
-                fit: BoxFit.contain,
-                cacheWidth: 640,
+              child: _CharacterMist(
+                character: Image.asset(
+                  MediaQuery.disableAnimationsOf(context)
+                      ? 'assets/images/character-under-still.webp'
+                      : 'assets/images/character-under.webp',
+                  key: const ValueKey('kanji-underpolished'),
+                  fit: BoxFit.contain,
+                  cacheWidth: 640,
+                ),
               ),
             ),
           ),

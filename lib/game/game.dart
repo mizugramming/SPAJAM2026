@@ -157,7 +157,13 @@ class WorkMaterial {
   /// This minimum amount uses the same stroke-count scale as the grit rates.
   static const _finalRoundAmount = 2.5;
 
-  double valueAfterStroke(double value, Grit grit, {bool finalRound = false}) {
+  double valueAfterStroke(
+    double value,
+    Grit grit, {
+    int strokesToGold = GameController.defaultStrokesToGold,
+    bool finalRound = false,
+  }) {
+    assert(strokesToGold > 0);
     final progress = progressAt(value);
     final polish = stageAt(progress).polishing[grit];
     var share = polish?.limit ?? 1.0;
@@ -171,7 +177,7 @@ class WorkMaterial {
     final limit = initialValue - maxRemoval * share;
     if (value <= limit) return value;
     // Preserve the relative removal of each grit and each polishing stage.
-    const coarseStep = _medalMaxRemoval * _goldThreshold / _strokesToGold;
+    final coarseStep = _medalMaxRemoval * _goldThreshold / strokesToGold;
     final step = coarseStep * amount / Grit.coarse.removal;
     final next = (value - step).clamp(limit, value);
     // Repeated fractional strokes can land a few ULPs short of a boundary.
@@ -221,7 +227,6 @@ const _goldPolishing = {
   Grit.fine: (amount: 3.5, limit: 1.0),
 };
 
-const _strokesToGold = 50;
 const _medalMaxRemoval = 100.0;
 const _goldThreshold = .50;
 const _shinyGoldThreshold = .95;
@@ -305,10 +310,28 @@ class GameController extends ChangeNotifier {
   int get rounds => _material?.rounds ?? roundCount;
   static const polishDuration = Duration(seconds: 10);
 
+  static const minStrokesToGold = 5;
+  static const maxStrokesToGold = 200;
+  static const defaultStrokesToGold = 50;
+
   final FinishJudge? judge;
 
   GamePhase _phase = GamePhase.select;
   GamePhase get phase => _phase;
+
+  int _strokesToGold = defaultStrokesToGold;
+  int get strokesToGold => _strokesToGold;
+
+  void setStrokesToGold(int count) {
+    if (_phase != GamePhase.select ||
+        count == _strokesToGold ||
+        count < minStrokesToGold ||
+        count > maxStrokesToGold) {
+      return;
+    }
+    _strokesToGold = count;
+    notifyListeners();
+  }
 
   VoiceProfile _voiceProfile = VoiceProfile.low;
   VoiceProfile get voiceProfile => _voiceProfile;
@@ -428,6 +451,7 @@ class GameController extends ChangeNotifier {
     _value = material.valueAfterStroke(
       _value,
       grit,
+      strokesToGold: strokesToGold,
       finalRound: _round == rounds,
     );
     if (material.id == 'kanji' && targetFinish == TargetFinish.over) {

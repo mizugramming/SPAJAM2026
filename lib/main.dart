@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'device/diagnostics.dart';
 import 'device/workshop_device.dart';
@@ -13,7 +14,7 @@ import 'ui/phrase_text.dart';
 import 'ui/workshop.dart';
 import 'ui/workshop_theme.dart' show shopInk, shopPaper, shopPlaqueStyle;
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
@@ -23,15 +24,32 @@ void main() {
       'YujiSyuku',
     ], await rootBundle.loadString('assets/fonts/OFL-YujiSyuku.txt'));
   });
-  runApp(const WorkshopApp());
+  const key = 'strokesToGold';
+  final preferences = SharedPreferencesAsync();
+  int? savedCount;
+  try {
+    savedCount = await preferences.getInt(key);
+  } catch (error) {
+    debugPrint('研磨回数の設定を読み込めませんでした: $error');
+  }
+  runApp(
+    WorkshopApp(
+      initialStrokesToGold: savedCount ?? GameController.defaultStrokesToGold,
+      persistStrokesToGold: (value) => preferences.setInt(key, value),
+    ),
+  );
 }
 
 class WorkshopApp extends StatelessWidget {
   const WorkshopApp({
     super.key,
     this.simulated = kIsWeb || const bool.fromEnvironment('SIMULATE_INPUT'),
+    this.initialStrokesToGold = GameController.defaultStrokesToGold,
+    this.persistStrokesToGold,
   });
   final bool simulated;
+  final int initialStrokesToGold;
+  final Future<void> Function(int)? persistStrokesToGold;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -41,13 +59,23 @@ class WorkshopApp extends StatelessWidget {
     locale: const Locale('ja'),
     supportedLocales: const [Locale('ja')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    home: _Session(simulated: simulated),
+    home: _Session(
+      simulated: simulated,
+      initialStrokesToGold: initialStrokesToGold,
+      persistStrokesToGold: persistStrokesToGold,
+    ),
   );
 }
 
 class _Session extends StatefulWidget {
-  const _Session({required this.simulated});
+  const _Session({
+    required this.simulated,
+    required this.initialStrokesToGold,
+    this.persistStrokesToGold,
+  });
   final bool simulated;
+  final int initialStrokesToGold;
+  final Future<void> Function(int)? persistStrokesToGold;
 
   @override
   State<_Session> createState() => _SessionState();
@@ -76,6 +104,7 @@ class _SessionState extends State<_Session>
   @override
   void initState() {
     super.initState();
+    game.setStrokesToGold(widget.initialStrokesToGold);
     WidgetsBinding.instance.addObserver(this);
     game.addListener(_changed);
     _events = device.motionEvents.listen(
@@ -249,6 +278,8 @@ class _SessionState extends State<_Session>
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (settingsContext) => GameSettingsPage(
+          strokesToGold: game.strokesToGold,
+          onSave: _saveStrokesToGold,
           onOpenDiagnostics: () => Navigator.of(settingsContext).push<void>(
             MaterialPageRoute(
               builder: (_) => DiagnosticsPage(
@@ -262,6 +293,11 @@ class _SessionState extends State<_Session>
       ),
     );
     _inLab = false;
+  }
+
+  Future<void> _saveStrokesToGold(int value) async {
+    await widget.persistStrokesToGold?.call(value);
+    if (mounted) game.setStrokesToGold(value);
   }
 
   @override

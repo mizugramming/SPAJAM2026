@@ -14,6 +14,7 @@ Androidのリソースは `android/app/src/main/res/` にある。Android 8以�
 
 | ファイル | 使う場所 |
 |---|---|
+| `assets/images/kanji-result-wood.webp` | 漢の結果画面用の木目。2026-11-22に本アプリ用にImageGenで、使い込んだクルミ材の横木目を赤褐色のガッシュと墨の調子で生成。縦757×1600のWebP。人物の周りの靄はアプリ側で重ねる。 |
 | `assets/images/yansu_title.png` | ユーザー提供の全身画をもとに、内蔵ImageGenでヤンスの紙背景を透過。髪先、墨の輪郭、顔、黒い短パン、素足を残し、足の間も透明にした。工房に直接重ねるタイトル用PNG（576 × 888）。 |
 | `assets/fonts/daou.jpg` | サビた銅メダル。素材選択カード、研磨のサビた銅・銅の段階 |
 | `assets/fonts/gin.jpg` | 銀メダルの段階 |

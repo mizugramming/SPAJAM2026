@@ -216,6 +216,14 @@ void main() {
             lessThan(tester.getTopLeft(find.byKey(const ValueKey('retry'))).dy),
           );
         }
+        final wood = find.image(
+          const AssetImage('assets/images/kanji-result-wood.webp'),
+        );
+        expect(wood, findsOneWidget);
+        expect(
+          find.image(const AssetImage('assets/images/workshop_curtain.webp')),
+          findsNothing,
+        );
         for (final rank in [1, 5]) {
           expect(
             find.byKey(ValueKey('assets/images/character-success-$rank.webp')),
@@ -227,6 +235,7 @@ void main() {
           );
         }
         await tapControl(tester, 'retry');
+        expect(wood, findsNothing);
         await chooseMaterial(tester, 'kanji');
         expect(find.byKey(const ValueKey('kanji-fracture-4')), findsNothing);
         expect(
