@@ -1,0 +1,36 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group>
+        <!-- Leave a clear rim where the polishing glint crosses the hair. -->
+        <clip-path
+            android:fillType="evenOdd"
+            android:pathData="M0,0 H108 V108 H0 Z M74.5,43.1 Q75.8,49.1 82.1,50.5 Q75.8,51.9 74.5,58 Q73.1,51.9 66.9,50.5 Q73.1,49.1 74.5,43.1 Z" />
+        <!-- Swept hair and cheek outline share one silhouette. -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M29,51 C28,43 36,38 45,37 C56,36 63,33 69,25 C71,29 70,32 69,35 L75,30 Q77,34 73,40 L78,36 Q80,40 76,45 L80,42 Q81,47 76,52 C80,57 82,63 79,69 C75,78 65,82 54,82 C39,82 28,77 25,68 C23,62 25,56 29,51 Z M29,55 C33,52 37,49 43,48 L39,51 C45,50 52,48 58,45 L56,49 L64,45 L63,49 L70,47 C76,54 80,61 77,68 C74,75 65,79 54,79 C42,79 31,75 28,67 C26,63 27,59 29,55 Z M34,46 C40,40 49,41 56,39 Q63,37 68,32 Q64,39 57,42 C49,45 43,41 34,46 Z" />
+    </group>
+    <!-- Eyebrows, eye rings and pupils. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M36,53 Q42,52 48,53 L49,56 L35,56 Z M58,53 Q64,52 70,53 L71,56 L57,56 Z M49.2,62 A4.9,4.9 0,1 1,39.4,62 A4.9,4.9 0,1 1,49.2,62 Z M47.7,62 A3.4,3.4 0,1 1,40.9,62 A3.4,3.4 0,1 1,47.7,62 Z M47.3,61.7 A1.65,1.65 0,1 1,44,61.7 A1.65,1.65 0,1 1,47.3,61.7 Z M67.8,62 A4.9,4.9 0,1 1,58,62 A4.9,4.9 0,1 1,67.8,62 Z M66.3,62 A3.4,3.4 0,1 1,59.5,62 A3.4,3.4 0,1 1,66.3,62 Z M63.2,61.7 A1.65,1.65 0,1 1,59.9,61.7 A1.65,1.65 0,1 1,63.2,61.7 Z" />
+    <!-- Open nose, hanging drop and round mouth. -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:pathData="M49,67 Q48,64 54,64 Q60,64 59,67" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M49.6,66.3 C49,68 47.3,69.3 47.7,71.1 C48.1,73.2 52.1,73.1 52.2,70.8 C52.3,69.4 50.8,67.6 49.6,66.3 Z M57.5,74.3 A2.6,2.6 0,1 1,52.3,74.3 A2.6,2.6 0,1 1,57.5,74.3 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M74.5,45.1 Q75.4,49.6 80,50.5 Q75.4,51.4 74.5,56 Q73.5,51.4 69,50.5 Q73.5,49.6 74.5,45.1 Z" />
+</vector>

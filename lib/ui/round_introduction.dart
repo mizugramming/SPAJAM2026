@@ -8,11 +8,15 @@ class RoundIntroduction extends StatefulWidget {
   const RoundIntroduction({
     super.key,
     required this.round,
+    this.total = GameController.roundCount,
     required this.arrival,
     required this.builder,
   });
 
   final int round;
+
+  /// Rounds in this play.
+  final int total;
   final Duration arrival;
   final Widget Function(Animation<double>? arrival, Widget? cue) builder;
 
@@ -90,7 +94,7 @@ class _RoundIntroductionState extends State<RoundIntroduction>
         : _clock.drive(CurveTween(curve: Interval(0, split)));
     final reduced = MediaQuery.disableAnimationsOf(context);
     final ordinal = '${_numeral(widget.round)}回目';
-    final total = '全${_numeral(GameController.roundCount)}回';
+    final total = '全${_numeral(widget.total)}回';
     final cue = AnimatedBuilder(
       animation: _clock,
       builder: (context, banner) {

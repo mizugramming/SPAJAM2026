@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:polish_workshop/game/game.dart';
 import 'package:polish_workshop/main.dart';
+import 'package:polish_workshop/ui/surface_art.dart';
 import 'package:polish_workshop/ui/workshop.dart';
 
 import 'workshop_flow_test.dart' show chooseMaterial, tapControl;
@@ -35,6 +36,79 @@ void main() {
         kanjiNameplate(points),
         ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][n - 1],
       );
+      expect(kanjiNameplateComment(points), isNotEmpty);
+      expect(
+        kanjiOverpolishedImage(points),
+        'assets/images/overpolished-0$n.png',
+      );
+      if (n == 1) {
+        expect(kanjiNameplateComment(points), 'ガサツなのに実は優しいオトコ♡');
+      }
+    }
+  });
+
+  testWidgets('longest success comment fits between the title and character', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      const WorkshopApp(simulated: true, initialStrokesToGold: 5),
+    );
+    await tapControl(tester, 'title-start');
+    await chooseMaterial(tester, 'kanji');
+    for (final (round, hz) in [100, 100, 120].indexed) {
+      await tapControl(tester, 'demo-$hz');
+      await tapControl(tester, 'capture');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 1801));
+      await tester.pump(const Duration(milliseconds: 650));
+      await tester.pump();
+      if (round == 0) {
+        for (var n = 0; n < 8; n++) {
+          await tapControl(tester, 'simulate-stroke');
+        }
+      }
+      await tester.pump(GameController.polishDuration);
+      await tester.pumpAndSettle();
+    }
+    // Include the final fade on the animated result, then test reduced motion.
+    await tester.pump(const Duration(seconds: 3));
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    for (final compact in [false, true]) {
+      tester.view.physicalSize = compact
+          ? const Size(320, 568)
+          : const Size(384, 815);
+      tester.platformDispatcher.textScaleFactorTestValue = compact ? 2 : 1;
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          FakeAccessibilityFeatures(disableAnimations: compact);
+      await tester.pump();
+      final copy = find.text('あなたの力強さと\n柔らかさにトリコだわ♡');
+      final text = tester.widget<Text>(copy);
+      expect(text.softWrap, false);
+      expect(find.bySemanticsLabel('あなたの力強さと柔らかさにトリコだわ♡'), findsOneWidget);
+      final rendered = tester.getRect(copy);
+      final title = find.byKey(
+        const ValueKey('assets/images/workshop-title-02.png'),
+      );
+      final character = find.byKey(
+        ValueKey(kanjiResultImage(8, animated: !compact)),
+      );
+      expect(
+        rendered.top,
+        greaterThanOrEqualTo(tester.getBottomLeft(title).dy - .01),
+      );
+      expect(rendered.bottom, lessThan(tester.getTopLeft(character).dy));
+      expect(rendered.left, greaterThanOrEqualTo(0));
+      expect(rendered.right, lessThanOrEqualTo(tester.view.physicalSize.width));
+      // Two actual lines at a readable size, even in the compact frame.
+      expect(
+        rendered.height / (2 * text.style!.height!),
+        greaterThanOrEqualTo(compact ? 23 : 30),
+      );
+      expect(tester.takeException(), isNull);
     }
   });
 
@@ -138,6 +212,26 @@ void main() {
             );
             expect(heading, findsOneWidget);
             expect(firstFrame, findsOneWidget);
+            expect(find.text('おわり'), findsOneWidget);
+            final character = find.byKey(
+              ValueKey(
+                firstRank
+                    ? 'assets/images/overpolished-01.png'
+                    : 'assets/images/overpolished-05.png',
+              ),
+            );
+            double characterOpacity() => tester
+                .widget<FadeTransition>(
+                  find
+                      .ancestor(
+                        of: character,
+                        matching: find.byType(FadeTransition),
+                      )
+                      .first,
+                )
+                .opacity
+                .value;
+            expect(characterOpacity(), 0);
             expect(
               tester.getBottomLeft(heading).dy,
               lessThanOrEqualTo(tester.getTopLeft(firstFrame).dy),
@@ -169,23 +263,106 @@ void main() {
               expect(frame('after'), findsOneWidget);
             }
             await tester.pump(GameController.polishDuration);
-            expect(heading, findsOneWidget);
+            expect(characterOpacity(), 1);
+            void checkFractureLayout() {
+              final art = tester.getRect(find.byType(SurfaceArt));
+              final portrait = tester.getRect(character);
+              final verdict = tester.getRect(find.text('削りすぎ'));
+              final retry = tester.getRect(find.byKey(const ValueKey('retry')));
+              final screen = tester.view.physicalSize;
+              expect(tester.getBottomLeft(heading).dy, lessThan(art.top));
+              expect(art.right, lessThanOrEqualTo(portrait.left));
+              expect(art.width, greaterThan(portrait.width * 1.8));
+              expect(portrait.right, lessThanOrEqualTo(screen.width));
+              expect(portrait.bottom, lessThan(verdict.top));
+              expect(art.bottom, lessThan(verdict.top));
+              expect(verdict.center.dx, closeTo(screen.width / 2, 1));
+              expect(verdict.height, greaterThan(34));
+              expect(verdict.bottom, lessThan(retry.top));
+              expect(retry.top - verdict.bottom, lessThan(screen.height * .05));
+            }
+
+            checkFractureLayout();
+            tester.view.physicalSize = const Size(320, 568);
+            tester.platformDispatcher.textScaleFactorTestValue = 2;
+            addTearDown(
+              tester.platformDispatcher.clearTextScaleFactorTestValue,
+            );
+            tester.platformDispatcher.accessibilityFeaturesTestValue =
+                const FakeAccessibilityFeatures(disableAnimations: true);
+            addTearDown(
+              tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+            );
+            await tester.pump();
+            checkFractureLayout();
+            expect(tester.takeException(), isNull);
             break;
           }
           await tester.pump(GameController.polishDuration);
           await tester.pumpAndSettle();
         }
         if (breakingRound == null) {
-          expect(find.text('磨き不足'), findsOneWidget);
+          void checkUnderLayout() {
+            final art = tester.getRect(find.byType(SurfaceArt));
+            final heading = tester.getRect(find.text('磨き不足'));
+            final retry = tester.getRect(find.byKey(const ValueKey('retry')));
+            final screen = tester.view.physicalSize;
+            expect(art.height, greaterThan(screen.height * .45));
+            expect(art.center.dx, closeTo(screen.width / 2, 1));
+            expect(heading.center.dx, closeTo(art.center.dx, 1));
+            expect(heading.height, greaterThan(34));
+            expect(heading.top, greaterThan(art.bottom));
+            expect(heading.bottom, lessThan(retry.top));
+            expect(retry.top - heading.bottom, lessThan(screen.height * .05));
+          }
+
+          checkUnderLayout();
           expect(find.text('漢割り'), findsNothing);
           final face = tester.widget<Image>(
             find.byKey(const ValueKey('kanji-underpolished')),
           );
           expect(
             (face.image as ResizeImage).imageProvider,
+            const AssetImage('assets/images/character-under.webp'),
+          );
+          final surface = find.byKey(const ValueKey('kanji-under-surface'));
+          expect(
+            (tester.widget<Image>(surface).image as ResizeImage).imageProvider,
             const AssetImage('assets/images/kanji-silver.png'),
           );
+          tester.view.physicalSize = const Size(320, 568);
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(disableAnimations: true);
+          tester.platformDispatcher.textScaleFactorTestValue = 2;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+          await tester.pumpAndSettle();
+          checkUnderLayout();
+          final character = find.byKey(const ValueKey('kanji-underpolished'));
+          expect(
+            (tester.widget<Image>(character).image as ResizeImage)
+                .imageProvider,
+            const AssetImage('assets/images/character-under-still.webp'),
+          );
+          expect(
+            tester.getCenter(character).dx,
+            greaterThan(tester.getCenter(surface).dx),
+          );
+          expect(
+            tester.getBottomLeft(character).dy,
+            lessThan(tester.getTopLeft(find.byKey(const ValueKey('retry'))).dy),
+          );
         }
+        final wood = find.image(
+          const AssetImage('assets/images/kanji-result-wood.webp'),
+        );
+        expect(wood, findsOneWidget);
+        expect(
+          find.image(const AssetImage('assets/images/workshop_curtain.webp')),
+          findsNothing,
+        );
         for (final rank in [1, 5]) {
           expect(
             find.byKey(ValueKey('assets/images/character-success-$rank.webp')),
@@ -197,6 +374,7 @@ void main() {
           );
         }
         await tapControl(tester, 'retry');
+        expect(wood, findsNothing);
         await chooseMaterial(tester, 'kanji');
         expect(find.byKey(const ValueKey('kanji-fracture-4')), findsNothing);
         expect(

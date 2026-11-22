@@ -100,6 +100,8 @@ class WorkMaterial {
     this.targetValue,
     this.targetTolerance = 0,
     this.finishAtLeast,
+    this.rounds = GameController.roundCount,
+    this.afterEarlierRounds,
   }) : assert(maxRemoval > 0),
        assert(targetTolerance >= 0);
 
@@ -133,7 +135,15 @@ class WorkMaterial {
 
   /// The progress every play reaches by the end of the last round, however
   /// little was polished. Null keeps the polished amount as it is.
+  /// It is reached one second before the last round ends.
   final double? finishAtLeast;
+
+  /// How many rounds a play of this material has.
+  final int rounds;
+
+  /// Where the progress is held at the end of each round before the last one,
+  /// however much was polished. Null keeps the polished amount as it is.
+  final ({double min, double max})? afterEarlierRounds;
 
   double progressAt(double value) =>
       ((initialValue - value) / maxRemoval).clamp(0.0, 1.0);
@@ -147,7 +157,13 @@ class WorkMaterial {
   /// This minimum amount uses the same stroke-count scale as the grit rates.
   static const _finalRoundAmount = 2.5;
 
-  double valueAfterStroke(double value, Grit grit, {bool finalRound = false}) {
+  double valueAfterStroke(
+    double value,
+    Grit grit, {
+    int strokesToGold = GameController.defaultStrokesToGold,
+    bool finalRound = false,
+  }) {
+    assert(strokesToGold > 0);
     final progress = progressAt(value);
     final polish = stageAt(progress).polishing[grit];
     var share = polish?.limit ?? 1.0;
@@ -161,7 +177,7 @@ class WorkMaterial {
     final limit = initialValue - maxRemoval * share;
     if (value <= limit) return value;
     // Preserve the relative removal of each grit and each polishing stage.
-    const coarseStep = _medalMaxRemoval * _goldThreshold / _strokesToGold;
+    final coarseStep = _medalMaxRemoval * _goldThreshold / strokesToGold;
     final step = coarseStep * amount / Grit.coarse.removal;
     final next = (value - step).clamp(limit, value);
     // Repeated fractional strokes can land a few ULPs short of a boundary.
@@ -211,7 +227,6 @@ const _goldPolishing = {
   Grit.fine: (amount: 3.5, limit: 1.0),
 };
 
-const _strokesToGold = 50;
 const _medalMaxRemoval = 100.0;
 const _goldThreshold = .50;
 const _shinyGoldThreshold = .95;
@@ -223,6 +238,9 @@ const materials = [
     description: '銅・銀・金の輝き',
     initialValue: 100,
     maxRemoval: _medalMaxRemoval,
+    // 発表用の二段階：1回目の終わりは必ず輝く前の金、2回目は残り1秒で必ず金ピカ。
+    rounds: 2,
+    afterEarlierRounds: (min: .50, max: .90),
     finishAtLeast: _shinyGoldThreshold,
     stages: [
       FinishStage(0, 'サビた銅メダル', Color(0xFF9B6447), 0.90, 0.05),
@@ -285,13 +303,35 @@ typedef FinishJudge = String? Function(WorkMaterial material, double value);
 class GameController extends ChangeNotifier {
   GameController({this.judge});
 
+  /// The default number of rounds; each material may set its own.
   static const roundCount = 3;
+
+  /// Rounds for the selected material.
+  int get rounds => _material?.rounds ?? roundCount;
   static const polishDuration = Duration(seconds: 10);
+
+  static const minStrokesToGold = 5;
+  static const maxStrokesToGold = 200;
+  static const defaultStrokesToGold = 50;
 
   final FinishJudge? judge;
 
   GamePhase _phase = GamePhase.select;
   GamePhase get phase => _phase;
+
+  int _strokesToGold = defaultStrokesToGold;
+  int get strokesToGold => _strokesToGold;
+
+  void setStrokesToGold(int count) {
+    if (_phase != GamePhase.select ||
+        count == _strokesToGold ||
+        count < minStrokesToGold ||
+        count > maxStrokesToGold) {
+      return;
+    }
+    _strokesToGold = count;
+    notifyListeners();
+  }
 
   VoiceProfile _voiceProfile = VoiceProfile.low;
   VoiceProfile get voiceProfile => _voiceProfile;
@@ -326,6 +366,20 @@ class GameController extends ChangeNotifier {
   // The awarded result and the unfinished surface can differ. Keep the last
   // sensor-driven appearance until the player buffs the remaining metal.
   double? _handFinishProgress;
+
+  bool _medalAwardRevealed = false;
+  bool get awaitingMedalAward =>
+      _phase == GamePhase.result &&
+      _material?.id == 'medal' &&
+      !_medalAwardRevealed;
+  bool get canScratchMedal =>
+      awaitingMedalAward && !_paused && !needsHandPolish;
+
+  void revealMedalAward() {
+    if (!canScratchMedal) return;
+    _medalAwardRevealed = true;
+    notifyListeners();
+  }
 
   double get surfaceProgress => _handFinishProgress ?? progress;
   bool get needsHandPolish => _handFinishProgress != null;
@@ -411,7 +465,8 @@ class GameController extends ChangeNotifier {
     _value = material.valueAfterStroke(
       _value,
       grit,
-      finalRound: _round == roundCount,
+      strokesToGold: strokesToGold,
+      finalRound: _round == rounds,
     );
     if (material.id == 'kanji' && targetFinish == TargetFinish.over) {
       _finishGame();
@@ -450,20 +505,33 @@ class GameController extends ChangeNotifier {
     _timer = Timer(delay, _updateClock);
     if (seconds != _remainingSeconds) {
       _remainingSeconds = seconds;
+      if (_round == rounds && seconds <= 1) _applyGuaranteedFinish();
       notifyListeners();
     }
   }
 
+  /// One second before the last round ends, a material with a guaranteed
+  /// finish reaches it, so the result opens already finished.
+  void _applyGuaranteedFinish() {
+    final material = _material!;
+    final floor = material.finishAtLeast;
+    if (floor == null || progress >= floor) return;
+    _handFinishProgress = null;
+    _value = material.initialValue - material.maxRemoval * floor;
+  }
+
   void _endRound() {
-    if (_round == roundCount) {
-      final material = _material!;
-      final floor = material.finishAtLeast;
-      if (floor != null && progress < floor) {
-        if (material.id == 'medal') _handFinishProgress = progress;
-        _value = material.initialValue - material.maxRemoval * floor;
-      }
+    if (_round == rounds) {
+      // Busy frames may skip the last-second callback entirely.
+      _applyGuaranteedFinish();
       _finishGame();
       return;
+    }
+    // Earlier rounds may hold the finish within a range (the medal's matte gold).
+    final material = _material!;
+    if (material.afterEarlierRounds case final hold?) {
+      final held = progress.clamp(hold.min, hold.max);
+      _value = material.initialValue - material.maxRemoval * held;
     }
     _stopClock();
     _round++;
@@ -491,6 +559,7 @@ class GameController extends ChangeNotifier {
   }
 
   void _clearSession() {
+    _medalAwardRevealed = false;
     _handFinishProgress = null;
     _stopClock();
     _round = 1;

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -128,6 +129,7 @@ class Workshop extends StatelessWidget {
           }
           if (material.id == 'kanji') {
             unawaited(precacheImage(KanjiBreak.atlas, context));
+            unawaited(precacheImage(_kanjiResultWood, context));
           }
           actions.choose(material);
         },
@@ -135,6 +137,7 @@ class Workshop extends StatelessWidget {
       Screen.voice => RoundIntroduction(
         key: ValueKey((game.material!.id, game.round)),
         round: game.round,
+        total: game.rounds,
         arrival: game.round == 1 && !MediaQuery.disableAnimationsOf(context)
             ? materialLandingDuration
             : Duration.zero,
@@ -171,11 +174,12 @@ class Workshop extends StatelessWidget {
     Widget? intro,
   }) {
     final hasPaper = screen == Screen.ready || screen == Screen.polishing;
-    final earnedKanjiRank =
-        screen == Screen.result &&
-        game.material!.id == 'kanji' &&
-        game.targetFinish == TargetFinish.onTarget;
-    return _workshopStage(
+    final kanjiResult = screen == Screen.result && game.material!.id == 'kanji';
+    final medalResult = screen == Screen.result && game.material!.id == 'medal';
+    final finish = kanjiResult ? game.targetFinish : null;
+    final earnedKanjiRank = finish == TargetFinish.onTarget;
+    final stage = kanjiResult ? _kanjiResultStage : _workshopStage;
+    return stage(
       key: ValueKey((game.phase, game.round)),
       screen: screen,
       parts: [
@@ -193,7 +197,13 @@ class Workshop extends StatelessWidget {
             fill: true,
           ),
         Part(
-          earnedKanjiRank ? 'character' : 'workpiece',
+          switch (finish) {
+            TargetFinish.onTarget => 'character',
+            TargetFinish.under => 'underArt',
+            TargetFinish.over => 'fractureArt',
+            _ when medalResult => 'scratchMedal',
+            _ => 'workpiece',
+          },
           earnedKanjiRank ? '結果のキャラクター' : '素材',
           _Workpiece(game: game, inContact: inContact),
           transition: arrival == null
@@ -213,6 +223,13 @@ class Workshop extends StatelessWidget {
                 ),
           fill: true,
         ),
+        if (finish == TargetFinish.over)
+          Part(
+            'fractureCharacter',
+            '削りすぎの人物',
+            _OverpolishedCharacter(points: kanjiPoints(game)),
+            fill: true,
+          ),
         if (earnedKanjiRank)
           Part(
             'nameplate',
@@ -224,6 +241,17 @@ class Workshop extends StatelessWidget {
             ),
             fill: true,
           ),
+        if (earnedKanjiRank)
+          Part(
+            'comment',
+            '称号のひとこと',
+            _FadeInLater(
+              delay: _rankEntranceDuration + _characterFadeDuration,
+              duration: _characterFadeDuration,
+              child: _KanjiComment(points: kanjiPoints(game)),
+            ),
+            fill: true,
+          ),
         if (intro != null) Part('intro', '回数のカットイン', intro, fill: true),
         if (intro == null) ...[
           if (!hasPaper && simulated)
@@ -232,15 +260,12 @@ class Workshop extends StatelessWidget {
               '疑似入力表示',
               Align(alignment: Alignment.centerRight, child: _simulatedLabel),
             ),
-          if (screen == Screen.result &&
-              game.material!.id == 'kanji' &&
-              game.targetFinish == TargetFinish.over)
+          if (finish == TargetFinish.over)
             const Part(
-              'round',
-              '割れた漢の見出し',
-              _Title('漢割り'),
-              singleLine: true,
-              align: Alignment.center,
+              'fractureHeading',
+              '漢割り（おわり）',
+              _FractureHeading(),
+              fill: true,
             )
           else
             Part('round', 'ラウンド行', _RoundHeader(game: game), fill: true),
@@ -454,52 +479,62 @@ class Workshop extends StatelessWidget {
           ),
         ];
       case GamePhase.result:
+        final medal = game.material!.id == 'medal';
         return [
-          if (kanjiFinish != TargetFinish.onTarget)
+          // 目標どおりの漢は、見出しの代わりに段位・人物・称号を出す（_playStage）。
+          if (kanjiFinish == TargetFinish.under ||
+              kanjiFinish == TargetFinish.over)
             Part(
-              'title',
-              '見出し',
-              _Title(switch (kanjiFinish) {
-                TargetFinish.under => '磨き不足',
-                TargetFinish.over => '削りすぎ',
-                _ => game.material!.stageAt(game.surfaceProgress).name,
-              }),
+              kanjiFinish == TargetFinish.over ? 'fractureTitle' : 'underTitle',
+              '仕上がりの見出し',
+              _Title(
+                kanjiFinish == TargetFinish.over ? '削りすぎ' : '磨き不足',
+                fontSize: 42,
+              ),
               singleLine: true,
+              align: Alignment.center,
+            )
+          else if (kanjiFinish != TargetFinish.onTarget)
+            Part(
+              medal ? 'medalTitle' : 'title',
+              '見出し',
+              _Title(game.material!.stageAt(game.surfaceProgress).name),
+              singleLine: true,
+              align: medal ? Alignment.center : Alignment.topLeft,
             ),
           if (game.verdict case final verdict?)
-            Part('body', '仕上がりの判定', _Body(verdict)),
-          Part(
-            'hint',
-            'こする案内',
-            game.material!.id == 'medal'
-                ? Semantics(
-                    liveRegion: true,
-                    child: _Body(
-                      game.needsHandPolish ? 'メダルを指で磨く' : '上の箔を削って文字を出す',
-                    ),
-                  )
-                : null,
-          ),
-          Part(
-            'action',
-            '「もう一度遊ぶ」ボタン',
-            _BoxButton(
-              key: const ValueKey('retry'),
-              icon: Icons.replay_rounded,
-              label: 'もう一度遊ぶ',
-              onPressed: actions.retry,
+            Part(
+              switch (kanjiFinish) {
+                TargetFinish.over => 'fractureVerdict',
+                TargetFinish.under => 'underVerdict',
+                _ when medal => 'medalVerdict',
+                _ => 'body',
+              },
+              '仕上がりの判定',
+              _Body(verdict),
             ),
-            fill: true,
-          ),
-          Part('home', '「タイトルへ」ボタン', switch (onTitle) {
-            final VoidCallback toTitle => _QuietButton(
-              key: const ValueKey('to-title'),
-              icon: Icons.home_outlined,
-              label: 'タイトルへ',
-              onPressed: toTitle,
+          if (!game.awaitingMedalAward) ...[
+            Part(
+              'action',
+              '「もう一度遊ぶ」ボタン',
+              _BoxButton(
+                key: const ValueKey('retry'),
+                icon: Icons.replay_rounded,
+                label: 'もう一度遊ぶ',
+                onPressed: actions.retry,
+              ),
+              fill: true,
             ),
-            _ => null,
-          }, fill: true),
+            Part('home', '「タイトルへ」ボタン', switch (onTitle) {
+              final VoidCallback toTitle => _QuietButton(
+                key: const ValueKey('to-title'),
+                icon: Icons.home_outlined,
+                label: 'タイトルへ',
+                onPressed: toTitle,
+              ),
+              _ => null,
+            }, fill: true),
+          ],
         ];
     }
   }
@@ -738,6 +773,23 @@ class _PolishCueState extends State<_PolishCue>
   }
 }
 
+const _kanjiResultWood = AssetImage('assets/images/kanji-result-wood.webp');
+
+LayoutStage _kanjiResultStage({
+  Key? key,
+  required Screen screen,
+  required List<Part> parts,
+}) => LayoutStage(
+  key: key,
+  screen: screen,
+  parts: parts,
+  background: const Image(
+    image: _kanjiResultWood,
+    fit: BoxFit.cover,
+    excludeFromSemantics: true,
+  ),
+);
+
 LayoutStage _workshopStage({
   Key? key,
   required Screen screen,
@@ -853,25 +905,6 @@ class _WorkshopProp extends StatelessWidget {
   );
 }
 
-/// 黒いかすれを重ねた文字。
-class _GrungeText extends StatelessWidget {
-  const _GrungeText(this.text, {required this.style});
-  final String text;
-  final TextStyle style;
-
-  @override
-  Widget build(BuildContext context) => Stack(
-    children: [
-      Text(text, style: style, softWrap: false),
-      Positioned.fill(
-        child: IgnorePointer(
-          child: CustomPaint(painter: _GrungePainter(text.hashCode)),
-        ),
-      ),
-    ],
-  );
-}
-
 class _TitleLettering extends StatelessWidget {
   const _TitleLettering();
 
@@ -889,8 +922,9 @@ class _TitleLettering extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.baseline,
     textBaseline: TextBaseline.alphabetic,
     children: [
-      _GrungeText('磨くで', style: brush.copyWith(fontSize: 82)),
-      const _GrungeText('ヤンス！', style: brush),
+      // 同じ大きさにそろえ、かすれ（靄）は重ねない。
+      const Text('磨くで', style: brush),
+      const Text('ヤンス！', style: brush),
     ],
   );
 }
@@ -1079,65 +1113,18 @@ class _MicPainter extends CustomPainter {
   bool shouldRepaint(_MicPainter old) => old.color != color;
 }
 
-/// 題字に重ねるかすれ。文字列ごとに模様を固定する。
-class _GrungePainter extends CustomPainter {
-  const _GrungePainter(this.seed);
-  final int seed;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-    final random = math.Random(seed);
-    canvas.clipRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(2)),
-    );
-    final speck = Paint()..color = bench.withValues(alpha: .55);
-    final count = (size.width * size.height / 40).clamp(20, 1600).toInt();
-    for (var i = 0; i < count; i++) {
-      final r = random.nextDouble() * 1.4 + .3;
-      canvas.drawCircle(
-        Offset(
-          random.nextDouble() * size.width,
-          random.nextDouble() * size.height,
-        ),
-        r,
-        speck,
-      );
-    }
-    final scratch = Paint()
-      ..color = bench.withValues(alpha: .45)
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 14; i++) {
-      final start = Offset(
-        random.nextDouble() * size.width,
-        random.nextDouble() * size.height,
-      );
-      final length = random.nextDouble() * size.width * .18 + 4;
-      final angle = (random.nextDouble() - .5) * .5;
-      scratch.strokeWidth = random.nextDouble() * 1.4 + .4;
-      canvas.drawLine(
-        start,
-        start + Offset(math.cos(angle), math.sin(angle)) * length,
-        scratch,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GrungePainter old) => old.seed != seed;
-}
-
 class _Title extends StatelessWidget {
-  const _Title(this.text);
+  const _Title(this.text, {this.fontSize = 28});
   final String text;
+  final double fontSize;
   @override
   Widget build(BuildContext context) => Semantics(
     header: true,
     child: Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         color: chalk,
-        fontSize: 28,
+        fontSize: fontSize,
         fontWeight: FontWeight.w800,
         height: 1.22,
         letterSpacing: -.75,
@@ -1216,7 +1203,7 @@ class _MedalImage extends StatelessWidget {
 /// 素材ごとの見出し。素材選択で画像のすぐ上に出す。
 String _pickHeading(WorkMaterial material) => switch (material.id) {
   'medal' => 'メダルを磨く',
-  'kanji' => '漢字を磨く',
+  'kanji' => '「漢」を磨く',
   _ => '${material.name}を磨く',
 };
 
@@ -1494,7 +1481,7 @@ class _VoiceProfilePicker extends StatelessWidget {
     spacing: 8,
     children: [
       const Expanded(
-        flex: 2,
+        flex: 1,
         child: FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
@@ -1509,9 +1496,10 @@ class _VoiceProfilePicker extends StatelessWidget {
         ),
       ),
       Expanded(
-        flex: 5,
+        flex: 4,
         child: SegmentedButton<VoiceProfile>(
           expandedInsets: EdgeInsets.zero,
+          selectedIcon: const Icon(Icons.check, size: 16),
           style: SegmentedButton.styleFrom(
             foregroundColor: shopInk,
             backgroundColor: shopPaper,
@@ -1519,11 +1507,11 @@ class _VoiceProfilePicker extends StatelessWidget {
             selectedBackgroundColor: shopIndigo,
             side: const BorderSide(color: shopInk, width: 1.5),
             shape: ChipTheme.of(context).shape,
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             minimumSize: const Size(0, 48),
             textStyle: const TextStyle(
               fontFamily: appFont,
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1737,6 +1725,46 @@ String kanjiNameplateImage(int points) =>
 String kanjiNameplate(int points) =>
     const ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][kanjiRankNumber(points) - 1];
 
+/// 称号と人物の間に置く二行の台詞。改行は文節の境目で指定する。
+const _kanjiCommentLines = [
+  'ガサツなのに\n実は優しいオトコ♡',
+  'あなたの力強さと\n柔らかさにトリコだわ♡',
+  'その筋肉で\n私を運んでー♡',
+  'その透明感に\n吸い込まれちゃう♡',
+  'あなたの甘い笑顔に\nキュン♡',
+];
+
+String kanjiNameplateComment(int points) =>
+    _kanjiCommentLines[kanjiRankNumber(points) - 1].replaceAll('\n', '');
+
+class _KanjiComment extends StatelessWidget {
+  const _KanjiComment({required this.points});
+
+  final int points;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        _kanjiCommentLines[kanjiRankNumber(points) - 1],
+        key: const ValueKey('nameplate-comment'),
+        semanticsLabel: kanjiNameplateComment(points),
+        textAlign: TextAlign.center,
+        softWrap: false,
+        style: const TextStyle(
+          color: chalk,
+          fontSize: 32,
+          fontWeight: FontWeight.w800,
+          height: 1.14,
+          shadows: [Shadow(color: bench, blurRadius: 6)],
+        ),
+      ),
+    ),
+  );
+}
+
 /// 結果画面の称号。四角いっぱいに収める。
 class _KanjiNameplate extends StatelessWidget {
   const _KanjiNameplate({required this.points});
@@ -1787,11 +1815,76 @@ class _KanjiRank extends StatelessWidget {
   }
 }
 
+class _FractureHeading extends StatelessWidget {
+  const _FractureHeading();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    header: true,
+    label: '漢割り、おわり',
+    excludeSemantics: true,
+    child: const FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'おわり',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: shopPaper,
+              height: 1.12,
+            ),
+          ),
+          SizedBox(height: 3),
+          Text(
+            '漢割り',
+            style: TextStyle(
+              fontSize: 58,
+              fontWeight: FontWeight.w900,
+              color: chalk,
+              height: 1.14,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+String kanjiOverpolishedImage(int points) =>
+    'assets/images/overpolished-0${kanjiRankNumber(points)}.png';
+
+class _OverpolishedCharacter extends StatelessWidget {
+  const _OverpolishedCharacter({required this.points});
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = kanjiOverpolishedImage(points);
+    return _FadeInLater(
+      delay: kanjiRankNumber(points) == 1
+          ? KanjiBreak.duration
+          : _CrackingKanji.duration,
+      duration: _characterFadeDuration,
+      child: Image.asset(
+        image,
+        key: ValueKey(image),
+        fit: BoxFit.contain,
+        cacheWidth: 400,
+        semanticLabel: '${kanjiRank(points)}の削りすぎた人物',
+      ),
+    );
+  }
+}
+
 /// 段位の「漢」が割れるコマ送り。段位の絵 → ひびが入って揺れる → 左右が離れて傾く →
 /// 割れた絵。1漢はチーム提供の赤い破片を使った5コマを再生する。
 class _CrackingKanji extends StatefulWidget {
   const _CrackingKanji({required this.rank});
   final int rank;
+  static const duration = Duration(milliseconds: 1600);
 
   // やすりが着地した時点で今回使う色が決まる。割れた瞬間に
   // コマの読み込みを待たせないよう、研磨を始める前に同じ解像度で用意する。
@@ -1817,8 +1910,6 @@ class _CrackingKanji extends StatefulWidget {
 
 class _CrackingKanjiState extends State<_CrackingKanji>
     with SingleTickerProviderStateMixin {
-  static const _duration = Duration(milliseconds: 1600);
-
   /// 1秒あたりのコマ数。滑らかにせず、コマ送りに見せる。
   static const _fps = 12;
 
@@ -1832,7 +1923,7 @@ class _CrackingKanjiState extends State<_CrackingKanji>
 
   late final AnimationController _clock = AnimationController(
     vsync: this,
-    duration: _duration,
+    duration: _CrackingKanji.duration,
   );
 
   @override
@@ -1884,7 +1975,8 @@ class _CrackingKanjiState extends State<_CrackingKanji>
           builder: (context, box) => AnimatedBuilder(
             animation: _clock,
             builder: (context, _) {
-              final frames = _duration.inMilliseconds * _fps ~/ 1000;
+              final frames =
+                  _CrackingKanji.duration.inMilliseconds * _fps ~/ 1000;
               final frame = (_clock.value * frames).floor();
               final t = frame / frames;
               if (t < .35) return _image('kanji-rank-$rank.png');
@@ -1958,15 +2050,48 @@ class _KanjiCharacter extends StatelessWidget {
       delay: _rankEntranceDuration,
       duration: _characterFadeDuration,
       child: Center(
-        child: Image.asset(
-          image,
-          key: ValueKey(image),
-          fit: BoxFit.contain,
-          cacheWidth: 720,
+        child: _CharacterMist(
+          character: Image.asset(
+            image,
+            key: ValueKey(image),
+            fit: BoxFit.contain,
+            cacheWidth: 720,
+          ),
         ),
       ),
     );
   }
+}
+
+/// 人物画像のアルファを薄くぼかし、顔や段位の手前に白がかからないようにする。
+class _CharacterMist extends StatelessWidget {
+  const _CharacterMist({required this.character});
+
+  final Image character;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    alignment: Alignment.center,
+    clipBehavior: Clip.none,
+    children: [
+      Positioned.fill(
+        child: ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+          child: Transform.scale(
+            scale: 1.04,
+            child: Image(
+              image: character.image,
+              fit: character.fit,
+              color: const Color(0x99FFFAEF),
+              colorBlendMode: BlendMode.srcIn,
+              excludeFromSemantics: true,
+            ),
+          ),
+        ),
+      ),
+      character,
+    ],
+  );
 }
 
 /// 素材選択ではメダルと漢を研磨前の状態で見せる。
@@ -2509,7 +2634,7 @@ class _RoundHeader extends StatelessWidget {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(
-          '${game.round} 回目 / 全${GameController.roundCount}回',
+          '${game.round} 回目 / 全${game.rounds}回',
           style: TextStyle(
             color: voice ? chalk : muted,
             fontWeight: FontWeight.w600,
@@ -2546,11 +2671,45 @@ class _Workpiece extends StatelessWidget {
         final rank => _CrackingKanji(rank: rank),
       },
       TargetFinish.onTarget when result => _KanjiCharacter(game: game),
-      TargetFinish.under when result => Image.asset(
-        'assets/images/kanji-silver.png',
-        key: const ValueKey('kanji-underpolished'),
-        fit: BoxFit.contain,
-        cacheWidth: 720,
+      TargetFinish.under when result => LayoutBuilder(
+        builder: (context, box) => Stack(
+          fit: StackFit.expand,
+          children: [
+            // 両素材の透過余白を含めて配置し、実際の絵を中央にまとめる。
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: box.maxWidth * .8,
+              child: Image.asset(
+                'assets/images/kanji-silver.png',
+                key: const ValueKey('kanji-under-surface'),
+                fit: BoxFit.contain,
+                cacheWidth: 720,
+              ),
+            ),
+            Positioned(
+              left: box.maxWidth * .21,
+              top: 0,
+              bottom: 0,
+              width: box.maxWidth * .95,
+              child: _FadeInLater(
+                delay: Duration.zero,
+                duration: _characterFadeDuration,
+                child: _CharacterMist(
+                  character: Image.asset(
+                    MediaQuery.disableAnimationsOf(context)
+                        ? 'assets/images/character-under-still.webp'
+                        : 'assets/images/character-under.webp',
+                    key: const ValueKey('kanji-underpolished'),
+                    fit: BoxFit.contain,
+                    cacheWidth: 640,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       _ when image != null => _PolishedMedalFace(
         material: material,
@@ -2578,7 +2737,7 @@ class _Workpiece extends StatelessWidget {
           label: broken
               ? '割れた漢'
               : kanji && result && finish == TargetFinish.under
-              ? '灰色の漢'
+              ? '灰色の漢と磨き不足のキャラクター'
               : material.stageAt(progress).name,
           value: '研磨 ${(progress * 100).round()}%',
           child: art,
@@ -2592,7 +2751,12 @@ class _Workpiece extends StatelessWidget {
                       shinyFace: _MedalImage(_medalStageImages.last),
                       onTravel: game.polishResult,
                     )
-                  : const MedalScratch(engraved: _MedalImage(_medalRubImage)),
+                  : MedalScratch(
+                      engraved: const _MedalImage(_medalRubImage),
+                      enabled: game.canScratchMedal,
+                      revealed: !game.awaitingMedalAward,
+                      onRevealed: game.revealMedalAward,
+                    ),
             ),
           ),
         // 接触中のチリと、往復が成立したときの大きな破片を重ねる。
