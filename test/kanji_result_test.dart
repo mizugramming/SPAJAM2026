@@ -34,17 +34,30 @@ void main() {
         kanjiNameplate(points),
         ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][n - 1],
       );
+      expect(kanjiNameplateComment(points), isNotEmpty);
+      if (n == 1) {
+        expect(kanjiNameplateComment(points), 'ガサツなのに実は優しいオトコ♡');
+      }
     }
     for (final MapEntry(key: points, value: (ok, ng)) in expected.entries) {
       expect(
-        kanjiResultImage(points, success: true),
+        kanjiResultImage(points, KanjiOutcome.success),
         'assets/images/$ok',
         reason: '$points success',
       );
       expect(
-        kanjiResultImage(points, success: false),
+        kanjiResultImage(points, KanjiOutcome.overPolished),
         'assets/images/$ng',
         reason: '$points failure',
+      );
+    }
+  });
+
+  test('an under-polished kanji shows the same character at every rank', () {
+    for (var points = 3; points <= 9; points++) {
+      expect(
+        kanjiResultImage(points, KanjiOutcome.underPolished),
+        'assets/images/character-under.webp',
       );
     }
   });

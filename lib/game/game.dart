@@ -112,6 +112,8 @@ class WorkMaterial {
     this.glyph,
     this.targetValue,
     this.finishAtLeast,
+    this.rounds = GameController.roundCount,
+    this.afterEarlierRounds,
   }) : assert(maxRemoval > 0);
 
   final String id;
@@ -129,7 +131,15 @@ class WorkMaterial {
 
   /// The progress every play reaches by the end of the last round, however
   /// little was polished. Null keeps the polished amount as it is.
+  /// It is reached one second before the last round ends.
   final double? finishAtLeast;
+
+  /// How many rounds a play of this material has.
+  final int rounds;
+
+  /// Where the progress is held at the end of each round before the last one,
+  /// however much was polished. Null keeps the polished amount as it is.
+  final ({double min, double max})? afterEarlierRounds;
 
   double progressAt(double value) =>
       ((initialValue - value) / maxRemoval).clamp(0.0, 1.0);
@@ -224,6 +234,9 @@ const materials = [
     description: '銅・銀・金の輝き',
     initialValue: 100,
     maxRemoval: _medalMaxRemoval,
+    // 発表用の二段階：1回目の終わりは必ず輝く前の金、2回目は残り1秒で必ず金ピカ。
+    rounds: 2,
+    afterEarlierRounds: (min: .50, max: .90),
     finishAtLeast: _shinyGoldThreshold,
     stages: [
       FinishStage(0, 'サビた銅メダル', Color(0xFF9B6447), 0.90, 0.05),
@@ -284,7 +297,11 @@ typedef FinishJudge = String? Function(WorkMaterial material, double value);
 class GameController extends ChangeNotifier {
   GameController({this.judge});
 
+  /// The default number of rounds; each material may set its own.
   static const roundCount = 3;
+
+  /// Rounds for the selected material.
+  int get rounds => _material?.rounds ?? roundCount;
   static const polishDuration = Duration(seconds: 10);
   static const minStrokesToGold = 5;
   static const maxStrokesToGold = 60;
@@ -425,7 +442,7 @@ class GameController extends ChangeNotifier {
       _value,
       grit,
       strokesToGold: strokesToGold,
-      finalRound: _round == roundCount,
+      finalRound: _round == rounds,
     );
     final pulse = pulseFor(grit, progress);
     notifyListeners();
@@ -460,13 +477,24 @@ class GameController extends ChangeNotifier {
     _timer = Timer(delay, _updateClock);
     if (seconds != _remainingSeconds) {
       _remainingSeconds = seconds;
+      if (_round == rounds && seconds <= 1) _finishBeforeDeadline();
       notifyListeners();
     }
   }
 
+  /// One second before the last round ends, a material with a guaranteed
+  /// finish reaches it, so the result opens already finished.
+  void _finishBeforeDeadline() {
+    final material = _material!;
+    final floor = material.finishAtLeast;
+    if (floor == null || progress >= floor) return;
+    _handFinishProgress = null;
+    _value = material.initialValue - material.maxRemoval * floor;
+  }
+
   void _endRound() {
     _stopClock();
-    if (_round == roundCount) {
+    if (_round == rounds) {
       _remainingSeconds = 0;
       final material = _material!;
       final floor = material.finishAtLeast;
@@ -477,6 +505,11 @@ class GameController extends ChangeNotifier {
       _phase = GamePhase.result;
       _verdict = judge?.call(_material!, _value);
     } else {
+      final material = _material!;
+      if (material.afterEarlierRounds case final hold?) {
+        final held = progress.clamp(hold.min, hold.max);
+        _value = material.initialValue - material.maxRemoval * held;
+      }
       _round++;
       _remainingSeconds = polishDuration.inSeconds;
       _strokes = 0;

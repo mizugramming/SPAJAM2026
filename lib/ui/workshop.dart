@@ -131,6 +131,7 @@ class Workshop extends StatelessWidget {
       Screen.voice => RoundIntroduction(
         key: ValueKey((game.material!.id, game.round)),
         round: game.round,
+        total: game.rounds,
         arrival:
             game.round == 1 &&
                 game.material!.id == 'medal' &&
@@ -177,7 +178,8 @@ class Workshop extends StatelessWidget {
                 opacity: _rankOpacity,
                 child: _KanjiRank(
                   points: kanjiPoints(game),
-                  cracked: !kanjiSucceeded(game),
+                  // 削りすぎのときだけ割れる。
+                  cracked: kanjiOutcome(game) == KanjiOutcome.overPolished,
                 ),
               ),
             ),
@@ -214,6 +216,31 @@ class Workshop extends StatelessWidget {
               child: _KanjiNameplate(points: kanjiPoints(game)),
             ),
             fill: true,
+          ),
+        if (screen == Screen.result && game.material!.id == 'kanji')
+          Part(
+            'comment',
+            '称号のひとこと',
+            _FadeInLater(
+              delay: _rankEntranceDuration + _characterFadeDuration,
+              duration: _characterFadeDuration,
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  kanjiNameplateComment(kanjiPoints(game)),
+                  key: const ValueKey('nameplate-comment'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: chalk,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    height: 1.3,
+                    shadows: [Shadow(color: bench, blurRadius: 6)],
+                  ),
+                ),
+              ),
+            ),
+            align: Alignment.topCenter,
           ),
         if (intro != null) Part('intro', '回数のカットイン', intro, fill: true),
         if (intro == null) ...[
@@ -818,27 +845,6 @@ class _WorkshopProp extends StatelessWidget {
   );
 }
 
-/// 黒いかすれを重ねた文字。
-class _GrungeText extends StatelessWidget {
-  const _GrungeText(this.text, {required this.style});
-  final String text;
-  final TextStyle style;
-
-  @override
-  Widget build(BuildContext context) => Stack(
-    children: [
-      Text(text, style: style, softWrap: false),
-      Positioned.fill(
-        child: IgnorePointer(
-          child: CustomPaint(
-            painter: _GrungePainter(text.hashCode, frame: false, density: 40),
-          ),
-        ),
-      ),
-    ],
-  );
-}
-
 class _TitleLettering extends StatelessWidget {
   const _TitleLettering();
 
@@ -855,10 +861,11 @@ class _TitleLettering extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _GrungeText('磨くで', style: brush.copyWith(fontSize: 82)),
+      // 上下を同じ大きさにし、かすれ（靄）は重ねない。
+      const Text('磨くで', style: brush),
       const Padding(
         padding: EdgeInsets.only(left: 24),
-        child: _GrungeText('ヤンス！', style: brush),
+        child: Text('ヤンス！', style: brush),
       ),
     ],
   );
@@ -1237,7 +1244,7 @@ class _MedalImage extends StatelessWidget {
 /// 素材ごとの見出し。素材選択で画像のすぐ上に出す。
 String _pickHeading(WorkMaterial material) => switch (material.id) {
   'medal' => 'メダルを磨く',
-  'kanji' => '漢字を磨く',
+  'kanji' => '「漢」を磨く',
   _ => '${material.name}を磨く',
 };
 
@@ -1624,10 +1631,23 @@ int gritPoints(Grit grit) => switch (grit) {
   Grit.fine => 1,
 };
 
-/// 漢磨きの成否。成功の範囲はもう一人の担当が決める。決まるまでの仮の決まりとして、
-/// 最後の段階（光沢を帯びた漢）まで磨けたら成功にしている。範囲が決まったらここだけ書き換える。
+/// 漢磨きの結果：磨き不足・ちょうど良い（成功）・削りすぎ。
+enum KanjiOutcome { underPolished, success, overPolished }
+
+/// 削りすぎとみなす研磨の割合。範囲はもう一人の担当が決める。決まるまでの仮の値で、
+/// 決まったらここだけ書き換える。
+const kanjiOverpolishFrom = 1.0;
+
+/// 最後の段階（光沢を帯びた漢）に届かなければ磨き不足、[kanjiOverpolishFrom] 以上なら削りすぎ。
+KanjiOutcome kanjiOutcome(GameController game) {
+  final material = game.material!;
+  if (game.progress >= kanjiOverpolishFrom) return KanjiOutcome.overPolished;
+  if (game.stage != material.stages.last) return KanjiOutcome.underPolished;
+  return KanjiOutcome.success;
+}
+
 bool kanjiSucceeded(GameController game) =>
-    game.stage == game.material!.stages.last;
+    kanjiOutcome(game) == KanjiOutcome.success;
 
 /// 3回のやすりの合計点。
 int kanjiPoints(GameController game) =>
@@ -1762,6 +1782,15 @@ String kanjiNameplateImage(int points) =>
 /// 称号の読み（読み上げ用）。
 String kanjiNameplate(int points) =>
     const ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][kanjiRankNumber(points) - 1];
+
+/// 称号に合わせたひとこと。
+String kanjiNameplateComment(int points) => const [
+  'ガサツなのに実は優しいオトコ♡',
+  'あなたの力強さと柔らかさにトリコだわ♡',
+  'その筋肉で私を運んでー♡',
+  'その透明感に吸い込まれちゃう♡',
+  'あなたの甘い笑顔にキュン♡',
+][kanjiRankNumber(points) - 1];
 
 /// 結果画面の称号。四角いっぱいに収める。
 class _KanjiNameplate extends StatelessWidget {
@@ -1959,7 +1988,11 @@ class _CrackingKanjiState extends State<_CrackingKanji>
 }
 
 /// 漢磨きの仕上がりに出すキャラクター。3回のやすりの合計点と成否で決まる。
-String kanjiResultImage(int points, {required bool success}) {
+String kanjiResultImage(int points, KanjiOutcome outcome) {
+  // 磨き不足は段位によらず同じキャラクター（動画を背景透過の動くWebPにしたもの）。
+  if (outcome == KanjiOutcome.underPolished) {
+    return 'assets/images/character-under.webp';
+  }
   final (ok, ng) = switch (points) {
     // 成功は動くキャラクター（動画を背景透過の動くWebPにしたもの）。
     <= 3 => ('character-success-5.webp', 'overpolished-05.png'),
@@ -1968,7 +2001,7 @@ String kanjiResultImage(int points, {required bool success}) {
     <= 8 => ('character-success-2.webp', 'overpolished-02.png'),
     _ => ('character-success-1.webp', 'overpolished-01.png'),
   };
-  return 'assets/images/${success ? ok : ng}';
+  return 'assets/images/${outcome == KanjiOutcome.success ? ok : ng}';
 }
 
 /// 仕上がり画面の漢磨きのキャラクター。
@@ -1978,10 +2011,7 @@ class _KanjiCharacter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = kanjiResultImage(
-      kanjiPoints(game),
-      success: kanjiSucceeded(game),
-    );
+    final image = kanjiResultImage(kanjiPoints(game), kanjiOutcome(game));
     return _FadeInLater(
       delay: _rankEntranceDuration,
       duration: _characterFadeDuration,
@@ -2535,7 +2565,7 @@ class _RoundHeader extends StatelessWidget {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(
-          '${game.round} 回目 / 全${GameController.roundCount}回',
+          '${game.round} 回目 / 全${game.rounds}回',
           style: TextStyle(
             color: voice ? chalk : muted,
             fontWeight: FontWeight.w600,
