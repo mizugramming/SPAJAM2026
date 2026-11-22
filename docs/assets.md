@@ -19,6 +19,9 @@
 | `assets/images/kanji-silver-polished.png` | 同じ文字の磨き上がった絵。同日の「透明背景の銀色立体漢字 漢-2.png」を英字名に変更。元の絵（未登録）。文字の位置と大きさが `kanji-silver.png` と少しずれていたため、そろえた `kanji-silver-polished-aligned.png` を研磨の割合だけ上に重ねて、磨くほどこの絵になる |
 | `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png`、`overpolished-01〜05.png` | 漢磨きの仕上がりのキャラクター（合計点と成否の表は app_design.md）。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
 | `assets/images/kanji-rank-1〜5.png` | 漢磨きの結果画面の段位の「漢」（1漢は赤、2漢は金など段位ごとの色）。2026-11-22にチームから受け取った「１漢.jpg」〜「５漢.jpg」の白背景を透明にしたもの |
+| `assets/images/kanji-crack-1〜5-before.png`、`kanji-crack-2〜5-after.png`、`kanji-crack-2〜5-left/right.png` | 削りすぎ（失敗）のときに段位の「漢」が割れるコマ送り。2026-11-22にチームから受け取った「N漢割れ前.jpg」「N漢割.jpg」の白背景を透明にし、割れる前の絵をひびの左右に切り分けた。1漢の割れた後の絵は未受領 |
+| `assets/images/character-success-1〜5.webp` | 漢磨きの成功時のキャラクター（動くWebP、12コマ/秒のループ）。2026-11-22にチームから受け取った「１.mp4」〜「５.mp4」から、枠につながる明るい背景を透明にして変換。動画再生のパッケージは追加していない |
+| `assets/images/workshop-title-01〜05.png` | 漢磨きの結果画面の称号（01 九州男児、02 醤油顔、03 ムキムキ、04 塩顔、05 韓国系、透過PNG）。2026-11-22にチームから受け取った |
 | `assets/images/kanji-rock.png` | 灰色の岩（透過PNG）。素材選択の漢の絵に一時使ったが、今は未使用・未登録 |
 | `assets/images/copper_medal_spin.webp` | 素材選択から採音画面へ移る緑青付き銅メダル。2026-11-22に提供された「緑青の銅メダル_立体回転_高精細_透過.mov」の正面から1回転（1.75秒）を24コマに抜き出した。各コマ320 px四方、6列×4行の透過WebP（1920×1280 px、約529 KiB）。 |
 | `assets/images/workshop_room.webp` | 磨き屋の下地（852 × 1846）。奥に暗い壁、手前に奥行きのある木の天板を描いた。 |

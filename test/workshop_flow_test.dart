@@ -541,9 +541,16 @@ void main() {
             find.byKey(const ValueKey('assets/images/kanji-rank-3.png')),
             findsOneWidget,
           );
+          // The 3漢 nameplate (ムキムキ) sits over the character.
+          expect(
+            find.byKey(const ValueKey('assets/images/workshop-title-03.png')),
+            findsOneWidget,
+          );
           // 粗目3 + 中目2 + 細目1 = 6 points, polished to the end: success.
           expect(
-            find.byKey(const ValueKey('assets/images/gyansu.jpg')),
+            find.byKey(
+              const ValueKey('assets/images/character-success-3.webp'),
+            ),
             findsOneWidget,
           );
         }
@@ -955,6 +962,73 @@ void main() {
       expect(revealed, findsNothing);
     });
   }
+
+  testWidgets('a failed kanji result cracks the rank 漢 behind the character', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(393, 852);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const WorkshopApp(simulated: true));
+    await tester.pumpAndSettle();
+    await tapControl(tester, 'title-start');
+    await chooseMaterial(tester, 'kanji');
+    for (var round = 1; round <= 3; round++) {
+      await tapControl(tester, 'demo-150');
+      await tapControl(tester, 'capture');
+      await tester.pump(const Duration(milliseconds: 500));
+      await finishHandoff(tester);
+      await tester.pump(const Duration(seconds: 10));
+      if (round < 3) await tester.pumpAndSettle();
+    }
+    await tester.pump();
+    expect(find.text('今回の仕上がり'), findsOneWidget);
+    String? keyOf(Widget w) => w is Image && w.key is ValueKey<String>
+        ? (w.key! as ValueKey<String>).value
+        : null;
+    Finder crack(String suffix) => find.byWidgetPredicate((w) {
+      final key = keyOf(w);
+      return key != null &&
+          key.startsWith('assets/images/kanji-crack-') &&
+          key.endsWith(suffix);
+    });
+    final intact = find.byWidgetPredicate(
+      (w) => keyOf(w)?.startsWith('assets/images/kanji-rank-') ?? false,
+    );
+    // Unpolished: overpolished character, and the rank 漢 starts intact.
+    expect(intact, findsOneWidget);
+    final rankOpacity = tester.widget<Opacity>(
+      find.ancestor(of: intact, matching: find.byType(Opacity)).first,
+    );
+    expect(rankOpacity.opacity, lessThan(1));
+    // The rank spins in first; the character fades in after it.
+    final character = find.byWidgetPredicate(
+      (w) => keyOf(w)?.startsWith('assets/images/overpolished-') ?? false,
+    );
+    double characterOpacity() => tester
+        .widget<FadeTransition>(
+          find
+              .ancestor(of: character, matching: find.byType(FadeTransition))
+              .first,
+        )
+        .opacity
+        .value;
+    expect(characterOpacity(), 0);
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(crack('-before.png'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(characterOpacity(), 1);
+    // Then the overpolished rank cracks.
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(crack('-before.png'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(
+      crack('-after.png').evaluate().length +
+          crack('-before.png').evaluate().length,
+      1,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('microphone retry and volume fallback keep the chosen material', (
     tester,

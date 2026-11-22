@@ -6,13 +6,13 @@ void main() {
   test('grit points add up to 3..9 and pick the result character', () {
     expect(Grit.values.map(gritPoints), [3, 2, 1]);
     const expected = {
-      3: ('character-05.png', 'overpolished-05.png'),
-      4: ('character-04.png', 'overpolished-04.png'),
-      5: ('character-04.png', 'overpolished-04.png'),
-      6: ('gyansu.jpg', 'overpolished-03.png'),
-      7: ('character-02.png', 'overpolished-02.png'),
-      8: ('character-02.png', 'overpolished-02.png'),
-      9: ('kyushu-danji.png', 'overpolished-01.png'),
+      3: ('character-success-5.webp', 'overpolished-05.png'),
+      4: ('character-success-4.webp', 'overpolished-04.png'),
+      5: ('character-success-4.webp', 'overpolished-04.png'),
+      6: ('character-success-3.webp', 'overpolished-03.png'),
+      7: ('character-success-2.webp', 'overpolished-02.png'),
+      8: ('character-success-2.webp', 'overpolished-02.png'),
+      9: ('character-success-1.webp', 'overpolished-01.png'),
     };
     const ranks = {
       3: '5漢',
@@ -25,6 +25,15 @@ void main() {
     };
     for (final MapEntry(key: points, value: rank) in ranks.entries) {
       expect(kanjiRank(points), rank, reason: '$points');
+      final n = int.parse(rank[0]);
+      expect(
+        kanjiNameplateImage(points),
+        'assets/images/workshop-title-0$n.png',
+      );
+      expect(
+        kanjiNameplate(points),
+        ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][n - 1],
+      );
     }
     for (final MapEntry(key: points, value: (ok, ng)) in expected.entries) {
       expect(

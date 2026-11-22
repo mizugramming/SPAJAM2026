@@ -151,6 +151,23 @@ class Workshop extends StatelessWidget {
       key: ValueKey((game.phase, game.round)),
       screen: screen,
       parts: [
+        // 漢磨きの結果は、段位の「漢」をキャラクターの後ろに少し透かして置く
+        // （磨きすぎて割れるときも同じ）。部品は並べた順に重なる。
+        if (screen == Screen.result && game.material!.id == 'kanji')
+          Part(
+            'rank',
+            '段位（何漢）',
+            _RankEntrance(
+              child: Opacity(
+                opacity: _rankOpacity,
+                child: _KanjiRank(
+                  points: kanjiPoints(game),
+                  cracked: !kanjiSucceeded(game),
+                ),
+              ),
+            ),
+            fill: true,
+          ),
         Part(
           'workpiece',
           '素材',
@@ -171,6 +188,18 @@ class Workshop extends StatelessWidget {
                 ),
           fill: true,
         ),
+        // 漢磨きの結果は、段位に合った称号（九州男児など）をキャラクターと漢の手前に出す。
+        if (screen == Screen.result && game.material!.id == 'kanji')
+          Part(
+            'nameplate',
+            '称号（九州男児など）',
+            _FadeInLater(
+              delay: _rankEntranceDuration + _characterFadeDuration,
+              duration: _characterFadeDuration,
+              child: _KanjiNameplate(points: kanjiPoints(game)),
+            ),
+            fill: true,
+          ),
         if (intro != null) Part('intro', '回数のカットイン', intro, fill: true),
         if (intro == null) ...[
           if (!hasPaper && simulated)
@@ -371,14 +400,7 @@ class Workshop extends StatelessWidget {
         ];
       case GamePhase.result:
         return [
-          if (game.material!.id == 'kanji')
-            Part(
-              'rank',
-              '段位（何漢）',
-              _KanjiRank(points: kanjiPoints(game)),
-              fill: true,
-            )
-          else
+          if (game.material!.id != 'kanji')
             Part('title', '見出し', _Title(game.stage.name), singleLine: true),
           if (game.verdict case final verdict?)
             Part('body', '仕上がりの判定', _Body(verdict)),
@@ -1607,16 +1629,158 @@ int kanjiRankNumber(int points) => switch (points) {
   _ => 1,
 };
 
-/// 段位の色の「漢」の絵。四角いっぱいに収める（数字は出さず、読み上げでは「○漢」）。
-class _KanjiRank extends StatelessWidget {
-  const _KanjiRank({required this.points});
+/// 漢磨きの結果の登場の順番：段位の「漢」が回りながら出る → キャラクターがフェードイン →
+/// （削りすぎなら）漢が割れる。
+const _rankEntranceDuration = Duration(milliseconds: 800);
+const _characterFadeDuration = Duration(milliseconds: 500);
+
+/// 段位の「漢」が、小さい状態から奥から回転しながら今の大きさまで出てくる。
+class _RankEntrance extends StatefulWidget {
+  const _RankEntrance({required this.child});
+  final Widget child;
+
+  @override
+  State<_RankEntrance> createState() => _RankEntranceState();
+}
+
+class _RankEntranceState extends State<_RankEntrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    duration: _rankEntranceDuration,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_clock.isAnimating || _clock.isCompleted) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _clock.value = 1;
+    } else {
+      _clock.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _clock,
+    child: widget.child,
+    builder: (context, child) {
+      final t = Curves.easeOutCubic.transform(_clock.value);
+      return Opacity(
+        opacity: (_clock.value * 3).clamp(0.0, 1.0),
+        // 出てくる途中でも、読み上げでは段位を伝える。
+        alwaysIncludeSemantics: true,
+        child: Transform.rotate(
+          angle: (1 - t) * math.pi * 2.5,
+          child: Transform.scale(scale: .12 + .88 * t, child: child),
+        ),
+      );
+    },
+  );
+}
+
+/// [delay] だけ待ってから [duration] でフェードインする。
+class _FadeInLater extends StatefulWidget {
+  const _FadeInLater({
+    required this.delay,
+    required this.duration,
+    required this.child,
+  });
+  final Duration delay;
+  final Duration duration;
+  final Widget child;
+
+  @override
+  State<_FadeInLater> createState() => _FadeInLaterState();
+}
+
+class _FadeInLaterState extends State<_FadeInLater>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    duration: widget.delay + widget.duration,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_clock.isAnimating || _clock.isCompleted) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _clock.value = 1;
+    } else {
+      _clock.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = (widget.delay + widget.duration).inMicroseconds;
+    final start = widget.delay.inMicroseconds / total;
+    return FadeTransition(
+      opacity: CurvedAnimation(
+        parent: _clock,
+        curve: Interval(start, 1, curve: Curves.easeOut),
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+/// 段位ごとの称号の絵（1漢＝九州男児、2漢＝醤油顔、3漢＝ムキムキ、4漢＝塩顔、5漢＝韓国系）。
+String kanjiNameplateImage(int points) =>
+    'assets/images/workshop-title-0${kanjiRankNumber(points)}.png';
+
+/// 称号の読み（読み上げ用）。
+String kanjiNameplate(int points) =>
+    const ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][kanjiRankNumber(points) - 1];
+
+/// 結果画面の称号。四角いっぱいに収める。
+class _KanjiNameplate extends StatelessWidget {
+  const _KanjiNameplate({required this.points});
   final int points;
 
   @override
   Widget build(BuildContext context) {
-    final image = 'assets/images/kanji-rank-${kanjiRankNumber(points)}.png';
+    final image = kanjiNameplateImage(points);
+    return Image.asset(
+      image,
+      key: ValueKey(image),
+      fit: BoxFit.contain,
+      cacheWidth: 800,
+      semanticLabel: kanjiNameplate(points),
+    );
+  }
+}
+
+/// 結果画面の段位の「漢」の透け具合（キャラクターの後ろで少しだけ透かす）。
+const _rankOpacity = .75;
+
+/// 段位の色の「漢」の絵。四角いっぱいに収める（数字は出さず、読み上げでは「○漢」）。
+/// 削りすぎ（失敗）のときは、ひびが入って左右に割れる様子をコマ送りで見せる。
+class _KanjiRank extends StatelessWidget {
+  const _KanjiRank({required this.points, this.cracked = false});
+  final int points;
+  final bool cracked;
+
+  @override
+  Widget build(BuildContext context) {
+    final rank = kanjiRankNumber(points);
+    final image = 'assets/images/kanji-rank-$rank.png';
     return Semantics(
-      label: kanjiRank(points),
+      label: cracked ? '${kanjiRank(points)}（割れた）' : kanjiRank(points),
       excludeSemantics: true,
       child: DecoratedBox(
         decoration: const BoxDecoration(
@@ -1625,11 +1789,153 @@ class _KanjiRank extends StatelessWidget {
             colors: [Color(0x92F3E1C2), Color(0x00F3E1C2)],
           ),
         ),
-        child: Image.asset(
-          image,
-          key: ValueKey(image),
-          fit: BoxFit.contain,
-          cacheWidth: 400,
+        child: cracked
+            ? _CrackingKanji(rank: rank)
+            : Image.asset(
+                image,
+                key: ValueKey(image),
+                fit: BoxFit.contain,
+                cacheWidth: 400,
+              ),
+      ),
+    );
+  }
+}
+
+/// 段位の「漢」が割れるコマ送り。段位の絵 → ひびが入って揺れる → 左右が離れて傾く →
+/// 割れた絵。割れた絵がない段位（1漢）は、ひびが入ったところで止める。
+class _CrackingKanji extends StatefulWidget {
+  const _CrackingKanji({required this.rank});
+  final int rank;
+
+  /// 割れた後の絵がある段位。
+  static const splitRanks = {2, 3, 4, 5};
+
+  @override
+  State<_CrackingKanji> createState() => _CrackingKanjiState();
+}
+
+class _CrackingKanjiState extends State<_CrackingKanji>
+    with SingleTickerProviderStateMixin {
+  static const _duration = Duration(milliseconds: 1600);
+
+  /// 1秒あたりのコマ数。滑らかにせず、コマ送りに見せる。
+  static const _fps = 12;
+
+  // 割れた絵に合わせて測った、左右の破片の動き（絵の一辺に対する割合とラジアン）。
+  static const _leftPivot = Offset(.34, .51);
+  static const _leftMove = Offset(-.03, -.005);
+  static const _leftTurn = -.06;
+  static const _rightPivot = Offset(.71, .53);
+  static const _rightMove = Offset(.006, .002);
+  static const _rightTurn = .07;
+
+  /// 段位の登場とキャラクターのフェードインが終わってから割れ始める。
+  static final _start = _rankEntranceDuration + _characterFadeDuration;
+
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    duration: _start + _duration,
+  );
+
+  /// 割れるコマ送りの中での進み（0〜1）。登場の間は0。
+  double get _crack {
+    final total = (_start + _duration).inMicroseconds;
+    final start = _start.inMicroseconds / total;
+    return ((_clock.value - start) / (1 - start)).clamp(0.0, 1.0);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_clock.isAnimating || _clock.isCompleted) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _clock.value = 1;
+    } else {
+      _clock.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  Widget _image(String name) => Image.asset(
+    'assets/images/$name',
+    key: ValueKey('assets/images/$name'),
+    fit: BoxFit.contain,
+    cacheWidth: 400,
+  );
+
+  Widget _half(
+    String name,
+    double side,
+    Offset pivot,
+    Offset move,
+    double turn,
+    double t,
+  ) => Transform.translate(
+    offset: move * side * t,
+    child: Transform.rotate(
+      angle: turn * t,
+      alignment: Alignment(pivot.dx * 2 - 1, pivot.dy * 2 - 1),
+      child: _image(name),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final rank = widget.rank;
+    final splits = _CrackingKanji.splitRanks.contains(rank);
+    return Center(
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: LayoutBuilder(
+          builder: (context, box) => AnimatedBuilder(
+            animation: _clock,
+            builder: (context, _) {
+              final frames = _duration.inMilliseconds * _fps ~/ 1000;
+              final t = (_crack * frames).floor() / frames;
+              final frame = (_crack * frames).floor();
+              if (t < .35) return _image('kanji-rank-$rank.png');
+              if (!splits || t < .5) {
+                // ひびが入った瞬間だけ左右に小刻みに揺らす。
+                final shake = t < .5 ? (frame.isEven ? 1 : -1) * .012 : 0.0;
+                return Transform.translate(
+                  offset: Offset(shake * box.maxWidth, 0),
+                  child: _image('kanji-crack-$rank-before.png'),
+                );
+              }
+              if (t < .9) {
+                final p = Curves.easeOut.transform(((t - .5) / .4).clamp(0, 1));
+                final side = box.maxWidth;
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _half(
+                      'kanji-crack-$rank-left.png',
+                      side,
+                      _leftPivot,
+                      _leftMove,
+                      _leftTurn,
+                      p,
+                    ),
+                    _half(
+                      'kanji-crack-$rank-right.png',
+                      side,
+                      _rightPivot,
+                      _rightMove,
+                      _rightTurn,
+                      p,
+                    ),
+                  ],
+                );
+              }
+              return _image('kanji-crack-$rank-after.png');
+            },
+          ),
         ),
       ),
     );
@@ -1639,11 +1945,12 @@ class _KanjiRank extends StatelessWidget {
 /// 漢磨きの仕上がりに出すキャラクター。3回のやすりの合計点と成否で決まる。
 String kanjiResultImage(int points, {required bool success}) {
   final (ok, ng) = switch (points) {
-    <= 3 => ('character-05.png', 'overpolished-05.png'),
-    <= 5 => ('character-04.png', 'overpolished-04.png'),
-    6 => ('gyansu.jpg', 'overpolished-03.png'),
-    <= 8 => ('character-02.png', 'overpolished-02.png'),
-    _ => ('kyushu-danji.png', 'overpolished-01.png'),
+    // 成功は動くキャラクター（動画を背景透過の動くWebPにしたもの）。
+    <= 3 => ('character-success-5.webp', 'overpolished-05.png'),
+    <= 5 => ('character-success-4.webp', 'overpolished-04.png'),
+    6 => ('character-success-3.webp', 'overpolished-03.png'),
+    <= 8 => ('character-success-2.webp', 'overpolished-02.png'),
+    _ => ('character-success-1.webp', 'overpolished-01.png'),
   };
   return 'assets/images/${success ? ok : ng}';
 }
@@ -1659,12 +1966,16 @@ class _KanjiCharacter extends StatelessWidget {
       kanjiPoints(game),
       success: kanjiSucceeded(game),
     );
-    return Center(
-      child: Image.asset(
-        image,
-        key: ValueKey(image),
-        fit: BoxFit.contain,
-        cacheWidth: 900,
+    return _FadeInLater(
+      delay: _rankEntranceDuration,
+      duration: _characterFadeDuration,
+      child: Center(
+        child: Image.asset(
+          image,
+          key: ValueKey(image),
+          fit: BoxFit.contain,
+          cacheWidth: 900,
+        ),
       ),
     );
   }

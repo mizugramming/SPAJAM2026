@@ -46,16 +46,38 @@ flutter:
     - assets/images/copper_medal_spin.webp
     - assets/images/kanji-silver.png
     - assets/images/kanji-silver-polished-aligned.png
-    - assets/images/character-02.png
-    - assets/images/character-04.png
-    - assets/images/character-05.png
-    - assets/images/gyansu.jpg
-    - assets/images/kyushu-danji.png
     - assets/images/kanji-rank-1.png
     - assets/images/kanji-rank-2.png
     - assets/images/kanji-rank-3.png
     - assets/images/kanji-rank-4.png
     - assets/images/kanji-rank-5.png
+    - assets/images/kanji-crack-1-before.png
+    - assets/images/kanji-crack-2-before.png
+    - assets/images/kanji-crack-3-before.png
+    - assets/images/kanji-crack-4-before.png
+    - assets/images/kanji-crack-5-before.png
+    - assets/images/kanji-crack-2-left.png
+    - assets/images/kanji-crack-2-right.png
+    - assets/images/kanji-crack-2-after.png
+    - assets/images/kanji-crack-3-left.png
+    - assets/images/kanji-crack-3-right.png
+    - assets/images/kanji-crack-3-after.png
+    - assets/images/kanji-crack-4-left.png
+    - assets/images/kanji-crack-4-right.png
+    - assets/images/kanji-crack-4-after.png
+    - assets/images/kanji-crack-5-left.png
+    - assets/images/kanji-crack-5-right.png
+    - assets/images/kanji-crack-5-after.png
+    - assets/images/character-success-1.webp
+    - assets/images/character-success-2.webp
+    - assets/images/character-success-3.webp
+    - assets/images/character-success-4.webp
+    - assets/images/character-success-5.webp
+    - assets/images/workshop-title-01.png
+    - assets/images/workshop-title-02.png
+    - assets/images/workshop-title-03.png
+    - assets/images/workshop-title-04.png
+    - assets/images/workshop-title-05.png
     - assets/images/overpolished-01.png
     - assets/images/overpolished-02.png
     - assets/images/overpolished-03.png
