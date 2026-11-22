@@ -2,6 +2,12 @@
 
 漢の研磨には、くすんだ銀文字と磨いた銀文字の透過画像を使う。
 
+## Androidの起動アイコン
+
+タイトル用のヤンスを参照して、2026-11-22に本アプリ用の顔の絵をImageGenで制作した。磨かれ屋の藍色（#414F59）に、磨いた金属を表す金の光を右のこめかみに添えた。[アイコンのPNG（512×512）](images/yansu-launcher-icon.png)
+
+Androidのリソースは `android/app/src/main/res/` にある。Android 8以降は `drawable-xxxhdpi/yansu_icon_foreground.png` と背景色を端末のマスクで表示する。Android 13以降の対応ランチャーでテーマアイコンを選ぶと `drawable/yansu_icon_monochrome.xml` を使う。Android 7では `mipmap-*/ic_launcher.png` を画面密度に合わせて使う。
+
 ## 画像
 
 使用する画像は `pubspec.yaml` に1枚ずつ登録している。チームが自作（手描き・編集）したメダル4枚はファイル名の末尾が `.jpg` で、中身は透過PNG。研磨中はこの絵にゲームの研磨率に応じたサビと光沢、往復に応じた反射を重ねる。
@@ -59,7 +65,7 @@
 
 紙やすりの質感には、2026-11-22にユーザーが本アプリ用に提供した無地の紙の画像を使用。透明な余白を詰めた `assets/images/sandpaper_plain.webp`（1320 × 785、約114 KiB）を同梱した。紙の端の繊維と右上の折れは原画のもの。2枚目の画像にある斜めの印字を参考に、`lib/ui/sandpaper.dart` で各ラウンドの測定値を重ねる。紙色を調整する入口は `sandpaperColorFor`、印字は `sandpaperStampFor`。
 
-メダル画像は1枚2MB前後あり、表示時は `cacheWidth` で縮小して読み込む。容量を減らす場合は縮小した画像に差し替える。磨きすぎ用の `kagami.jpg` は、磨きすぎの判定がゲームに入るまで未使用・未登録。UI担当は `lib/ui/surface_art.dart` で形状・明暗・反射を、共通担当は `lib/game/game.dart` の素材定義で段階ごとの色・汚れ・光沢を調整する。Androidの起動アイコンは `res/drawable/workshop_icon.xml` に同じ方位星を描いた。
+メダル画像は1枚2MB前後あり、表示時は `cacheWidth` で縮小して読み込む。容量を減らす場合は縮小した画像に差し替える。磨きすぎ用の `kagami.jpg` は、磨きすぎの判定がゲームに入るまで未使用・未登録。UI担当は `lib/ui/surface_art.dart` で形状・明暗・反射を、共通担当は `lib/game/game.dart` の素材定義で段階ごとの色・汚れ・光沢を調整する。
 
 ## 筆の明朝（画面の文字）
 
