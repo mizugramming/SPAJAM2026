@@ -6,9 +6,18 @@ import 'package:flutter/scheduler.dart';
 
 /// Scratchable brass foil over the award inscription on the upper medal face.
 class MedalScratch extends StatefulWidget {
-  const MedalScratch({super.key, required this.engraved});
+  const MedalScratch({
+    super.key,
+    required this.engraved,
+    required this.enabled,
+    required this.revealed,
+    required this.onRevealed,
+  });
 
   final Widget engraved;
+  final bool enabled;
+  final bool revealed;
+  final VoidCallback onRevealed;
 
   @override
   State<MedalScratch> createState() => _MedalScratchState();
@@ -24,6 +33,7 @@ class _MedalScratchState extends State<MedalScratch>
   Offset _previous = Offset.zero;
   double _carry = 0;
   int _seed = 0;
+  int _accessiblePass = 0;
 
   @override
   void initState() {
@@ -50,10 +60,24 @@ class _MedalScratchState extends State<MedalScratch>
   }
 
   void _move(PointerMoveEvent event, double side) {
-    if (_pointer != event.pointer || side <= 0) return;
+    if (!widget.enabled || _pointer != event.pointer || side <= 0) return;
     final end = event.localPosition / side;
     final start = _previous;
     _previous = end;
+    _scrape(start, end);
+  }
+
+  // A screen reader activation makes one horizontal pass over the foil.
+  void _scrapeBySemantics() {
+    if (!widget.enabled) return;
+    const heights = [.13, .18, .23, .10, .26, .16, .20];
+    final y = heights[_accessiblePass++ % heights.length];
+    _carry = 0;
+    _scrape(Offset(.16, y), Offset(.84, y));
+  }
+
+  void _scrape(Offset start, Offset end) {
+    if (_foil.complete) return;
     final delta = end - start;
     final distance = delta.distance;
     if (distance == 0) return;
@@ -68,9 +92,19 @@ class _MedalScratchState extends State<MedalScratch>
     }
     _carry = (_carry + distance) % spacing;
     if (contact == null) return;
-    _foil.updatePaths();
+    if (_foil.complete) {
+      widget.onRevealed();
+    } else {
+      _foil.updatePaths();
+    }
     _shed(contact, direction);
     setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(covariant MedalScratch oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled) _pointer = null;
   }
 
   @override
@@ -84,38 +118,50 @@ class _MedalScratchState extends State<MedalScratch>
     child: AspectRatio(
       aspectRatio: 1,
       child: LayoutBuilder(
-        builder: (context, box) => Listener(
-          key: const ValueKey('medal-rub'),
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: (event) {
-            if (_pointer != null || box.maxWidth <= 0) return;
-            _pointer = event.pointer;
-            _previous = event.localPosition / box.maxWidth;
-            _carry = 0;
-          },
-          onPointerMove: (event) => _move(event, box.maxWidth),
-          onPointerUp: (event) {
-            if (_pointer == event.pointer) _pointer = null;
-          },
-          onPointerCancel: (event) {
-            if (_pointer == event.pointer) _pointer = null;
-          },
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CustomPaint(painter: _FoilPainter(_foil.scuffed)),
-              if (_foil.open != null)
-                ClipPath(
-                  key: const ValueKey('medal-revealed'),
-                  clipper: _EngravingClip(_foil.open!),
-                  child: widget.engraved,
-                ),
-              if (_flakes.isNotEmpty &&
-                  !MediaQuery.disableAnimationsOf(context))
-                IgnorePointer(
-                  child: CustomPaint(painter: _FlakePainter(_flakes, _now)),
-                ),
-            ],
+        builder: (context, box) => Semantics(
+          container: true,
+          label: widget.revealed ? '最優秀賞' : 'メダルの箔を削る',
+          button: !widget.revealed,
+          liveRegion: widget.revealed,
+          onTap: widget.enabled ? _scrapeBySemantics : null,
+          excludeSemantics: true,
+          child: Listener(
+            key: const ValueKey('medal-rub'),
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (event) {
+              if (!widget.enabled || _pointer != null || box.maxWidth <= 0) {
+                return;
+              }
+              _pointer = event.pointer;
+              _previous = event.localPosition / box.maxWidth;
+              _carry = 0;
+            },
+            onPointerMove: (event) => _move(event, box.maxWidth),
+            onPointerUp: (event) {
+              if (_pointer == event.pointer) _pointer = null;
+            },
+            onPointerCancel: (event) {
+              if (_pointer == event.pointer) _pointer = null;
+            },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CustomPaint(painter: _FoilPainter(_foil.scuffed)),
+                if (widget.revealed || _foil.open != null)
+                  ClipPath(
+                    key: const ValueKey('medal-revealed'),
+                    clipper: _EngravingClip(
+                      widget.revealed ? _band : _foil.open!,
+                    ),
+                    child: widget.engraved,
+                  ),
+                if (_flakes.isNotEmpty &&
+                    !MediaQuery.disableAnimationsOf(context))
+                  IgnorePointer(
+                    child: CustomPaint(painter: _FlakePainter(_flakes, _now)),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -140,6 +186,17 @@ class _Foil {
   static const _right = 197;
   static const _width = _right - _left;
   final _wear = Uint8List((_bottom - _top) * _width);
+  static final _bandCells = Uint8List.fromList([
+    for (var y = _top; y < _bottom; y++)
+      for (var x = _left; x < _right; x++)
+        _band.contains(Offset((x + .5) / _density, (y + .5) / _density))
+            ? 1
+            : 0,
+  ]);
+  static final _finishAt = (_bandCells.where((cell) => cell != 0).length * .7)
+      .ceil();
+  int _cutCells = 0;
+  bool get complete => _cutCells >= _finishAt;
   Path? open;
   Path scuffed = Path();
 
@@ -168,16 +225,16 @@ class _Foil {
         if ((offset.dx * axis.dx + offset.dy * axis.dy).abs() > .0065) continue;
         final cross = offset.dx * normal.dx + offset.dy * normal.dy;
         final grain = ((x * 17 + y * 37 + x * y) % 13) / 13;
-        if (cross.abs() > radius * (.78 + .22 * grain) ||
-            !_band.contains(cell)) {
+        final i = (y - _top) * _width + x - _left;
+        if (cross.abs() > radius * (.78 + .22 * grain) || _bandCells[i] == 0) {
           continue;
         }
-        final i = (y - _top) * _width + x - _left;
         if (_wear[i] >= 4) continue;
         // Ridges on the scraping edge cut alternating fine grooves. Foil that
         // survives between them scores first and breaks on overlapping passes.
         final stripe = ((cross + wobble) / .012 + grain * .18) % 1;
         _wear[i] = math.min(4, _wear[i] + (stripe < .52 ? 4 : 1));
+        if (_wear[i] == 4) _cutCells++;
         changed = true;
       }
     }

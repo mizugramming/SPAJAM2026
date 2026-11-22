@@ -61,6 +61,33 @@ void main() {
     },
   );
 
+  testWidgets(
+    'each medal waits for a fresh scratch and defers input while paused',
+    (tester) async {
+      final medal = materials.firstWhere((material) => material.id == 'medal');
+      final game = GameController();
+      addTearDown(game.dispose);
+      for (var play = 0; play < 2; play++) {
+        game.select(medal);
+        game.revealMedalAward();
+        for (var round = 0; round < medal.rounds; round++) {
+          game.acceptVoice(fine);
+          game.startPolishing();
+          await tester.pump(GameController.polishDuration);
+        }
+        expect(game.awaitingMedalAward, isTrue);
+        game.setPaused(true);
+        game.revealMedalAward();
+        expect(game.awaitingMedalAward, isTrue);
+        game.setPaused(false);
+        expect(game.canScratchMedal, isTrue);
+        game.revealMedalAward();
+        expect(game.awaitingMedalAward, isFalse);
+        game.reset();
+      }
+    },
+  );
+
   testWidgets('a delayed final tick still opens the medal scratch immediately', (
     tester,
   ) async {

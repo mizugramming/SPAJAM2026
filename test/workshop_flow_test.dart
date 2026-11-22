@@ -69,6 +69,17 @@ void main() {
   Rect viewportOf(WidgetTester tester) =>
       Offset.zero & (tester.view.physicalSize / tester.view.devicePixelRatio);
 
+  Future<void> revealMedalWithSemantics(WidgetTester tester) async {
+    final action = find.semantics.byLabel('メダルの箔を削る');
+    expect(action, findsOne);
+    expect(find.byKey(const ValueKey('to-title')), findsNothing);
+    for (var pass = 0; pass < 14 && action.evaluate().isNotEmpty; pass++) {
+      tester.semantics.tap(action);
+      await tester.pump();
+    }
+    expect(find.bySemanticsLabel('最優秀賞'), findsOneWidget);
+  }
+
   // Flutter's image decoder runs on the real clock, outside the test timer.
   Future<void> decodeVisibleSurface(WidgetTester tester) async {
     final images = find.descendant(
@@ -369,6 +380,7 @@ void main() {
     expectOneLine('今回の仕上がり');
     // One second before the end of round 2 the medal is finished.
     expectOneLine('金ピカのメダル');
+    await revealMedalWithSemantics(tester);
     expectOneLine('もう一度遊ぶ');
     expectOneLine('タイトルへ');
   });
@@ -716,6 +728,7 @@ void main() {
           expect(character, findsNothing);
         }
         expect(find.textContaining('往復'), findsNothing);
+        if (material == 'medal') await revealMedalWithSemantics(tester);
         await tapControl(tester, 'retry');
         expect(find.text('磨く素材を選ぶ'), findsOneWidget);
         await chooseMaterial(tester, material);
@@ -940,6 +953,7 @@ void main() {
     }
     expect(find.text('今回の仕上がり'), findsOneWidget);
 
+    await revealMedalWithSemantics(tester);
     // 「タイトルへ」 resets the play; the system back cannot reopen it.
     await tapControl(tester, 'to-title');
     expect(find.text('はじめる'), findsOneWidget);
@@ -1139,6 +1153,13 @@ void main() {
       expect(find.text('金ピカのメダル'), findsOneWidget);
       expect(scratch, findsOneWidget);
       expect(revealed, findsNothing);
+      expect(find.text('上の箔を削って文字を出す'), findsNothing);
+      expect(find.byKey(const ValueKey('retry')), findsNothing);
+      expect(find.byKey(const ValueKey('to-title')), findsNothing);
+      expect(
+        (tester.getCenter(scratch) - viewportOf(tester).center).distance,
+        lessThan(.01),
+      );
 
       // A still finger on the foil and a moving finger below the inscription
       // both leave the foil intact.
@@ -1182,6 +1203,22 @@ void main() {
         strokeInterior.where(mask().contains).length,
         greaterThan(firstCut),
       );
+      expect(find.byKey(const ValueKey('retry')), findsNothing);
+      expect(find.byKey(const ValueKey('to-title')), findsNothing);
+      // An interrupted play keeps both the scratches and the hidden buttons.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(revealed, findsOneWidget);
+      expect(find.byKey(const ValueKey('retry')), findsNothing);
+      for (final y in [.105, .145, .185, .225, .265]) {
+        await slideAcross(tester, scratch, y: y);
+        await slideAcross(tester, scratch, y: y, fromX: .82, toX: .18);
+      }
+      expect(find.bySemanticsLabel('最優秀賞'), findsOneWidget);
+      expect(mask().contains(onMedal(.5, .08)), isTrue);
+      expect(find.byKey(const ValueKey('to-title')), findsOneWidget);
       await tapControl(tester, 'retry');
       expect(revealed, findsNothing);
       await chooseMaterial(tester, 'medal');

@@ -175,6 +175,7 @@ class Workshop extends StatelessWidget {
   }) {
     final hasPaper = screen == Screen.ready || screen == Screen.polishing;
     final kanjiResult = screen == Screen.result && game.material!.id == 'kanji';
+    final medalResult = screen == Screen.result && game.material!.id == 'medal';
     final finish = kanjiResult ? game.targetFinish : null;
     final earnedKanjiRank = finish == TargetFinish.onTarget;
     final stage = kanjiResult ? _kanjiResultStage : _workshopStage;
@@ -199,6 +200,7 @@ class Workshop extends StatelessWidget {
           switch (finish) {
             TargetFinish.onTarget => 'character',
             TargetFinish.under => 'underArt',
+            _ when medalResult => 'scratchMedal',
             _ => 'workpiece',
           },
           earnedKanjiRank ? '結果のキャラクター' : '素材',
@@ -472,6 +474,7 @@ class Workshop extends StatelessWidget {
           ),
         ];
       case GamePhase.result:
+        final medal = game.material!.id == 'medal';
         return [
           // 目標どおりの漢は、見出しの代わりに段位・人物・称号を出す（_playStage）。
           if (kanjiFinish == TargetFinish.under)
@@ -484,52 +487,47 @@ class Workshop extends StatelessWidget {
             )
           else if (kanjiFinish != TargetFinish.onTarget)
             Part(
-              'title',
+              medal ? 'medalTitle' : 'title',
               '見出し',
               _Title(switch (kanjiFinish) {
                 TargetFinish.over => '削りすぎ',
                 _ => game.material!.stageAt(game.surfaceProgress).name,
               }),
               singleLine: true,
+              align: medal ? Alignment.center : Alignment.topLeft,
             ),
           if (game.verdict case final verdict?)
             Part(
-              kanjiFinish == TargetFinish.under ? 'underVerdict' : 'body',
+              medal
+                  ? 'medalVerdict'
+                  : kanjiFinish == TargetFinish.under
+                  ? 'underVerdict'
+                  : 'body',
               '仕上がりの判定',
               _Body(verdict),
             ),
-          Part(
-            'hint',
-            'こする案内',
-            game.material!.id == 'medal'
-                ? Semantics(
-                    liveRegion: true,
-                    child: _Body(
-                      game.needsHandPolish ? 'メダルを指で磨く' : '上の箔を削って文字を出す',
-                    ),
-                  )
-                : null,
-          ),
-          Part(
-            'action',
-            '「もう一度遊ぶ」ボタン',
-            _BoxButton(
-              key: const ValueKey('retry'),
-              icon: Icons.replay_rounded,
-              label: 'もう一度遊ぶ',
-              onPressed: actions.retry,
+          if (!game.awaitingMedalAward) ...[
+            Part(
+              'action',
+              '「もう一度遊ぶ」ボタン',
+              _BoxButton(
+                key: const ValueKey('retry'),
+                icon: Icons.replay_rounded,
+                label: 'もう一度遊ぶ',
+                onPressed: actions.retry,
+              ),
+              fill: true,
             ),
-            fill: true,
-          ),
-          Part('home', '「タイトルへ」ボタン', switch (onTitle) {
-            final VoidCallback toTitle => _QuietButton(
-              key: const ValueKey('to-title'),
-              icon: Icons.home_outlined,
-              label: 'タイトルへ',
-              onPressed: toTitle,
-            ),
-            _ => null,
-          }, fill: true),
+            Part('home', '「タイトルへ」ボタン', switch (onTitle) {
+              final VoidCallback toTitle => _QuietButton(
+                key: const ValueKey('to-title'),
+                icon: Icons.home_outlined,
+                label: 'タイトルへ',
+                onPressed: toTitle,
+              ),
+              _ => null,
+            }, fill: true),
+          ],
         ];
     }
   }
@@ -2682,7 +2680,12 @@ class _Workpiece extends StatelessWidget {
                       shinyFace: _MedalImage(_medalStageImages.last),
                       onTravel: game.polishResult,
                     )
-                  : const MedalScratch(engraved: _MedalImage(_medalRubImage)),
+                  : MedalScratch(
+                      engraved: const _MedalImage(_medalRubImage),
+                      enabled: game.canScratchMedal,
+                      revealed: !game.awaitingMedalAward,
+                      onRevealed: game.revealMedalAward,
+                    ),
             ),
           ),
         // 接触中のチリと、往復が成立したときの大きな破片を重ねる。

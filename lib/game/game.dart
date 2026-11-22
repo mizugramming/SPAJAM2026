@@ -367,6 +367,20 @@ class GameController extends ChangeNotifier {
   // sensor-driven appearance until the player buffs the remaining metal.
   double? _handFinishProgress;
 
+  bool _medalAwardRevealed = false;
+  bool get awaitingMedalAward =>
+      _phase == GamePhase.result &&
+      _material?.id == 'medal' &&
+      !_medalAwardRevealed;
+  bool get canScratchMedal =>
+      awaitingMedalAward && !_paused && !needsHandPolish;
+
+  void revealMedalAward() {
+    if (!canScratchMedal) return;
+    _medalAwardRevealed = true;
+    notifyListeners();
+  }
+
   double get surfaceProgress => _handFinishProgress ?? progress;
   bool get needsHandPolish => _handFinishProgress != null;
 
@@ -545,6 +559,7 @@ class GameController extends ChangeNotifier {
   }
 
   void _clearSession() {
+    _medalAwardRevealed = false;
     _handFinishProgress = null;
     _stopClock();
     _round = 1;
