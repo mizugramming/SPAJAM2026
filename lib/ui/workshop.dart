@@ -200,6 +200,7 @@ class Workshop extends StatelessWidget {
           switch (finish) {
             TargetFinish.onTarget => 'character',
             TargetFinish.under => 'underArt',
+            TargetFinish.over => 'fractureArt',
             _ when medalResult => 'scratchMedal',
             _ => 'workpiece',
           },
@@ -222,6 +223,13 @@ class Workshop extends StatelessWidget {
                 ),
           fill: true,
         ),
+        if (finish == TargetFinish.over)
+          Part(
+            'fractureCharacter',
+            '削りすぎの人物',
+            _OverpolishedCharacter(points: kanjiPoints(game)),
+            fill: true,
+          ),
         if (earnedKanjiRank)
           Part(
             'nameplate',
@@ -252,15 +260,12 @@ class Workshop extends StatelessWidget {
               '疑似入力表示',
               Align(alignment: Alignment.centerRight, child: _simulatedLabel),
             ),
-          if (screen == Screen.result &&
-              game.material!.id == 'kanji' &&
-              game.targetFinish == TargetFinish.over)
+          if (finish == TargetFinish.over)
             const Part(
-              'round',
-              '割れた漢の見出し',
-              _Title('漢割り'),
-              singleLine: true,
-              align: Alignment.center,
+              'fractureHeading',
+              '漢割り（おわり）',
+              _FractureHeading(),
+              fill: true,
             )
           else
             Part('round', 'ラウンド行', _RoundHeader(game: game), fill: true),
@@ -477,11 +482,15 @@ class Workshop extends StatelessWidget {
         final medal = game.material!.id == 'medal';
         return [
           // 目標どおりの漢は、見出しの代わりに段位・人物・称号を出す（_playStage）。
-          if (kanjiFinish == TargetFinish.under)
-            const Part(
-              'underTitle',
-              '磨き不足の見出し',
-              _Title('磨き不足', fontSize: 42),
+          if (kanjiFinish == TargetFinish.under ||
+              kanjiFinish == TargetFinish.over)
+            Part(
+              kanjiFinish == TargetFinish.over ? 'fractureTitle' : 'underTitle',
+              '仕上がりの見出し',
+              _Title(
+                kanjiFinish == TargetFinish.over ? '削りすぎ' : '磨き不足',
+                fontSize: 42,
+              ),
               singleLine: true,
               align: Alignment.center,
             )
@@ -489,20 +498,18 @@ class Workshop extends StatelessWidget {
             Part(
               medal ? 'medalTitle' : 'title',
               '見出し',
-              _Title(switch (kanjiFinish) {
-                TargetFinish.over => '削りすぎ',
-                _ => game.material!.stageAt(game.surfaceProgress).name,
-              }),
+              _Title(game.material!.stageAt(game.surfaceProgress).name),
               singleLine: true,
               align: medal ? Alignment.center : Alignment.topLeft,
             ),
           if (game.verdict case final verdict?)
             Part(
-              medal
-                  ? 'medalVerdict'
-                  : kanjiFinish == TargetFinish.under
-                  ? 'underVerdict'
-                  : 'body',
+              switch (kanjiFinish) {
+                TargetFinish.over => 'fractureVerdict',
+                TargetFinish.under => 'underVerdict',
+                _ when medal => 'medalVerdict',
+                _ => 'body',
+              },
               '仕上がりの判定',
               _Body(verdict),
             ),
@@ -1808,11 +1815,76 @@ class _KanjiRank extends StatelessWidget {
   }
 }
 
+class _FractureHeading extends StatelessWidget {
+  const _FractureHeading();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    header: true,
+    label: '漢割り、おわり',
+    excludeSemantics: true,
+    child: const FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'おわり',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: shopPaper,
+              height: 1.12,
+            ),
+          ),
+          SizedBox(height: 3),
+          Text(
+            '漢割り',
+            style: TextStyle(
+              fontSize: 58,
+              fontWeight: FontWeight.w900,
+              color: chalk,
+              height: 1.14,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+String kanjiOverpolishedImage(int points) =>
+    'assets/images/overpolished-0${kanjiRankNumber(points)}.png';
+
+class _OverpolishedCharacter extends StatelessWidget {
+  const _OverpolishedCharacter({required this.points});
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = kanjiOverpolishedImage(points);
+    return _FadeInLater(
+      delay: kanjiRankNumber(points) == 1
+          ? KanjiBreak.duration
+          : _CrackingKanji.duration,
+      duration: _characterFadeDuration,
+      child: Image.asset(
+        image,
+        key: ValueKey(image),
+        fit: BoxFit.contain,
+        cacheWidth: 400,
+        semanticLabel: '${kanjiRank(points)}の削りすぎた人物',
+      ),
+    );
+  }
+}
+
 /// 段位の「漢」が割れるコマ送り。段位の絵 → ひびが入って揺れる → 左右が離れて傾く →
 /// 割れた絵。1漢はチーム提供の赤い破片を使った5コマを再生する。
 class _CrackingKanji extends StatefulWidget {
   const _CrackingKanji({required this.rank});
   final int rank;
+  static const duration = Duration(milliseconds: 1600);
 
   // やすりが着地した時点で今回使う色が決まる。割れた瞬間に
   // コマの読み込みを待たせないよう、研磨を始める前に同じ解像度で用意する。
@@ -1838,8 +1910,6 @@ class _CrackingKanji extends StatefulWidget {
 
 class _CrackingKanjiState extends State<_CrackingKanji>
     with SingleTickerProviderStateMixin {
-  static const _duration = Duration(milliseconds: 1600);
-
   /// 1秒あたりのコマ数。滑らかにせず、コマ送りに見せる。
   static const _fps = 12;
 
@@ -1853,7 +1923,7 @@ class _CrackingKanjiState extends State<_CrackingKanji>
 
   late final AnimationController _clock = AnimationController(
     vsync: this,
-    duration: _duration,
+    duration: _CrackingKanji.duration,
   );
 
   @override
@@ -1905,7 +1975,8 @@ class _CrackingKanjiState extends State<_CrackingKanji>
           builder: (context, box) => AnimatedBuilder(
             animation: _clock,
             builder: (context, _) {
-              final frames = _duration.inMilliseconds * _fps ~/ 1000;
+              final frames =
+                  _CrackingKanji.duration.inMilliseconds * _fps ~/ 1000;
               final frame = (_clock.value * frames).floor();
               final t = frame / frames;
               if (t < .35) return _image('kanji-rank-$rank.png');

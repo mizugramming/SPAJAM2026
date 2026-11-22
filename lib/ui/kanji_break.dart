@@ -7,7 +7,7 @@ class KanjiBreak extends StatelessWidget {
   static const atlas = AssetImage('assets/images/kanji-break.webp');
   static const frameCount = 5;
   static const frameMs = 170;
-  static const _duration = Duration(milliseconds: (frameCount - 1) * frameMs);
+  static const duration = Duration(milliseconds: (frameCount - 1) * frameMs);
 
   @override
   Widget build(BuildContext context) {
@@ -15,8 +15,8 @@ class KanjiBreak extends StatelessWidget {
       return _pose(frameCount - 1);
     }
     return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: _duration.inMilliseconds.toDouble()),
-      duration: _duration,
+      tween: Tween<double>(begin: 0, end: duration.inMilliseconds.toDouble()),
+      duration: duration,
       builder: (context, time, _) => _pose(time ~/ frameMs),
     );
   }

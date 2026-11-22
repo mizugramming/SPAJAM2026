@@ -37,6 +37,10 @@ void main() {
         ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][n - 1],
       );
       expect(kanjiNameplateComment(points), isNotEmpty);
+      expect(
+        kanjiOverpolishedImage(points),
+        'assets/images/overpolished-0$n.png',
+      );
       if (n == 1) {
         expect(kanjiNameplateComment(points), 'ガサツなのに実は優しいオトコ♡');
       }
@@ -208,6 +212,26 @@ void main() {
             );
             expect(heading, findsOneWidget);
             expect(firstFrame, findsOneWidget);
+            expect(find.text('おわり'), findsOneWidget);
+            final character = find.byKey(
+              ValueKey(
+                firstRank
+                    ? 'assets/images/overpolished-01.png'
+                    : 'assets/images/overpolished-05.png',
+              ),
+            );
+            double characterOpacity() => tester
+                .widget<FadeTransition>(
+                  find
+                      .ancestor(
+                        of: character,
+                        matching: find.byType(FadeTransition),
+                      )
+                      .first,
+                )
+                .opacity
+                .value;
+            expect(characterOpacity(), 0);
             expect(
               tester.getBottomLeft(heading).dy,
               lessThanOrEqualTo(tester.getTopLeft(firstFrame).dy),
@@ -239,7 +263,39 @@ void main() {
               expect(frame('after'), findsOneWidget);
             }
             await tester.pump(GameController.polishDuration);
-            expect(heading, findsOneWidget);
+            expect(characterOpacity(), 1);
+            void checkFractureLayout() {
+              final art = tester.getRect(find.byType(SurfaceArt));
+              final portrait = tester.getRect(character);
+              final verdict = tester.getRect(find.text('削りすぎ'));
+              final retry = tester.getRect(find.byKey(const ValueKey('retry')));
+              final screen = tester.view.physicalSize;
+              expect(tester.getBottomLeft(heading).dy, lessThan(art.top));
+              expect(art.right, lessThanOrEqualTo(portrait.left));
+              expect(art.width, greaterThan(portrait.width * 1.8));
+              expect(portrait.right, lessThanOrEqualTo(screen.width));
+              expect(portrait.bottom, lessThan(verdict.top));
+              expect(art.bottom, lessThan(verdict.top));
+              expect(verdict.center.dx, closeTo(screen.width / 2, 1));
+              expect(verdict.height, greaterThan(34));
+              expect(verdict.bottom, lessThan(retry.top));
+              expect(retry.top - verdict.bottom, lessThan(screen.height * .05));
+            }
+
+            checkFractureLayout();
+            tester.view.physicalSize = const Size(320, 568);
+            tester.platformDispatcher.textScaleFactorTestValue = 2;
+            addTearDown(
+              tester.platformDispatcher.clearTextScaleFactorTestValue,
+            );
+            tester.platformDispatcher.accessibilityFeaturesTestValue =
+                const FakeAccessibilityFeatures(disableAnimations: true);
+            addTearDown(
+              tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+            );
+            await tester.pump();
+            checkFractureLayout();
+            expect(tester.takeException(), isNull);
             break;
           }
           await tester.pump(GameController.polishDuration);
