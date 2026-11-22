@@ -17,9 +17,12 @@
 | `assets/fonts/kinpika.jpg` | 仕上げたメダル上部の箔をスクラッチした跡から見える「最優秀賞」入りの絵 |
 | `assets/images/kanji-silver.png` | 漢磨きの素材選択・採音・研磨で出す銀の立体文字「漢」（くすんだ絵、透過PNG）。2026-11-22にチームが用意した「透明背景の銀色立体漢字「漢」-1.png」を英字名に変更 |
 | `assets/images/kanji-silver-polished.png` | 同じ文字の磨き上がった絵。同日の「透明背景の銀色立体漢字 漢-2.png」を英字名に変更。元の絵（未登録）。文字の位置と大きさが `kanji-silver.png` と少しずれていたため、そろえた `kanji-silver-polished-aligned.png` を研磨の割合だけ上に重ねて、磨くほどこの絵になる |
-| `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png`、`overpolished-01〜05.png` | 漢を目標内に仕上げたときのキャラクター（合計点と対応は app_design.md）。overpolished系は以前の失敗用素材。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
+| `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png`、`overpolished-01〜05.png` | 動きを減らす設定で成功時に使う静止キャラクター（合計点と対応は app_design.md）。overpolished系は以前の失敗用素材。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
 | `assets/images/kanji-rank-1〜5.png` | 漢磨きの結果画面の段位の「漢」（1漢は赤、2漢は金など段位ごとの色）。2026-11-22にチームから受け取った「１漢.jpg」〜「５漢.jpg」の白背景を透明にしたもの |
-| `assets/images/kanji-break.webp` | 研磨量が上限を超えたときの「漢」。チーム提供の「漢-黄色-割れ.png」の赤い破片と既存の1漢を使った透過5コマ（1コマ384×384）。上限を超えるとひびが伸び、破片が離れて止まる。[同じ5コマの動画](media/kanji-break.mp4) |
+| `assets/images/kanji-break.webp` | 削りすぎた時点のやすりの合計が9点なら、この5コマで割れる。チーム提供の「漢-黄色-割れ.png」の赤い破片と既存の1漢を使った透過5コマ（1コマ384×384）。上限を超えるとひびが伸び、破片が離れて止まる。[同じ5コマの動画](media/kanji-break.mp4) |
+| `assets/images/kanji-crack-2〜5-before.webp`、`kanji-crack-2〜5-after.webp`、`kanji-crack-2〜5-left/right.webp` | 削りすぎ（失敗）のときに段位の「漢」が割れるコマ送り。2026-11-22にチームから受け取った「N漢割れ前.jpg」「N漢割.jpg」の白背景を透明にし、割れる前の絵をひびの左右に切り分けた。配信用の4コマは透過と原寸を保った可逆WebP。1漢は上記の5コマを使用 |
+| `assets/images/character-success-1〜5.webp` | 漢磨きの成功時のキャラクター（動くWebP、12コマ/秒のループ）。2026-11-22にチームから受け取った「１.mp4」〜「５.mp4」から、枠につながる明るい背景を透明にして変換。動画再生のパッケージは追加していない |
+| `assets/images/workshop-title-01〜05.png` | 漢磨きの結果画面の称号（01 九州男児、02 醤油顔、03 ムキムキ、04 塩顔、05 韓国系、透過PNG）。2026-11-22にチームから受け取った |
 | `assets/images/kanji-rock.png` | 灰色の岩（透過PNG）。素材選択の漢の絵に一時使ったが、今は未使用・未登録 |
 | `assets/images/copper_medal_spin.webp` | 素材選択から採音画面へ移る緑青付き銅メダル。2026-11-22に提供された「緑青の銅メダル_立体回転_高精細_透過.mov」の正面から1回転（1.75秒）を24コマに抜き出した。各コマ320 px四方、6列×4行の透過WebP（1920×1280 px、約529 KiB）。 |
 | `assets/images/workshop_room.webp` | 「磨かれ屋」の奥の店内（852 × 1846）。灰褐色の漆喰壁、左の二段棚、右の木柱、足元の床を描いた。本とダンベルは別素材で棚板に載せる。 |

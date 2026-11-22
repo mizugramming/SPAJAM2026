@@ -10,15 +10,6 @@ import 'workshop_flow_test.dart' show chooseMaterial, tapControl;
 void main() {
   test('grit points add up to 3..9 and pick the result character', () {
     expect(Grit.values.map(gritPoints), [3, 2, 1]);
-    const expected = {
-      3: 'character-05.png',
-      4: 'character-04.png',
-      5: 'character-04.png',
-      6: 'gyansu.jpg',
-      7: 'character-02.png',
-      8: 'character-02.png',
-      9: 'kyushu-danji.png',
-    };
     const ranks = {
       3: '5漢',
       4: '4漢',
@@ -30,12 +21,19 @@ void main() {
     };
     for (final MapEntry(key: points, value: rank) in ranks.entries) {
       expect(kanjiRank(points), rank, reason: '$points');
-    }
-    for (final MapEntry(key: points, value: file) in expected.entries) {
+      final n = int.parse(rank[0]);
       expect(
         kanjiResultImage(points),
-        'assets/images/$file',
+        'assets/images/character-success-$n.webp',
         reason: '$points',
+      );
+      expect(
+        kanjiNameplateImage(points),
+        'assets/images/workshop-title-0$n.png',
+      );
+      expect(
+        kanjiNameplate(points),
+        ['九州男児', '醤油顔', 'ムキムキ', '塩顔', '韓国系'][n - 1],
       );
     }
   });
@@ -103,9 +101,11 @@ void main() {
     },
   );
 
-  for (final tooFar in [false, true]) {
+  for (final breakingRound in <int?>[null, 1, 3]) {
     testWidgets(
-      'kanji ends ${tooFar ? "immediately on fracture" : "gray after three rounds"} and retries',
+      breakingRound == null
+          ? 'underpolished kanji stays gray after three rounds and retries'
+          : 'kanji fractures immediately in round $breakingRound and retries',
       (tester) async {
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = const Size(393, 852);
@@ -120,7 +120,7 @@ void main() {
           await tester.pump(const Duration(milliseconds: 1801));
           await tester.pump(const Duration(milliseconds: 650));
           await tester.pump();
-          if (tooFar) {
+          if (round == breakingRound) {
             expect(find.textContaining('そろそろ'), findsNothing);
             for (var n = 0; n < 90; n++) {
               await tapControl(tester, 'simulate-stroke');
@@ -128,7 +128,14 @@ void main() {
             expect(find.textContaining('そろそろ'), findsOneWidget);
             await tapControl(tester, 'simulate-stroke');
             final heading = find.text('漢割り');
-            final firstFrame = find.byKey(const ValueKey('kanji-fracture-0'));
+            final firstRank = breakingRound == 3; // Three coarse grits earn 1漢.
+            final firstFrame = find.byKey(
+              ValueKey(
+                firstRank
+                    ? 'kanji-fracture-0'
+                    : 'assets/images/kanji-rank-5.png',
+              ),
+            );
             expect(heading, findsOneWidget);
             expect(firstFrame, findsOneWidget);
             expect(
@@ -138,16 +145,29 @@ void main() {
             expect(find.byKey(const ValueKey('simulate-stroke')), findsNothing);
             expect(find.byKey(const ValueKey('retry')), findsOneWidget);
             expect(find.byKey(const ValueKey('capture')), findsNothing);
-            await tester.pump(const Duration(milliseconds: 350));
-            expect(
-              find.byKey(const ValueKey('kanji-fracture-2')),
-              findsOneWidget,
-            );
-            await tester.pump(const Duration(milliseconds: 400));
-            expect(
-              find.byKey(const ValueKey('kanji-fracture-4')),
-              findsOneWidget,
-            );
+            if (firstRank) {
+              await tester.pump(const Duration(milliseconds: 350));
+              expect(
+                find.byKey(const ValueKey('kanji-fracture-2')),
+                findsOneWidget,
+              );
+              await tester.pump(const Duration(milliseconds: 400));
+              expect(
+                find.byKey(const ValueKey('kanji-fracture-4')),
+                findsOneWidget,
+              );
+            } else {
+              Finder frame(String part) => find.byKey(
+                ValueKey('assets/images/kanji-crack-5-$part.webp'),
+              );
+              await tester.pump(const Duration(milliseconds: 700));
+              expect(frame('before'), findsOneWidget);
+              await tester.pump(const Duration(milliseconds: 400));
+              expect(frame('left'), findsOneWidget);
+              expect(frame('right'), findsOneWidget);
+              await tester.pump(const Duration(milliseconds: 600));
+              expect(frame('after'), findsOneWidget);
+            }
             await tester.pump(GameController.polishDuration);
             expect(heading, findsOneWidget);
             break;
@@ -155,7 +175,7 @@ void main() {
           await tester.pump(GameController.polishDuration);
           await tester.pumpAndSettle();
         }
-        if (!tooFar) {
+        if (breakingRound == null) {
           expect(find.text('磨き不足'), findsOneWidget);
           expect(find.text('漢割り'), findsNothing);
           final face = tester.widget<Image>(
@@ -166,10 +186,23 @@ void main() {
             const AssetImage('assets/images/kanji-silver.png'),
           );
         }
-        expect(find.bySemanticsLabel('1漢'), findsNothing);
+        for (final rank in [1, 5]) {
+          expect(
+            find.byKey(ValueKey('assets/images/character-success-$rank.webp')),
+            findsNothing,
+          );
+          expect(
+            find.byKey(ValueKey('assets/images/workshop-title-0$rank.png')),
+            findsNothing,
+          );
+        }
         await tapControl(tester, 'retry');
         await chooseMaterial(tester, 'kanji');
         expect(find.byKey(const ValueKey('kanji-fracture-4')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('assets/images/kanji-crack-5-after.webp')),
+          findsNothing,
+        );
         expect(find.byKey(const ValueKey('kanji-underpolished')), findsNothing);
       },
     );

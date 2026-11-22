@@ -653,17 +653,53 @@ void main() {
             findsOneWidget,
           );
         } else {
-          // 6 points: 3漢, shown as the rank-colored 漢 without a digit.
+          // Coarse, medium and fine earn 6 points (3漢) at the success boundary.
           expect(find.bySemanticsLabel('3漢'), findsOneWidget);
-          expect(
-            find.byKey(const ValueKey('assets/images/kanji-rank-3.png')),
-            findsOneWidget,
+          final rank = find.byKey(
+            const ValueKey('assets/images/kanji-rank-3.png'),
           );
-          // 粗目3 + 中目2 + 細目1 = 6 points, polished to the end: success.
+          final character = find.byKey(
+            const ValueKey('assets/images/character-success-3.webp'),
+          );
+          final nameplate = find.byKey(
+            const ValueKey('assets/images/workshop-title-03.png'),
+          );
+          double fadeOf(Finder image) => tester
+              .widget<FadeTransition>(
+                find
+                    .ancestor(of: image, matching: find.byType(FadeTransition))
+                    .first,
+              )
+              .opacity
+              .value;
+          final rankEntrance = find.ancestor(
+            of: rank,
+            matching: find.byWidgetPredicate(
+              (widget) => widget is Opacity && widget.alwaysIncludeSemantics,
+            ),
+          );
+          expect(tester.widget<Opacity>(rankEntrance).opacity, lessThan(1));
+          expect(fadeOf(character), 0);
+          expect(fadeOf(nameplate), 0);
+          await tester.pump(const Duration(milliseconds: 1050));
+          expect(tester.widget<Opacity>(rankEntrance).opacity, 1);
+          expect(fadeOf(character), allOf(greaterThan(0), lessThan(1)));
+          expect(fadeOf(nameplate), 0);
+          await tester.pump(const Duration(seconds: 1));
+          expect(fadeOf(character), 1);
+          expect(fadeOf(nameplate), 1);
+          expect(find.bySemanticsLabel('ムキムキ'), findsOneWidget);
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              const FakeAccessibilityFeatures(disableAnimations: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+          await tester.pump();
           expect(
             find.byKey(const ValueKey('assets/images/gyansu.jpg')),
             findsOneWidget,
           );
+          expect(character, findsNothing);
         }
         expect(find.textContaining('往復'), findsNothing);
         await tapControl(tester, 'retry');
