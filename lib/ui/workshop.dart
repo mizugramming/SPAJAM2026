@@ -196,7 +196,18 @@ class Workshop extends StatelessWidget {
               '疑似入力表示',
               Align(alignment: Alignment.centerRight, child: _simulatedLabel),
             ),
-          Part('round', 'ラウンド行', _RoundHeader(game: game), fill: true),
+          if (screen == Screen.result &&
+              game.material!.id == 'kanji' &&
+              game.targetFinish == TargetFinish.over)
+            const Part(
+              'round',
+              '割れた漢の見出し',
+              _Title('漢割り'),
+              singleLine: true,
+              align: Alignment.center,
+            )
+          else
+            Part('round', 'ラウンド行', _RoundHeader(game: game), fill: true),
         ],
         for (final part in _controls(context))
           if (intro == null || part.id == 'back') part,
@@ -350,18 +361,14 @@ class Workshop extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (kanjiFinish case final finish?) ...[
+                if (kanjiFinish == TargetFinish.onTarget) ...[
                   Semantics(
                     liveRegion: true,
-                    child: Text(
-                      switch (finish) {
-                        TargetFinish.under => '光ったら止めよう',
-                        TargetFinish.onTarget => '今、手を止めて！',
-                        TargetFinish.over => '削りすぎ！',
-                      },
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                    child: const Text(
+                      'そろそろ…',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
                         color: chalk,
                       ),
                     ),
@@ -2277,7 +2284,7 @@ class _Workpiece extends StatelessWidget {
     final finish = kanji ? game.targetFinish : null;
     final broken = finish == TargetFinish.over;
     final face = switch (finish) {
-      TargetFinish.over => KanjiBreak(game: game),
+      TargetFinish.over => const KanjiBreak(),
       TargetFinish.onTarget when result => _KanjiCharacter(game: game),
       TargetFinish.under when result => Image.asset(
         'assets/images/kanji-silver.png',

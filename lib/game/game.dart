@@ -147,13 +147,7 @@ class WorkMaterial {
   /// This minimum amount uses the same stroke-count scale as the grit rates.
   static const _finalRoundAmount = 2.5;
 
-  double valueAfterStroke(
-    double value,
-    Grit grit, {
-    int strokesToGold = GameController.defaultStrokesToGold,
-    bool finalRound = false,
-  }) {
-    assert(strokesToGold > 0);
+  double valueAfterStroke(double value, Grit grit, {bool finalRound = false}) {
     final progress = progressAt(value);
     final polish = stageAt(progress).polishing[grit];
     var share = polish?.limit ?? 1.0;
@@ -167,7 +161,7 @@ class WorkMaterial {
     final limit = initialValue - maxRemoval * share;
     if (value <= limit) return value;
     // Preserve the relative removal of each grit and each polishing stage.
-    final coarseStep = _medalMaxRemoval * _goldThreshold / strokesToGold;
+    const coarseStep = _medalMaxRemoval * _goldThreshold / _strokesToGold;
     final step = coarseStep * amount / Grit.coarse.removal;
     final next = (value - step).clamp(limit, value);
     // Repeated fractional strokes can land a few ULPs short of a boundary.
@@ -217,6 +211,7 @@ const _goldPolishing = {
   Grit.fine: (amount: 3.5, limit: 1.0),
 };
 
+const _strokesToGold = 50;
 const _medalMaxRemoval = 100.0;
 const _goldThreshold = .50;
 const _shinyGoldThreshold = .95;
@@ -292,27 +287,11 @@ class GameController extends ChangeNotifier {
 
   static const roundCount = 3;
   static const polishDuration = Duration(seconds: 10);
-  static const minStrokesToGold = 5;
-  static const maxStrokesToGold = 60;
-  static const defaultStrokesToGold = 22;
 
   final FinishJudge? judge;
 
   GamePhase _phase = GamePhase.select;
   GamePhase get phase => _phase;
-  int _strokesToGold = defaultStrokesToGold;
-  int get strokesToGold => _strokesToGold;
-
-  void setStrokesToGold(int count) {
-    if (_phase != GamePhase.select ||
-        count == _strokesToGold ||
-        count < minStrokesToGold ||
-        count > maxStrokesToGold) {
-      return;
-    }
-    _strokesToGold = count;
-    notifyListeners();
-  }
 
   VoiceProfile _voiceProfile = VoiceProfile.low;
   VoiceProfile get voiceProfile => _voiceProfile;
@@ -343,10 +322,6 @@ class GameController extends ChangeNotifier {
   double get value => _value;
   double get progress => _material?.progressAt(_value) ?? 0;
   TargetFinish? get targetFinish => _material?.finishAt(_value);
-
-  // Preserve the position of the five-frame fracture across round changes.
-  Stopwatch? _fractureWatch;
-  Duration get fractureElapsed => _fractureWatch?.elapsed ?? Duration.zero;
 
   // The awarded result and the unfinished surface can differ. Keep the last
   // sensor-driven appearance until the player buffs the remaining metal.
@@ -436,14 +411,11 @@ class GameController extends ChangeNotifier {
     _value = material.valueAfterStroke(
       _value,
       grit,
-      strokesToGold: strokesToGold,
       finalRound: _round == roundCount,
     );
-    if (material.id == 'kanji' &&
-        _fractureWatch == null &&
-        targetFinish == TargetFinish.over) {
-      _fractureWatch = GestureBinding.instance.samplingClock.stopwatch()
-        ..start();
+    if (material.id == 'kanji' && targetFinish == TargetFinish.over) {
+      _finishGame();
+      return null;
     }
     final pulse = pulseFor(grit, progress);
     notifyListeners();
@@ -454,11 +426,6 @@ class GameController extends ChangeNotifier {
   void setPaused(bool paused) {
     if (paused == _paused) return;
     _paused = paused;
-    if (paused) {
-      _fractureWatch?.stop();
-    } else {
-      _fractureWatch?.start();
-    }
     if (_phase != GamePhase.polishing) return;
     if (paused) {
       _timer?.cancel();
@@ -488,25 +455,31 @@ class GameController extends ChangeNotifier {
   }
 
   void _endRound() {
-    _stopClock();
     if (_round == roundCount) {
-      _remainingSeconds = 0;
       final material = _material!;
       final floor = material.finishAtLeast;
       if (floor != null && progress < floor) {
         if (material.id == 'medal') _handFinishProgress = progress;
         _value = material.initialValue - material.maxRemoval * floor;
       }
-      _phase = GamePhase.result;
-      _verdict = judge?.call(_material!, _value);
-    } else {
-      _round++;
-      _remainingSeconds = polishDuration.inSeconds;
-      _strokes = 0;
-      _sample = null;
-      _grit = null;
-      _phase = GamePhase.voice;
+      _finishGame();
+      return;
     }
+    _stopClock();
+    _round++;
+    _remainingSeconds = polishDuration.inSeconds;
+    _strokes = 0;
+    _sample = null;
+    _grit = null;
+    _phase = GamePhase.voice;
+    notifyListeners();
+  }
+
+  void _finishGame() {
+    _stopClock();
+    _remainingSeconds = 0;
+    _phase = GamePhase.result;
+    _verdict = judge?.call(_material!, _value);
     notifyListeners();
   }
 
@@ -519,8 +492,6 @@ class GameController extends ChangeNotifier {
 
   void _clearSession() {
     _handFinishProgress = null;
-    _fractureWatch?.stop();
-    _fractureWatch = null;
     _stopClock();
     _round = 1;
     _remainingSeconds = polishDuration.inSeconds;

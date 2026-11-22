@@ -426,8 +426,8 @@ void main() {
   // Medal reaches copper -> silver -> gold. The glyph retains its first-round
   // outline through a whole round without motion, then gains a polished finish.
   for (final (material, strokes, stages, percentages) in [
-    ('medal', [6, 18, 15], ['銅メダル', '銀メダル', '金メダル'], [14, 40, 55]),
-    ('kanji', [22, 0, 37], ['輪郭の現れた漢', '輪郭の現れた漢', '光沢を帯びた漢'], [50, 50, 80]),
+    ('medal', [14, 40, 34], ['銅メダル', '銀メダル', '金メダル'], [14, 40, 55]),
+    ('kanji', [50, 0, 84], ['輪郭の現れた漢', '輪郭の現れた漢', '光沢を帯びた漢'], [50, 50, 80]),
   ]) {
     testWidgets(
       '$material plays three rounds with simulated inputs and retries',
@@ -681,51 +681,18 @@ void main() {
     },
   );
 
-  testWidgets('the saved stroke count applies to the next game', (
-    tester,
-  ) async {
+  testWidgets('settings leaves the fixed pace in effect', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(320, 640);
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.view.reset);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    final writes = <int>[];
-    await tester.pumpWidget(
-      WorkshopApp(
-        simulated: true,
-        initialStrokesToGold: 31,
-        persistStrokesToGold: (value) async {
-          writes.add(value);
-          if (writes.length == 1) throw StateError('write failed');
-        },
-      ),
-    );
+    await tester.pumpWidget(const WorkshopApp(simulated: true));
     await tapControl(tester, 'title-start');
     await tapControl(tester, 'diagnostics');
     await tester.pumpAndSettle();
-    final count = find.byKey(const ValueKey('strokes-to-gold'));
-    String currentText() => tester.widget<TextField>(count).controller!.text;
-    expect(currentText(), '31');
-    for (final invalid in ['4', '61', '2.5', '']) {
-      await tester.enterText(count, invalid);
-      await tapControl(tester, 'save-settings');
-      expect(find.textContaining('整数を入力'), findsOneWidget);
-    }
-    expect(writes, isEmpty);
-    await tester.enterText(count, '３７');
-    await tapControl(tester, 'save-settings');
-    expect(writes, [37]);
-    expect(currentText(), '３７');
-    expect(find.textContaining('保存できませんでした'), findsOneWidget);
-    await tapControl(tester, 'save-settings');
-    await tester.pumpAndSettle();
-    expect(writes, [37, 37]);
-    expect(find.text('磨く素材を選ぶ'), findsOneWidget);
-
-    await tapControl(tester, 'diagnostics');
-    await tester.pumpAndSettle();
-    expect(currentText(), '37');
-    await tester.enterText(count, '18');
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byKey(const ValueKey('open-device-lab')), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     await chooseMaterial(tester, 'medal');
@@ -734,7 +701,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await finishHandoff(tester);
     await tapControl(tester, 'simulate-stroke');
-    expect(SurfaceArtProbe.progress(tester), closeTo(.5 / 37, .000001));
+    expect(SurfaceArtProbe.progress(tester), closeTo(.01, .000001));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
@@ -756,7 +723,7 @@ void main() {
     expect(find.text('声とやすり'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('strokes-to-gold')), findsOneWidget);
+    expect(find.byKey(const ValueKey('open-device-lab')), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
@@ -901,8 +868,9 @@ void main() {
         expect(SurfaceArtProbe.progress(tester), greaterThan(0));
         if (material == 'medal') {
           expect(tinted, findsNothing);
-          for (var i = 0; i < 30 && tinted.evaluate().isEmpty; i++) {
-            await tester.pump(const Duration(milliseconds: 450));
+          // With medium grit, the silver surface appears on stroke 47.
+          for (var i = 1; i < 47; i++) {
+            await tester.pump(const Duration(milliseconds: 110));
             await motion(1);
           }
         }
@@ -952,8 +920,8 @@ void main() {
 
   for (final (play, strokes) in [
     ('without moving', [0, 0, 0]),
-    ('with partly polished gold', [11, 11, 6]),
-    ('with a fine finish', [11, 11, 20]),
+    ('with partly polished gold', [25, 25, 9]),
+    ('with a fine finish', [25, 25, 45]),
   ]) {
     testWidgets('three rounds $play carry the finish into the scratch medal', (
       tester,
@@ -1184,7 +1152,7 @@ void main() {
       await reportMotion(2);
       await reportMotion(1);
       expect(find.textContaining('往復'), findsNothing);
-      expect(surface().progress * 100, closeTo(50 / 22 * 1.25 / 3.5, 1e-10));
+      expect(surface().progress * 100, closeTo(1.25 / 3.5, 1e-10));
       expect(pulses.single, containsPair('amplitude', isPositive));
       expect(pulses.single, containsPair('durationMs', isPositive));
       expect(pulses.single, containsPair('followStroke', true));

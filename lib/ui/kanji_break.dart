@@ -1,29 +1,22 @@
 import 'package:flutter/material.dart';
 
-import '../game/game.dart';
-
 /// Five hand-staged poses of the supplied fractured glyph, held between cuts.
 class KanjiBreak extends StatelessWidget {
-  const KanjiBreak({super.key, required this.game});
+  const KanjiBreak({super.key});
 
   static const atlas = AssetImage('assets/images/kanji-break.webp');
   static const frameCount = 5;
   static const frameMs = 170;
   static const _duration = Duration(milliseconds: (frameCount - 1) * frameMs);
-  final GameController game;
 
   @override
   Widget build(BuildContext context) {
-    final elapsed = game.fractureElapsed;
-    if (elapsed >= _duration || MediaQuery.disableAnimationsOf(context)) {
+    if (MediaQuery.disableAnimationsOf(context)) {
       return _pose(frameCount - 1);
     }
     return TweenAnimationBuilder<double>(
-      tween: Tween<double>(
-        begin: elapsed.inMilliseconds.toDouble(),
-        end: _duration.inMilliseconds.toDouble(),
-      ),
-      duration: _duration - elapsed,
+      tween: Tween<double>(begin: 0, end: _duration.inMilliseconds.toDouble()),
+      duration: _duration,
       builder: (context, time, _) => _pose(time ~/ frameMs),
     );
   }
