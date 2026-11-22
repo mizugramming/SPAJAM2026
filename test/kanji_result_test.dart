@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:polish_workshop/game/game.dart';
 import 'package:polish_workshop/main.dart';
+import 'package:polish_workshop/ui/surface_art.dart';
 import 'package:polish_workshop/ui/workshop.dart';
 
 import 'workshop_flow_test.dart' show chooseMaterial, tapControl;
@@ -245,7 +246,21 @@ void main() {
           await tester.pumpAndSettle();
         }
         if (breakingRound == null) {
-          expect(find.text('磨き不足'), findsOneWidget);
+          void checkUnderLayout() {
+            final art = tester.getRect(find.byType(SurfaceArt));
+            final heading = tester.getRect(find.text('磨き不足'));
+            final retry = tester.getRect(find.byKey(const ValueKey('retry')));
+            final screen = tester.view.physicalSize;
+            expect(art.height, greaterThan(screen.height * .45));
+            expect(art.center.dx, closeTo(screen.width / 2, 1));
+            expect(heading.center.dx, closeTo(art.center.dx, 1));
+            expect(heading.height, greaterThan(34));
+            expect(heading.top, greaterThan(art.bottom));
+            expect(heading.bottom, lessThan(retry.top));
+            expect(retry.top - heading.bottom, lessThan(screen.height * .05));
+          }
+
+          checkUnderLayout();
           expect(find.text('漢割り'), findsNothing);
           final face = tester.widget<Image>(
             find.byKey(const ValueKey('kanji-underpolished')),
@@ -262,10 +277,13 @@ void main() {
           tester.view.physicalSize = const Size(320, 568);
           tester.platformDispatcher.accessibilityFeaturesTestValue =
               const FakeAccessibilityFeatures(disableAnimations: true);
+          tester.platformDispatcher.textScaleFactorTestValue = 2;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
           addTearDown(
             tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
           );
           await tester.pumpAndSettle();
+          checkUnderLayout();
           final character = find.byKey(const ValueKey('kanji-underpolished'));
           expect(
             (tester.widget<Image>(character).image as ResizeImage)

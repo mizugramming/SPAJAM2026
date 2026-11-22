@@ -175,8 +175,8 @@ class Workshop extends StatelessWidget {
   }) {
     final hasPaper = screen == Screen.ready || screen == Screen.polishing;
     final kanjiResult = screen == Screen.result && game.material!.id == 'kanji';
-    final earnedKanjiRank =
-        kanjiResult && game.targetFinish == TargetFinish.onTarget;
+    final finish = kanjiResult ? game.targetFinish : null;
+    final earnedKanjiRank = finish == TargetFinish.onTarget;
     final stage = kanjiResult ? _kanjiResultStage : _workshopStage;
     return stage(
       key: ValueKey((game.phase, game.round)),
@@ -196,7 +196,11 @@ class Workshop extends StatelessWidget {
             fill: true,
           ),
         Part(
-          earnedKanjiRank ? 'character' : 'workpiece',
+          switch (finish) {
+            TargetFinish.onTarget => 'character',
+            TargetFinish.under => 'underArt',
+            _ => 'workpiece',
+          },
           earnedKanjiRank ? '結果のキャラクター' : '素材',
           _Workpiece(game: game, inContact: inContact),
           transition: arrival == null
@@ -470,19 +474,30 @@ class Workshop extends StatelessWidget {
       case GamePhase.result:
         return [
           // 目標どおりの漢は、見出しの代わりに段位・人物・称号を出す（_playStage）。
-          if (kanjiFinish != TargetFinish.onTarget)
+          if (kanjiFinish == TargetFinish.under)
+            const Part(
+              'underTitle',
+              '磨き不足の見出し',
+              _Title('磨き不足', fontSize: 42),
+              singleLine: true,
+              align: Alignment.center,
+            )
+          else if (kanjiFinish != TargetFinish.onTarget)
             Part(
               'title',
               '見出し',
               _Title(switch (kanjiFinish) {
-                TargetFinish.under => '磨き不足',
                 TargetFinish.over => '削りすぎ',
                 _ => game.material!.stageAt(game.surfaceProgress).name,
               }),
               singleLine: true,
             ),
           if (game.verdict case final verdict?)
-            Part('body', '仕上がりの判定', _Body(verdict)),
+            Part(
+              kanjiFinish == TargetFinish.under ? 'underVerdict' : 'body',
+              '仕上がりの判定',
+              _Body(verdict),
+            ),
           Part(
             'hint',
             'こする案内',
@@ -1094,16 +1109,17 @@ class _MicPainter extends CustomPainter {
 }
 
 class _Title extends StatelessWidget {
-  const _Title(this.text);
+  const _Title(this.text, {this.fontSize = 28});
   final String text;
+  final double fontSize;
   @override
   Widget build(BuildContext context) => Semantics(
     header: true,
     child: Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         color: chalk,
-        fontSize: 28,
+        fontSize: fontSize,
         fontWeight: FontWeight.w800,
         height: 1.22,
         letterSpacing: -.75,
@@ -2586,40 +2602,45 @@ class _Workpiece extends StatelessWidget {
         final rank => _CrackingKanji(rank: rank),
       },
       TargetFinish.onTarget when result => _KanjiCharacter(game: game),
-      TargetFinish.under when result => Stack(
-        fit: StackFit.expand,
-        children: [
-          FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: .63,
-            heightFactor: .82,
-            child: Image.asset(
-              'assets/images/kanji-silver.png',
-              key: const ValueKey('kanji-under-surface'),
-              fit: BoxFit.contain,
-              cacheWidth: 720,
+      TargetFinish.under when result => LayoutBuilder(
+        builder: (context, box) => Stack(
+          fit: StackFit.expand,
+          children: [
+            // 両素材の透過余白を含めて配置し、実際の絵を中央にまとめる。
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: box.maxWidth * .8,
+              child: Image.asset(
+                'assets/images/kanji-silver.png',
+                key: const ValueKey('kanji-under-surface'),
+                fit: BoxFit.contain,
+                cacheWidth: 720,
+              ),
             ),
-          ),
-          FractionallySizedBox(
-            alignment: Alignment.bottomRight,
-            widthFactor: .7,
-            heightFactor: .94,
-            child: _FadeInLater(
-              delay: Duration.zero,
-              duration: _characterFadeDuration,
-              child: _CharacterMist(
-                character: Image.asset(
-                  MediaQuery.disableAnimationsOf(context)
-                      ? 'assets/images/character-under-still.webp'
-                      : 'assets/images/character-under.webp',
-                  key: const ValueKey('kanji-underpolished'),
-                  fit: BoxFit.contain,
-                  cacheWidth: 640,
+            Positioned(
+              left: box.maxWidth * .21,
+              top: 0,
+              bottom: 0,
+              width: box.maxWidth * .95,
+              child: _FadeInLater(
+                delay: Duration.zero,
+                duration: _characterFadeDuration,
+                child: _CharacterMist(
+                  character: Image.asset(
+                    MediaQuery.disableAnimationsOf(context)
+                        ? 'assets/images/character-under-still.webp'
+                        : 'assets/images/character-under.webp',
+                    key: const ValueKey('kanji-underpolished'),
+                    fit: BoxFit.contain,
+                    cacheWidth: 640,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       _ when image != null => _PolishedMedalFace(
         material: material,
