@@ -64,3 +64,16 @@ jobs:
       - run: flutter analyze --no-pub
       - run: flutter test --no-pub
       - run: flutter build apk --debug --no-pub
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: migaku-android
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+      - run: flutter build web --no-pub --no-web-resources-cdn
+      - name: Upload web app
+        uses: actions/upload-artifact@v4
+        with:
+          name: migaku-web
+          path: build/web/
+          if-no-files-found: error
