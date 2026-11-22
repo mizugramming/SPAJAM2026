@@ -2,12 +2,19 @@
 
 漢の研磨には、くすんだ銀文字と磨いた銀文字の透過画像を使う。
 
+## Androidの起動アイコン
+
+タイトル用のヤンスを参照して、2026-11-22に本アプリ用の顔の絵をImageGenで制作した。磨かれ屋の藍色（#414F59）に、磨いた金属を表す金の光を右のこめかみに添えた。[アイコンのPNG（512×512）](images/yansu-launcher-icon.png)
+
+Androidのリソースは `android/app/src/main/res/` にある。Android 8以降は `drawable-xxxhdpi/yansu_icon_foreground.png` と背景色を端末のマスクで表示する。Android 13以降の対応ランチャーでテーマアイコンを選ぶと `drawable/yansu_icon_monochrome.xml` を使う。Android 7では `mipmap-*/ic_launcher.png` を画面密度に合わせて使う。
+
 ## 画像
 
 使用する画像は `pubspec.yaml` に1枚ずつ登録している。チームが自作（手描き・編集）したメダル4枚はファイル名の末尾が `.jpg` で、中身は透過PNG。研磨中はこの絵にゲームの研磨率に応じたサビと光沢、往復に応じた反射を重ねる。
 
 | ファイル | 使う場所 |
 |---|---|
+| `assets/images/kanji-result-wood.webp` | 漢の結果画面用の木目。2026-11-22に本アプリ用にImageGenで、使い込んだクルミ材の横木目を赤褐色のガッシュと墨の調子で生成。縦757×1600のWebP。人物の周りの靄はアプリ側で重ねる。 |
 | `assets/images/yansu_title.png` | ユーザー提供の全身画をもとに、内蔵ImageGenでヤンスの紙背景を透過。髪先、墨の輪郭、顔、黒い短パン、素足を残し、足の間も透明にした。工房に直接重ねるタイトル用PNG（576 × 888）。 |
 | `assets/fonts/daou.jpg` | サビた銅メダル。素材選択カード、研磨のサビた銅・銅の段階 |
 | `assets/fonts/gin.jpg` | 銀メダルの段階 |
@@ -17,12 +24,14 @@
 | `assets/fonts/kinpika.jpg` | 仕上げたメダル上部の箔をスクラッチした跡から見える「最優秀賞」入りの絵 |
 | `assets/images/kanji-silver.png` | 漢磨きの素材選択・採音・研磨で出す銀の立体文字「漢」（くすんだ絵、透過PNG）。2026-11-22にチームが用意した「透明背景の銀色立体漢字「漢」-1.png」を英字名に変更 |
 | `assets/images/kanji-silver-polished.png` | 同じ文字の磨き上がった絵。同日の「透明背景の銀色立体漢字 漢-2.png」を英字名に変更。元の絵（未登録）。文字の位置と大きさが `kanji-silver.png` と少しずれていたため、そろえた `kanji-silver-polished-aligned.png` を研磨の割合だけ上に重ねて、磨くほどこの絵になる |
-| `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png`、`overpolished-01〜05.png` | 動きを減らす設定で成功時に使う静止キャラクター（合計点と対応は app_design.md）。overpolished系は以前の失敗用素材。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
+| `assets/images/character-02/04/05.png`、`gyansu.jpg`、`kyushu-danji.png` | 動きを減らす設定で成功時に使う静止キャラクター（合計点と対応は app_design.md）。2026-11-22にチームから受け取った。`kyushu-danji.png` は「九州男児.png」を英字名に変更 |
 | `assets/images/kanji-rank-1〜5.png` | 漢磨きの結果画面の段位の「漢」（1漢は赤、2漢は金など段位ごとの色）。2026-11-22にチームから受け取った「１漢.jpg」〜「５漢.jpg」の白背景を透明にしたもの |
+| `assets/images/overpolished-01.png` 〜 `overpolished-05.png` | チーム提供の漢割り用イラスト。番号順に1漢・九州男児、2漢・醤油顔、3漢・ムキムキ、4漢・塩顔、5漢・韓国系に対応する。割れのアニメーションと別の位置に表示する。 |
 | `assets/images/kanji-break.webp` | 削りすぎた時点のやすりの合計が9点なら、この5コマで割れる。チーム提供の「漢-黄色-割れ.png」の赤い破片と既存の1漢を使った透過5コマ（1コマ384×384）。上限を超えるとひびが伸び、破片が離れて止まる。[同じ5コマの動画](media/kanji-break.mp4) |
 | `assets/images/kanji-crack-2〜5-before.webp`、`kanji-crack-2〜5-after.webp`、`kanji-crack-2〜5-left/right.webp` | 削りすぎ（失敗）のときに段位の「漢」が割れるコマ送り。2026-11-22にチームから受け取った「N漢割れ前.jpg」「N漢割.jpg」の白背景を透明にし、割れる前の絵をひびの左右に切り分けた。配信用の4コマは透過と原寸を保った可逆WebP。1漢は上記の5コマを使用 |
 | `assets/images/character-success-1〜5.webp` | 漢磨きの成功時のキャラクター（動くWebP、12コマ/秒のループ）。2026-11-22にチームから受け取った「１.mp4」〜「５.mp4」から、枠につながる明るい背景を透明にして変換。動画再生のパッケージは追加していない |
 | `assets/images/workshop-title-01〜05.png` | 漢磨きの結果画面の称号（01 九州男児、02 醤油顔、03 ムキムキ、04 塩顔、05 韓国系、透過PNG）。2026-11-22にチームから受け取った |
+| `assets/images/character-under.webp` | 漢磨きの磨き不足のキャラクター（動くWebP）。動きを減らす設定では、先頭フレームを同じ大きさで保存した `character-under-still.webp` を表示する。2026-11-22にチームから受け取った「キャラクター_毛先補完_背景透過.mp4」から、枠につながる黒い背景を透明にして変換 |
 | `assets/images/kanji-rock.png` | 灰色の岩（透過PNG）。素材選択の漢の絵に一時使ったが、今は未使用・未登録 |
 | `assets/images/copper_medal_spin.webp` | 素材選択から採音画面へ移る緑青付き銅メダル。2026-11-22に提供された「緑青の銅メダル_立体回転_高精細_透過.mov」の正面から1回転（1.75秒）を24コマに抜き出した。各コマ320 px四方、6列×4行の透過WebP（1920×1280 px、約529 KiB）。 |
 | `assets/images/workshop_room.webp` | 「磨かれ屋」の奥の店内（852 × 1846）。灰褐色の漆喰壁、左の二段棚、右の木柱、足元の床を描いた。本とダンベルは別素材で棚板に載せる。 |
@@ -59,7 +68,7 @@
 
 紙やすりの質感には、2026-11-22にユーザーが本アプリ用に提供した無地の紙の画像を使用。透明な余白を詰めた `assets/images/sandpaper_plain.webp`（1320 × 785、約114 KiB）を同梱した。紙の端の繊維と右上の折れは原画のもの。2枚目の画像にある斜めの印字を参考に、`lib/ui/sandpaper.dart` で各ラウンドの測定値を重ねる。紙色を調整する入口は `sandpaperColorFor`、印字は `sandpaperStampFor`。
 
-メダル画像は1枚2MB前後あり、表示時は `cacheWidth` で縮小して読み込む。容量を減らす場合は縮小した画像に差し替える。磨きすぎ用の `kagami.jpg` は、磨きすぎの判定がゲームに入るまで未使用・未登録。UI担当は `lib/ui/surface_art.dart` で形状・明暗・反射を、共通担当は `lib/game/game.dart` の素材定義で段階ごとの色・汚れ・光沢を調整する。Androidの起動アイコンは `res/drawable/workshop_icon.xml` に同じ方位星を描いた。
+メダル画像は1枚2MB前後あり、表示時は `cacheWidth` で縮小して読み込む。容量を減らす場合は縮小した画像に差し替える。磨きすぎ用の `kagami.jpg` は、磨きすぎの判定がゲームに入るまで未使用・未登録。UI担当は `lib/ui/surface_art.dart` で形状・明暗・反射を、共通担当は `lib/game/game.dart` の素材定義で段階ごとの色・汚れ・光沢を調整する。
 
 ## 筆の明朝（画面の文字）
 
