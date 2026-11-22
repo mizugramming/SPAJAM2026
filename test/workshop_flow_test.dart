@@ -75,10 +75,10 @@ void main() {
       of: surfaceArt,
       matching: find.byType(Image),
     );
-    if (images.evaluate().isEmpty) return;
-    final image = tester.widget<Image>(images.last);
-    final context = tester.element(images.last);
-    await tester.runAsync(() => precacheImage(image.image, context));
+    for (final element in images.evaluate().toList()) {
+      final image = element.widget as Image;
+      await tester.runAsync(() => precacheImage(image.image, element));
+    }
     await tester.pump();
   }
 
@@ -278,7 +278,7 @@ void main() {
       if (round < 3) await tester.pumpAndSettle();
     }
     expectOneLine('今回の仕上がり');
-    expectOneLine('金ピカのメダル');
+    expectOneLine('サビた銅メダル');
     expectOneLine('もう一度遊ぶ');
     expectOneLine('タイトルへ');
   });
@@ -531,9 +531,12 @@ void main() {
         expect(find.text('いろみがき'), findsNothing);
         expect(find.text('疑似入力'), findsOneWidget);
         expect(paper, findsNothing);
-        // The medal always ends at the polishing gold, however far it got.
         if (material == 'medal') {
-          expect(find.text('金ピカのメダル'), findsOneWidget);
+          expect(find.text(stages.last), findsOneWidget);
+          expect(
+            find.byKey(const ValueKey('medal-hand-polish')),
+            findsOneWidget,
+          );
         } else {
           // 6 points: 3漢, shown as the rank-colored 漢 without a digit.
           expect(find.bySemanticsLabel('3漢'), findsOneWidget);
@@ -894,11 +897,33 @@ void main() {
     },
   );
 
+  // Coordinates are fractions of the illustrated medal, so the same gesture
+  // reaches the curved inscription at any viewport size.
+  Future<void> slideAcross(
+    WidgetTester tester,
+    Finder target, {
+    required double y,
+    double fromX = .18,
+    double toX = .82,
+  }) async {
+    final rect = tester.getRect(target);
+    Offset point(double x) =>
+        rect.topLeft + Offset(rect.width * x, rect.height * y);
+    final finger = await tester.startGesture(point(fromX));
+    for (var i = 1; i <= 8; i++) {
+      await finger.moveTo(point(fromX + (toX - fromX) * i / 8));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await finger.up();
+    await tester.pump();
+  }
+
   for (final (play, strokes) in [
     ('without moving', [0, 0, 0]),
+    ('with partly polished gold', [11, 11, 6]),
     ('with a fine finish', [11, 11, 20]),
   ]) {
-    testWidgets('three rounds $play reveal the medal inscription by touch', (
+    testWidgets('three rounds $play carry the finish into the scratch medal', (
       tester,
     ) async {
       tester.view.devicePixelRatio = 1;
@@ -908,6 +933,9 @@ void main() {
       await tester.pumpAndSettle();
       await tapControl(tester, 'title-start');
       await chooseMaterial(tester, 'medal');
+      double? lastSurface;
+      final sheen = find.byKey(const ValueKey('medal-gold-sheen'));
+      double? lastSheen;
       for (var round = 1; round <= 3; round++) {
         expect(
           find.text('仕上げは高い声で'),
@@ -919,30 +947,69 @@ void main() {
         await finishHandoff(tester);
         for (var n = 0; n < strokes[round - 1]; n++) {
           await tapControl(tester, 'simulate-stroke');
+          final progress = SurfaceArtProbe.progress(tester);
+          if (round == 3 && progress > .50 && progress < .95) {
+            final opacity = tester.widget<Opacity>(sheen).opacity;
+            expect(opacity, greaterThan(lastSheen ?? 0));
+            expect(opacity, lessThan(1));
+            lastSheen = opacity;
+          }
         }
-        if (strokes[0] == 0) expect(SurfaceArtProbe.progress(tester), 0);
+        lastSurface = SurfaceArtProbe.progress(tester);
         await tester.pump(const Duration(seconds: 10));
         await tester.pumpAndSettle();
       }
-      expect(find.text('今回の仕上がり'), findsOneWidget);
-      expect(SurfaceArtProbe.progress(tester), greaterThanOrEqualTo(.95));
-      expect(find.text('金ピカのメダル'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('assets/images/medal-gold-polishing.png')),
-        findsOneWidget,
-      );
-      expect(find.text('金メダル'), findsNothing);
 
-      // Rubbing the finished gold medal reveals the engraved title where the
-      // finger passed.
-      expect(find.textContaining('指でこすると'), findsOneWidget);
+      expect(find.text('今回の仕上がり'), findsOneWidget);
+      expect(SurfaceArtProbe.progress(tester), closeTo(lastSurface!, 1e-9));
+      final handPolish = find.byKey(const ValueKey('medal-hand-polish'));
+      final scratch = find.byKey(const ValueKey('medal-rub'));
       final revealed = find.byKey(const ValueKey('medal-revealed'));
+      if (lastSurface < .95) {
+        expect(
+          find.text(lastSurface == 0 ? 'サビた銅メダル' : '金メダル'),
+          findsOneWidget,
+        );
+        expect(handPolish, findsOneWidget);
+        expect(scratch, findsNothing);
+        if (lastSheen != null) {
+          expect(
+            tester.widget<Opacity>(sheen).opacity,
+            closeTo(lastSheen, 1e-9),
+          );
+        }
+        final finger = await tester.startGesture(tester.getCenter(handPolish));
+        await tester.pump(const Duration(seconds: 2));
+        await finger.up();
+        await tester.pump();
+        expect(SurfaceArtProbe.progress(tester), closeTo(lastSurface, 1e-9));
+
+        await slideAcross(tester, handPolish, y: .5, fromX: .40, toX: .60);
+        final afterSwipe = SurfaceArtProbe.progress(tester);
+        expect(afterSwipe, greaterThan(lastSurface));
+        await tester.pump(const Duration(seconds: 2));
+        expect(SurfaceArtProbe.progress(tester), afterSwipe);
+        for (var i = 0; i < 8 && handPolish.evaluate().isNotEmpty; i++) {
+          await slideAcross(tester, handPolish, y: .34 + (i % 4) * .1);
+        }
+      }
+      expect(handPolish, findsNothing);
+      expect(find.text('金ピカのメダル'), findsOneWidget);
+      expect(scratch, findsOneWidget);
       expect(revealed, findsNothing);
-      await tester.drag(
-        find.byKey(const ValueKey('medal-rub')),
-        const Offset(80, 0),
+
+      // A still finger on the foil and a moving finger below the inscription
+      // both leave the foil intact.
+      final rect = tester.getRect(scratch);
+      final finger = await tester.startGesture(
+        rect.topLeft + Offset(rect.width * .5, rect.height * .18),
       );
+      await tester.pump(const Duration(seconds: 2));
+      await finger.up();
       await tester.pump();
+      await slideAcross(tester, scratch, y: .70);
+      expect(revealed, findsNothing);
+      await slideAcross(tester, scratch, y: .18, fromX: .36, toX: .64);
       expect(revealed, findsOneWidget);
       expect(
         find.descendant(
@@ -951,8 +1018,32 @@ void main() {
         ),
         findsOneWidget,
       );
+      final size = tester.getSize(revealed);
+      Path mask() => tester.widget<ClipPath>(revealed).clipper!.getClip(size);
+      Offset onMedal(double x, double y) =>
+          Offset(size.width * x, size.height * y);
+      final worn = mask();
+      // A single pass cuts thin furrows and leaves some foil between them.
+      final strokeInterior = [
+        for (var col = 0; col < 25; col++)
+          for (var row = 0; row < 13; row++)
+            onMedal(.40 + col * .008, .162 + row * .003),
+      ];
+      final firstCut = strokeInterior.where(worn.contains).length;
+      expect(firstCut, inExclusiveRange(0, strokeInterior.length));
+      expect(worn.contains(onMedal(.16, .18)), isFalse);
+      expect(worn.contains(onMedal(.5, .32)), isFalse);
+      expect(worn.contains(onMedal(.5, .70)), isFalse);
+      // Going back over the inscription breaks up more of the remaining foil.
+      await slideAcross(tester, scratch, y: .18, fromX: .64, toX: .36);
+      expect(
+        strokeInterior.where(mask().contains).length,
+        greaterThan(firstCut),
+      );
       await tapControl(tester, 'retry');
       expect(revealed, findsNothing);
+      await chooseMaterial(tester, 'medal');
+      expect(SurfaceArtProbe.progress(tester), 0);
     });
   }
 

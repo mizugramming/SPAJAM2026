@@ -337,6 +337,28 @@ class GameController extends ChangeNotifier {
   double get value => _value;
   double get progress => _material?.progressAt(_value) ?? 0;
 
+  // The awarded result and the unfinished surface can differ. Keep the last
+  // sensor-driven appearance until the player buffs the remaining metal.
+  double? _handFinishProgress;
+  double get surfaceProgress => _handFinishProgress ?? progress;
+  bool get needsHandPolish => _handFinishProgress != null;
+
+  /// Distance actually rubbed inside the medal, measured in medal diameters.
+  void polishResult(double diameters) {
+    final current = _handFinishProgress;
+    if (_phase != GamePhase.result ||
+        _paused ||
+        current == null ||
+        !diameters.isFinite ||
+        diameters <= 0) {
+      return;
+    }
+    const gainPerDiameter = .40;
+    final next = current + diameters * gainPerDiameter;
+    _handFinishProgress = next >= progress ? null : next;
+    notifyListeners();
+  }
+
   /// Available from material selection through the resulting finish.
   FinishStage get stage => _material!.stageAt(progress);
   bool get finishingWithFine =>
@@ -448,7 +470,8 @@ class GameController extends ChangeNotifier {
       _remainingSeconds = 0;
       final material = _material!;
       final floor = material.finishAtLeast;
-      if (floor != null && material.progressAt(_value) < floor) {
+      if (floor != null && progress < floor) {
+        if (material.id == 'medal') _handFinishProgress = progress;
         _value = material.initialValue - material.maxRemoval * floor;
       }
       _phase = GamePhase.result;
@@ -472,6 +495,7 @@ class GameController extends ChangeNotifier {
   }
 
   void _clearSession() {
+    _handFinishProgress = null;
     _stopClock();
     _round = 1;
     _remainingSeconds = polishDuration.inSeconds;

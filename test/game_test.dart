@@ -32,7 +32,7 @@ void main() {
   });
 
   testWidgets(
-    'a motionless medal gains its finish only at the final deadline',
+    'the score awards gold at the deadline and hand polishing controls the surface',
     (tester) async {
       final game = GameController();
       addTearDown(game.dispose);
@@ -50,6 +50,23 @@ void main() {
         expect(game.phase, GamePhase.result);
         expect(game.totalStrokes, 0);
         expect(game.progress, material.id == 'medal' ? .95 : 0);
+        expect(game.surfaceProgress, 0);
+        expect(game.needsHandPolish, material.id == 'medal');
+        await tester.pump(const Duration(seconds: 20));
+        expect(game.surfaceProgress, 0);
+        game.polishResult(.5);
+        if (material.id == 'medal') {
+          expect(game.surfaceProgress, inExclusiveRange(0.0, .95));
+          expect(game.progress, .95);
+          game.polishResult(3);
+          expect(game.surfaceProgress, closeTo(.95, 1e-9));
+          expect(game.needsHandPolish, isFalse);
+        } else {
+          expect(game.surfaceProgress, 0);
+        }
+        expect(game.totalStrokes, 0);
+        game.reset();
+        expect(game.surfaceProgress, 0);
       }
     },
   );
